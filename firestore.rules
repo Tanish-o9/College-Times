@@ -84,6 +84,11 @@ service cloud.firestore {
         allow read, create, update, delete: if true;
       }
 
+      // Phase 37: Saved Group Moments Sub-collection
+      match /savedGroupMoments/{instantId} {
+        allow read, create, update, delete: if isOwner(userId);
+      }
+
       // Phase 34: Group Instant Read State Sub-collection
       match /groupInstantState/{groupId} {
         allow read, create, update, delete: if true;
@@ -626,11 +631,15 @@ service cloud.firestore {
         allow create, update, delete: if isAuthenticated();
       }
 
-      // Phase 34 & 36A: Group Instants / Permanent Moments Sub-collection
+      // Phase 34, 36A & 37: Group Instants / Permanent Moments Sub-collection
       match /instants/{instantId} {
         allow read, create, update, delete: if isAuthenticated();
 
         match /media/{mediaId} {
+          allow read, create, update, delete: if isAuthenticated();
+        }
+
+        match /comments/{commentId} {
           allow read, create, update, delete: if isAuthenticated();
         }
 

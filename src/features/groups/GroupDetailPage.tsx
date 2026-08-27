@@ -35,7 +35,7 @@ import toast from 'react-hot-toast';
 import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 
-type GroupTab = 'members' | 'polls' | 'invites';
+type GroupTab = 'members' | 'polls' | 'invites' | 'moments';
 
 export const GroupDetailPage: React.FC = () => {
   const { groupId } = useParams<{ groupId: string }>();

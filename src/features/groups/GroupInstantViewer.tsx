@@ -7,9 +7,31 @@ import {
   reportGroupInstant,
   deleteGroupInstant,
   getGroupInstantMedia,
+  saveGroupMoment,
+  unsaveGroupMoment,
+  isMomentSaved,
+  getMomentComments,
+  addMomentComment,
+  deleteMomentComment,
 } from '../../services/groupInstantService';
-import type { GroupInstant, GroupInstantMedia } from '../../types/group';
-import { X, MessageSquare, Flag, Trash2, Heart, ThumbsUp, Flame, Smile, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import type { GroupInstant, GroupInstantMedia, GroupInstantComment } from '../../types/group';
+import {
+  X,
+  MessageSquare,
+  Flag,
+  Trash2,
+  Heart,
+  ThumbsUp,
+  Flame,
+  Smile,
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight,
+  Bookmark,
+  Share2,
+  Send,
+  MessageCircle,
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface GroupInstantViewerProps {
@@ -42,29 +64,46 @@ export const GroupInstantViewer: React.FC<GroupInstantViewerProps> = ({
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
   const [subcollectionMedia, setSubcollectionMedia] = useState<GroupInstantMedia[]>([]);
 
+  // Phase 37 Features: Saved State & Comments Drawer
+  const [saved, setSaved] = useState<boolean>(false);
+  const [showComments, setShowComments] = useState<boolean>(false);
+  const [comments, setComments] = useState<GroupInstantComment[]>([]);
+  const [commentText, setCommentText] = useState<string>('');
+  const [submittingComment, setSubmittingComment] = useState<boolean>(false);
+
   useOverlayBackHandler(isOpen, onClose);
 
   useEffect(() => {
     setCurrentIndex(initialIndex);
     setCurrentMediaIndex(0);
+    setShowComments(false);
   }, [initialIndex, isOpen]);
 
   const currentInstant = instants[currentIndex];
 
-  // Fetch subcollection media items when instant changes
+  // Fetch subcollection media items & save status when instant changes
   useEffect(() => {
     if (!isOpen || !currentInstant || !groupId) return;
 
     getGroupInstantMedia(groupId, currentInstant.id, 50)
       .then((mediaDocs) => {
-        if (mediaDocs && mediaDocs.length > 0) {
-          setSubcollectionMedia(mediaDocs);
-        } else {
-          setSubcollectionMedia([]);
-        }
+        setSubcollectionMedia(mediaDocs && mediaDocs.length > 0 ? mediaDocs : []);
       })
       .catch(() => setSubcollectionMedia([]));
-  }, [isOpen, groupId, currentInstant?.id]);
+
+    if (currentUser) {
+      isMomentSaved(currentInstant.id, currentUser.uid).then(setSaved);
+    }
+  }, [isOpen, groupId, currentInstant?.id, currentUser]);
+
+  // Fetch comments when comments drawer is opened
+  useEffect(() => {
+    if (showComments && currentInstant && groupId) {
+      getMomentComments(groupId, currentInstant.id, 30)
+        .then((res) => setComments(res.comments))
+        .catch(() => setComments([]));
+    }
+  }, [showComments, groupId, currentInstant?.id]);
 
   if (!isOpen || !currentInstant) return null;
 
@@ -105,6 +144,71 @@ export const GroupInstantViewer: React.FC<GroupInstantViewerProps> = ({
       toast.success(`Reacted ${emoji}`);
     } catch (err: any) {
       toast.error(err.message || 'Failed to react.');
+    }
+  };
+
+  const handleToggleSave = async () => {
+    if (!currentUser) return;
+    try {
+      if (saved) {
+        await unsaveGroupMoment(currentInstant.id, groupId, currentUser.uid);
+        setSaved(false);
+        toast.success('Moment removed from saved.');
+      } else {
+        await saveGroupMoment(currentInstant.id, groupId, currentUser.uid);
+        setSaved(true);
+        toast.success('Moment saved!');
+      }
+    } catch (err: any) {
+      toast.error('Failed to update bookmark.');
+    }
+  };
+
+  const handleShare = async () => {
+    const shareUrl = `${window.location.origin}/groups/${groupId}?moment=${currentInstant.id}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Group Moment from ${currentInstant.senderName}`,
+          text: currentInstant.caption || 'Check out this Group Moment!',
+          url: shareUrl,
+        });
+      } catch (err) {
+        // Fallback to clipboard
+        await navigator.clipboard.writeText(shareUrl);
+        toast.success('Moment link copied to clipboard!');
+      }
+    } else {
+      await navigator.clipboard.writeText(shareUrl);
+      toast.success('Moment link copied to clipboard!');
+    }
+  };
+
+  const handleAddComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser || submittingComment || !commentText.trim()) return;
+
+    setSubmittingComment(true);
+    try {
+      const newComment = await addMomentComment(groupId, currentInstant.id, commentText, currentUser, userProfile);
+      setComments((prev) => [...prev, newComment]);
+      setCommentText('');
+      toast.success('Comment added.');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to add comment.');
+    } finally {
+      setSubmittingComment(false);
+    }
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    if (!currentUser) return;
+    try {
+      await deleteMomentComment(groupId, currentInstant.id, commentId, currentUser);
+      setComments((prev) => prev.filter((c) => (c.commentId || c.id) !== commentId));
+      toast.success('Comment removed.');
+    } catch (err: any) {
+      toast.error('Failed to delete comment.');
     }
   };
 
@@ -168,6 +272,22 @@ export const GroupInstantViewer: React.FC<GroupInstantViewerProps> = ({
             </div>
 
             <div className="flex items-center gap-1.5">
+              <button
+                onClick={handleToggleSave}
+                className={`p-1.5 transition-colors ${saved ? 'text-amber-400' : 'text-slate-400 hover:text-white'}`}
+                title={saved ? 'Bookmarked' : 'Save Moment'}
+              >
+                <Bookmark className="w-4 h-4" fill={saved ? 'currentColor' : 'none'} />
+              </button>
+
+              <button
+                onClick={handleShare}
+                className="p-1.5 text-slate-400 hover:text-sky-400 transition-colors"
+                title="Share Moment"
+              >
+                <Share2 className="w-4 h-4" />
+              </button>
+
               {currentUser?.uid === currentInstant.senderId || userProfile?.role === 'admin' ? (
                 <button onClick={handleDelete} className="p-1.5 text-slate-400 hover:text-rose-400 transition-colors" title="Delete Instant">
                   <Trash2 className="w-4 h-4" />
@@ -226,16 +346,16 @@ export const GroupInstantViewer: React.FC<GroupInstantViewerProps> = ({
             </p>
           )}
 
-          {/* Reaction Bar */}
+          {/* Reaction Bar & Comments Trigger */}
           <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-800/60">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5">
               {EMOJI_LIST.map(({ symbol, label }) => {
                 const count = currentInstant.reactionCounts?.[symbol] || 0;
                 return (
                   <button
                     key={symbol}
                     onClick={() => handleReact(symbol)}
-                    className="px-2.5 py-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs flex items-center gap-1 transition-all active:scale-95"
+                    className="px-2 py-1 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs flex items-center gap-1 transition-all active:scale-95 shrink-0"
                     title={`React ${label}`}
                   >
                     <span>{symbol}</span>
@@ -245,15 +365,83 @@ export const GroupInstantViewer: React.FC<GroupInstantViewerProps> = ({
               })}
             </div>
 
-            <button
-              onClick={handleReplyInChat}
-              className="px-3.5 py-1.5 bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all shadow-md shrink-0"
-            >
-              <MessageSquare className="w-3.5 h-3.5" />
-              <span>Group Chat</span>
-            </button>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                onClick={() => setShowComments(!showComments)}
+                className="px-3 py-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-bold rounded-xl flex items-center gap-1 transition-all"
+              >
+                <MessageCircle className="w-3.5 h-3.5 text-purple-400" />
+                <span>{currentInstant.commentCount || comments.length || 0}</span>
+              </button>
+
+              <button
+                onClick={handleReplyInChat}
+                className="px-3 py-1.5 bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs rounded-xl flex items-center gap-1 transition-all shadow-md shrink-0"
+              >
+                <MessageSquare className="w-3.5 h-3.5" />
+                <span>Chat</span>
+              </button>
+            </div>
           </div>
         </div>
+
+        {/* Phase 37: Comments Drawer Modal */}
+        {showComments && (
+          <div className="absolute inset-x-0 bottom-0 top-16 z-40 bg-slate-950/95 backdrop-blur-xl border-t border-slate-800 flex flex-col p-4 space-y-3 animate-in slide-in-from-bottom duration-200">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                <MessageCircle className="w-4 h-4 text-purple-400" />
+                <span>Moment Discussion ({comments.length})</span>
+              </span>
+              <button onClick={() => setShowComments(false)} className="p-1 text-slate-400 hover:text-white">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-2.5 pr-1">
+              {comments.length === 0 ? (
+                <p className="text-[11px] text-slate-500 italic text-center py-8">
+                  No comments yet. Start the conversation!
+                </p>
+              ) : (
+                comments.map((c) => (
+                  <div key={c.id || c.commentId} className="p-2.5 bg-slate-900/60 border border-slate-800/80 rounded-2xl space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-purple-300">{c.authorName}</span>
+                      {currentUser?.uid === c.authorId || userProfile?.role === 'admin' ? (
+                        <button
+                          onClick={() => handleDeleteComment(c.commentId || c.id!)}
+                          className="text-slate-500 hover:text-rose-400 p-0.5"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      ) : null}
+                    </div>
+                    <p className="text-xs text-slate-200 leading-normal">{c.text}</p>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Add Comment Input */}
+            <form onSubmit={handleAddComment} className="flex items-center gap-2 pt-2 border-t border-slate-800">
+              <input
+                type="text"
+                value={commentText}
+                onChange={(e) => setCommentText(e.target.value)}
+                placeholder="Add a comment..."
+                className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500/50"
+              />
+              <button
+                type="submit"
+                disabled={submittingComment || !commentText.trim()}
+                className="p-2 bg-purple-500 hover:bg-purple-400 disabled:opacity-50 text-white rounded-xl transition-all"
+              >
+                <Send className="w-3.5 h-3.5" />
+              </button>
+            </form>
+          </div>
+        )}
       </div>
     </div>
   );

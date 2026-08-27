@@ -86,6 +86,30 @@ export interface GroupInstant {
   status: 'active' | 'expired' | 'deleted' | 'hidden';
   reactionCounts?: Record<string, number>;
   replyCount?: number;
+  commentCount?: number;
+  saveCount?: number;
+  shareCount?: number;
+}
+
+export interface GroupInstantComment {
+  id?: string;
+  commentId?: string;
+  instantId: string;
+  groupId: string;
+  authorId: string;
+  authorName: string;
+  authorAvatar?: string;
+  text: string;
+  createdAt: Timestamp | FieldValue | any;
+  updatedAt?: Timestamp | FieldValue | any;
+  status: 'active' | 'deleted';
+  replyToCommentId?: string;
+}
+
+export interface SavedGroupMoment {
+  instantId: string;
+  groupId: string;
+  savedAt: Timestamp | FieldValue | any;
 }
 
 export interface GroupInstantReadState {
