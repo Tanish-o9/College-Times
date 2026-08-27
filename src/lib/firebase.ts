@@ -6,6 +6,7 @@ import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getDatabase } from 'firebase/database';
+import { getFunctions } from 'firebase/functions';
 import { getAnalytics, logEvent, isSupported } from 'firebase/analytics';
 
 const firebaseConfig = {
@@ -27,6 +28,7 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 export const rtdb = getDatabase(app);
+export const functions = getFunctions(app, 'us-central1');
 
 // Analytics (safely initialized if browser environment supports it)
 export const analytics = typeof window !== 'undefined' ? getAnalytics(app) : null;

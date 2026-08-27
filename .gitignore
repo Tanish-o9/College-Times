@@ -13,6 +13,9 @@ dist-ssr
 *.local
 .env
 .env.local
+functions/.env
+functions/.env.local
+*.secret.json
 
 
 # Editor directories and files

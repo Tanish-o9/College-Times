@@ -2,13 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { ConfirmationResult } from 'firebase/auth';
 import { sendOtp, verifyOtp, signInWithGoogle, clearRecaptcha } from '../../services/authService';
+import { EmailOtpLogin } from './EmailOtpLogin';
 import toast from 'react-hot-toast';
 import { Phone, ShieldCheck, ArrowRight, RefreshCw, KeyRound, CheckCircle2 } from 'lucide-react';
 
 export const PhoneLogin: React.FC = () => {
   const navigate = useNavigate();
 
-  // State management
+  // Mode selection: 'phone' | 'email'
+  const [authMode, setAuthMode] = useState<'phone' | 'email'>('email');
   const [phoneNumber, setPhoneNumber] = useState<string>('');
   const [otpCode, setOtpCode] = useState<string>('');
   const [step, setStep] = useState<1 | 2>(1);
@@ -113,6 +115,15 @@ export const PhoneLogin: React.FC = () => {
       setLoading(false);
     }
   };
+
+  if (authMode === 'email') {
+    return (
+      <EmailOtpLogin
+        onSuccess={() => navigate('/')}
+        onSwitchToPhone={() => setAuthMode('phone')}
+      />
+    );
+  }
 
   return (
     <div className="w-full max-w-md mx-auto">

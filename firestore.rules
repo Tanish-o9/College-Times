@@ -407,6 +407,11 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Phase 30: Secure Email OTP Challenge Collection (Cloud Functions Admin Only)
+    match /otpChallenges/{challengeId} {
+      allow read, write: if false;
+    }
+
     // Bug Reports Collection
     match /bugReports/{reportId} {
       allow create: if isAuthenticated()

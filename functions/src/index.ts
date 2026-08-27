@@ -1,3 +1,21 @@
+import * as functions from 'firebase-functions';
+import * as admin from 'firebase-admin';
+import { requestEmailOtpHandler, verifyEmailOtpHandler } from './handlers/emailOtpHandler';
+
+if (!admin.apps.length) {
+  admin.initializeApp();
+}
+
+const db = admin.firestore();
+
+export const requestEmailOtp = functions.https.onCall(async (data: any) => {
+  return requestEmailOtpHandler(db, admin, data);
+});
+
+export const verifyEmailOtp = functions.https.onCall(async (data: any) => {
+  return verifyEmailOtpHandler(db, admin, data);
+});
+
 const MAX_MENTIONS_PER_MESSAGE = 20;
 const POINT_COOLDOWN_MS = 60 * 1000;
 const CHAT_BLOCKED_TERMS = ['spam', 'scam', 'abuse', 'hate', 'nsfw', 'vulgar', 'offensive', 'harass'];

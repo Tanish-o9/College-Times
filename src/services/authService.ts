@@ -3,13 +3,15 @@ import {
   signInWithPhoneNumber, 
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithCustomToken,
   signOut,
   type ConfirmationResult, 
   type User 
 } from 'firebase/auth';
+import { httpsCallable } from 'firebase/functions';
 import { doc, getDoc, setDoc, runTransaction, increment, serverTimestamp } from 'firebase/firestore';
 
-import { auth, db } from '../lib/firebase';
+import { auth, db, functions, logAnalyticsEvent } from '../lib/firebase';
 import toast from 'react-hot-toast';
 
 declare global {
@@ -234,4 +236,65 @@ export const signOutUser = async (): Promise<void> => {
     throw error;
   }
 };
+
+/**
+ * Requests a 6-digit verification code sent to the student's college email.
+ */
+export const requestEmailOtp = async (email: string): Promise<void> => {
+  const cleanEmail = email.trim().toLowerCase();
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!cleanEmail || !emailRegex.test(cleanEmail)) {
+    throw new Error('Please enter a valid college email address.');
+  }
+
+  try {
+    const callFunction = httpsCallable(functions, 'requestEmailOtp');
+    const result: any = await callFunction({ email: cleanEmail });
+    
+    logAnalyticsEvent('auth_otp_requested', { provider: 'email_otp' });
+    toast.success(result.data?.message || 'Verification code sent if email is eligible.', { id: 'email-otp-sent' });
+  } catch (error: any) {
+    console.error('Error requesting email OTP:', error);
+    const msg = error.message || "We couldn't send the verification code right now. Please try again.";
+    toast.error(msg, { id: 'email-otp-request-error' });
+    logAnalyticsEvent('auth_otp_failed', { provider: 'email_otp', stage: 'request' });
+    throw new Error(msg);
+  }
+};
+
+/**
+ * Verifies the 6-digit email OTP and signs in with custom Firebase Auth token.
+ */
+export const verifyEmailOtp = async (email: string, otp: string): Promise<User> => {
+  const cleanEmail = email.trim().toLowerCase();
+  const cleanOtp = otp.trim();
+
+  if (cleanOtp.length !== 6) {
+    throw new Error('Please enter the 6-digit verification code.');
+  }
+
+  try {
+    const callFunction = httpsCallable(functions, 'verifyEmailOtp');
+    const result: any = await callFunction({ email: cleanEmail, otp: cleanOtp });
+
+    const customToken = result.data?.customToken;
+    if (!customToken) {
+      throw new Error('Failed to retrieve authentication token.');
+    }
+
+    const userCredential = await signInWithCustomToken(auth, customToken);
+    await ensureUserDocument(userCredential.user);
+
+    logAnalyticsEvent('auth_otp_verified', { provider: 'email_otp' });
+    toast.success('College email verification successful! 🎉', { id: 'email-otp-success' });
+    return userCredential.user;
+  } catch (error: any) {
+    console.error('Error verifying email OTP:', error);
+    const msg = error.message || 'Verification failed. Please check the code and try again.';
+    toast.error(msg, { id: 'email-otp-verify-error' });
+    logAnalyticsEvent('auth_otp_failed', { provider: 'email_otp', stage: 'verify' });
+    throw new Error(msg);
+  }
+};
+
 
