@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { requestEmailOtp, verifyEmailOtp } from '../../services/authService';
 import toast from 'react-hot-toast';
 import { Mail, ShieldCheck, ArrowRight, RefreshCw, KeyRound, ArrowLeft } from 'lucide-react';
@@ -10,7 +9,6 @@ interface EmailOtpLoginProps {
 }
 
 export const EmailOtpLogin: React.FC<EmailOtpLoginProps> = ({ onSuccess, onSwitchToPhone }) => {
-  const navigate = useNavigate();
 
   const [email, setEmail] = useState<string>('');
   const [otpCode, setOtpCode] = useState<string>('');
@@ -72,10 +70,8 @@ export const EmailOtpLogin: React.FC<EmailOtpLoginProps> = ({ onSuccess, onSwitc
       if (resUser) {
         if (onSuccess) {
           onSuccess();
-        } else {
-          navigate('/', { replace: true });
-          window.location.href = '/';
         }
+        window.location.replace('/');
       }
     } catch (err) {
       // Error handled in service toast

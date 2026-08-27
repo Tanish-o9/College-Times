@@ -320,15 +320,15 @@ export const verifyEmailOtp = async (email: string, otp: string): Promise<User> 
           await updateProfile(userCredential.user, { displayName: studentName });
         } catch (pErr) {}
       } catch (anonErr) {
-        // Fallback for local dev if anonymous auth is disabled on firebase console
         loggedUser = {
           uid: `student_${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
           email: cleanEmail,
           displayName: studentName,
           emailVerified: true,
         };
-        localStorage.setItem('college_times_dev_session', JSON.stringify(loggedUser));
       }
+
+      localStorage.setItem('college_times_dev_session', JSON.stringify(loggedUser));
 
       await ensureUserDocument({
         ...loggedUser,

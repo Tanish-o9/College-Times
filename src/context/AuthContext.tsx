@@ -26,10 +26,33 @@ export const useAuth = () => {
   return context;
 };
 
+const getInitialDevUser = () => {
+  try {
+    const stored = localStorage.getItem('college_times_dev_session');
+    return stored ? JSON.parse(stored) : null;
+  } catch {
+    return null;
+  }
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
-  const [userProfile, setUserProfile] = useState<User | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const initialDevUser = getInitialDevUser();
+
+  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(initialDevUser);
+  const [userProfile, setUserProfile] = useState<User | null>(() => {
+    if (!initialDevUser) return null;
+    return {
+      uid: initialDevUser.uid,
+      displayName: initialDevUser.displayName || 'Student',
+      email: initialDevUser.email,
+      role: 'student',
+      points: 10,
+      joinedChannelIds: ['general', 'admin-announcements'],
+      createdAt: new Date() as any,
+      lastLoginAt: new Date() as any,
+    };
+  });
+  const [loading, setLoading] = useState<boolean>(!initialDevUser);
 
   const fetchProfile = async (uid: string) => {
     try {
