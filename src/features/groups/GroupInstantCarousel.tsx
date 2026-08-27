@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../../hooks/useAuth';
 import { subscribeToActiveGroupInstants } from '../../services/groupInstantService';
 import type { GroupInstant } from '../../types/group';
 import { CreateGroupInstantModal } from './CreateGroupInstantModal';
