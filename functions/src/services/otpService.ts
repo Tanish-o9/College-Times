@@ -13,7 +13,11 @@ export const validateCollegeDomain = (email: string): boolean => {
   if (!domain) return false;
 
   const envDomains = process.env.ALLOWED_COLLEGE_EMAIL_DOMAINS || process.env.ALLOWED_EMAIL_DOMAINS;
-  let allowedDomains = ['akgec.ac.in', 'student.akgec.ac.in', 'gmail.com'];
+  let allowedDomains = ['akgec.ac.in', 'student.akgec.ac.in'];
+
+  if (process.env.NODE_ENV === 'development') {
+    allowedDomains.push('gmail.com');
+  }
 
   if (envDomains) {
     allowedDomains = envDomains.split(',').map((d) => d.trim().toLowerCase()).filter(Boolean);

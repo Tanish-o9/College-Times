@@ -86,7 +86,7 @@ export const sendOtpEmail = async ({
   const textContent = `College Times Verification Code: ${otpCode}\n\nThis code expires in ${expiryMinutes} minutes. If you did not request this, please ignore this email.`;
 
   if (!transporter) {
-    console.log(`[TEST/DEV MOCK MAIL] Nodemailer SMTP not configured. OTP for ${recipientEmail}: ${otpCode}`);
+    console.log(`[DEV MOCK MAIL] Nodemailer SMTP not configured. OTP dispatched to local development logger for ${recipientEmail.slice(0, 3)}***.`);
     return true;
   }
 
@@ -95,14 +95,14 @@ export const sendOtpEmail = async ({
     await transporter.sendMail({
       from: `"College Times Auth" <${smtpUser}>`,
       to: recipientEmail,
-      subject: `Your College Times Verification Code is ${otpCode}`,
+      subject: `Your College Times Verification Code`,
       text: textContent,
       html: htmlContent,
     });
-    console.log(`[SMTP SUCCESS] Verification OTP sent successfully to ${recipientEmail.slice(0, 3)}***@***`);
+    console.log(`[SMTP SUCCESS] Verification OTP sent successfully to ${recipientEmail.slice(0, 3)}***`);
     return true;
-  } catch (error) {
-    console.error(`[SMTP ERROR] Failed to send OTP email:`, error);
+  } catch (error: any) {
+    console.error(`[SMTP ERROR] Email delivery error: ${error?.message || 'SMTP delivery failed'}`);
     return false;
   }
 };
