@@ -6,6 +6,7 @@ import { getPostsPage } from '../../services/postService';
 import { rankPosts } from '../../services/feedRankingService';
 import { getUserFeedPreferences } from '../../services/feedPreferenceService';
 import type { QueryDocumentSnapshot } from 'firebase/firestore';
+import { StoryBar } from '../stories/StoryBar';
 import { PostCard } from './PostCard';
 import { CreatePostModal } from './CreatePostModal';
 import { TrendingPosts } from './TrendingPosts';
@@ -342,7 +343,9 @@ export const Feed: React.FC = () => {
       )}
 
       {/* Snap-Scroll Container */}
-      <div className="flex-1 overflow-y-auto snap-y snap-mandatory scroll-smooth w-full">
+      <div className="flex-1 overflow-y-auto snap-y snap-mandatory scroll-smooth w-full p-3 sm:p-4">
+        {/* Phase 32: Campus 24-Hour Stories Bar */}
+        <StoryBar />
         {/* Trending Posts Carousel (Shown when in Trending or Personalized modes) */}
         {(feedMode === 'trending' || feedMode === 'personalized') && (
           <div className="p-4 border-b border-slate-800/80 bg-slate-950/40">

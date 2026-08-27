@@ -442,6 +442,32 @@ service cloud.firestore {
       }
     }
 
+    // Phase 32: Campus 24-Hour Stories Collection
+    match /stories/{storyId} {
+      allow read: if isAuthenticated() && (resource.data.status == 'active' || resource.data.authorId == request.auth.uid);
+      allow create: if isAuthenticated() 
+        && request.resource.data.authorId == request.auth.uid
+        && request.resource.data.keys().hasAll(['authorId', 'authorName', 'mediaType', 'status', 'createdAt', 'expiresAt']);
+      allow update: if isAuthenticated() && (
+        resource.data.authorId == request.auth.uid ||
+        request.resource.data.diff(resource.data).affectedKeys().hasAny(['viewCount', 'reactionCount', 'replyCount'])
+      );
+      allow delete: if isAuthenticated() && resource.data.authorId == request.auth.uid;
+
+      // Story Views Sub-collection
+      match /views/{userId} {
+        allow read, create: if isAuthenticated() && (
+          userId == request.auth.uid ||
+          get(/databases/$(database)/documents/stories/$(storyId)).data.authorId == request.auth.uid
+        );
+      }
+
+      // Story Reactions Sub-collection
+      match /reactions/{userId} {
+        allow read, create, update, delete: if isAuthenticated() && userId == request.auth.uid;
+      }
+    }
+
     // Bug Reports Collection
     match /bugReports/{reportId} {
       allow create: if isAuthenticated()

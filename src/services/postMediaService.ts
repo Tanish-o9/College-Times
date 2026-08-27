@@ -69,3 +69,34 @@ export const uploadPostImages = async (
 
   return results;
 };
+
+/**
+ * Uploads a single story photo to storyMedia/{userId}/{storyId}/{filename}.
+ */
+export const uploadSingleStoryImage = async (
+  file: File,
+  userId: string,
+  storyId: string
+): Promise<{ url: string; storagePath: string }> => {
+  if (!file) throw new Error('File required.');
+  if (file.size > 10 * 1024 * 1024) throw new Error('Image size exceeds 10MB limit.');
+  if (!ALLOWED_IMAGE_TYPES.has(file.type)) throw new Error('Unsupported image format.');
+
+  const filename = `${Date.now()}_${sanitizeFilename(file.name)}`;
+  const storagePath = `storyMedia/${userId}/${storyId}/${filename}`;
+  const storageRef = ref(storage, storagePath);
+
+  const uploadTask = uploadBytesResumable(storageRef, file, { contentType: file.type });
+
+  return new Promise((resolve, reject) => {
+    uploadTask.on(
+      'state_changed',
+      null,
+      (error) => reject(error),
+      async () => {
+        const url = await getDownloadURL(uploadTask.snapshot.ref);
+        resolve({ url, storagePath });
+      }
+    );
+  });
+};
