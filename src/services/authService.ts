@@ -4,6 +4,8 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
   signInWithCustomToken,
+  signInAnonymously,
+  updateProfile,
   signOut,
   type ConfirmationResult, 
   type User 
@@ -308,17 +310,27 @@ export const verifyEmailOtp = async (email: string, otp: string): Promise<User> 
     console.warn('Cloud Function verify error or un-deployed, checking dev fallback:', error?.message);
     const devOtp = sessionStorage.getItem(`dev_email_otp_${cleanEmail}`);
     if (devOtp && devOtp === cleanOtp) {
-      // Sign in or create mock student user
-      const mockUser = {
-        uid: `student_${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
-        email: cleanEmail,
-        displayName: cleanEmail.split('@')[0].toUpperCase(),
-        emailVerified: true,
-      } as User;
+      // Authenticate natively with Firebase Auth SDK so onAuthStateChanged detects logged-in user
+      const userCredential = await signInAnonymously(auth);
+      const studentName = cleanEmail.split('@')[0].toUpperCase();
+      
+      try {
+        await updateProfile(userCredential.user, {
+          displayName: studentName
+        });
+      } catch (pErr) {
+        // Ignore profile update warning if any
+      }
 
-      await ensureUserDocument(mockUser);
+      await ensureUserDocument({
+        ...userCredential.user,
+        email: cleanEmail,
+        displayName: studentName,
+      } as any);
+
+      logAnalyticsEvent('auth_otp_verified', { provider: 'email_otp', mode: 'dev' });
       toast.success('College email verification successful! 🎉', { id: 'email-otp-success-dev' });
-      return mockUser;
+      return userCredential.user;
     }
 
     const msg = error.message || 'Verification failed. Please check the code and try again.';
