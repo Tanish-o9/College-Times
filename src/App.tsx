@@ -44,6 +44,7 @@ import { IncidentReportDetail } from './features/incidents/IncidentReportDetail'
 
 import { NotificationsPage } from './features/notifications/NotificationsPage';
 import { NotificationSettings } from './features/settings/NotificationSettings';
+import { SystemHealthPage } from './features/admin/SystemHealthPage';
 
 // Code-split heavy AdminPortal route
 const AdminPage = lazy(() => import('./features/admin/AdminPage').then(module => ({ default: module.AdminPage })));
@@ -110,6 +111,10 @@ export const App: React.FC = () => {
                         <AdminPage />
                       </Suspense>
                     } 
+                  />
+                  <Route 
+                    path="/admin/system-health" 
+                    element={<SystemHealthPage />} 
                   />
                 </Route>
               </Route>
