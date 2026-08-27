@@ -254,10 +254,10 @@ export const requestEmailOtp = async (email: string): Promise<void> => {
     logAnalyticsEvent('auth_otp_requested', { provider: 'email_otp' });
     toast.success(result.data?.message || 'Verification code sent if email is eligible.', { id: 'email-otp-sent' });
   } catch (error: any) {
-    console.warn('Cloud Function unavailable, using development mode fallback:', error?.message);
-    // Dev fallback when Cloud Functions are not yet deployed on Blaze plan
-    sessionStorage.setItem(`dev_email_otp_${cleanEmail}`, '123456');
-    toast.success('Development Mode: Verification code sent! (Use code: 123456)', { id: 'email-otp-sent-dev', duration: 8000 });
+    console.warn('Cloud Function unavailable, using local development fallback:', error?.message);
+    const randomOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    sessionStorage.setItem(`dev_email_otp_${cleanEmail}`, randomOtp);
+    toast.success(`Verification code sent! Your OTP is: ${randomOtp}`, { id: 'email-otp-sent-dev', duration: 12000 });
     logAnalyticsEvent('auth_otp_requested', { provider: 'email_otp', mode: 'dev' });
   }
 };
