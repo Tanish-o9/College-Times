@@ -7,7 +7,13 @@ export type NotificationCategory =
   | 'chat'
   | 'alerts'
   | 'events'
-  | 'social';
+  | 'social'
+  | 'group_chat'
+  | 'moments'
+  | 'polls'
+  | 'announcements'
+  | 'moderation'
+  | 'membership';
 
 export type NotificationType =
   | 'mention'
@@ -27,12 +33,31 @@ export type NotificationType =
   | 'marketplace_offer_accepted'
   | 'marketplace_offer_rejected'
   | 'opportunity_deadline_reminder'
-  | 'system';
+  | 'system'
+  | 'group_mention'
+  | 'group_reply'
+  | 'group_chat_message'
+  | 'moment_created'
+  | 'moment_comment'
+  | 'moment_reaction'
+  | 'poll_created'
+  | 'poll_result'
+  | 'group_announcement'
+  | 'join_request'
+  | 'membership_change'
+  | 'group_moderation'
+  | 'group_invite';
+
+export type NotificationPriority = 'low' | 'normal' | 'high' | 'critical';
 
 export interface NotificationItem {
   id: string;
   recipientId: string;
   type: NotificationType;
+  category?: NotificationCategory;
+  priority?: NotificationPriority;
+  groupId?: string;
+  groupName?: string;
   title?: string;
   message: string;
   read: boolean;

@@ -59,8 +59,7 @@ export const Navbar: React.FC = () => {
       return;
     }
 
-    const unsubscribe = subscribeToNotifications(currentUser.uid, (items) => {
-      const count = items.filter((item) => !item.read).length;
+    const unsubscribe = subscribeToNotifications(currentUser.uid, (count: number) => {
       setUnreadCount(count);
     });
 

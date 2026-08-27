@@ -1,6 +1,7 @@
 import {
   collection,
   doc,
+  setDoc,
   addDoc,
   getDocs,
   updateDoc,
@@ -16,12 +17,17 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 import { db, logAnalyticsEvent } from '../lib/firebase';
-import type { NotificationItem, NotificationType } from '../types/notification';
+import type { NotificationItem, NotificationType, NotificationCategory, NotificationPriority } from '../types/notification';
+import { isGroupNotificationMuted, getGroupNotificationPreferences } from './groupNotificationPreferenceService';
 
 export interface CreateNotificationParams {
   recipientId: string;
   senderId?: string;
   type?: NotificationType;
+  category?: NotificationCategory;
+  priority?: NotificationPriority;
+  groupId?: string;
+  groupName?: string;
   title?: string;
   message: string;
   postId?: string;
@@ -34,11 +40,13 @@ export interface CreateNotificationParams {
   actorName?: string;
   severity?: 'low' | 'moderate' | 'high' | 'critical';
   deepLink?: string;
+  dedupId?: string;
 }
 
 /**
  * Creates a targeted personal notification for a recipient user.
  * Skips self-notifications (senderId === recipientId).
+ * Verifies group notification preferences & mute status for group notifications.
  */
 export const createNotification = async (params: CreateNotificationParams): Promise<void> => {
   try {
@@ -46,15 +54,39 @@ export const createNotification = async (params: CreateNotificationParams): Prom
       return;
     }
 
+    // Check group mute & preferences if notification belongs to a group
+    if (params.groupId && params.priority !== 'critical') {
+      const isMuted = await isGroupNotificationMuted(params.recipientId, params.groupId);
+      if (isMuted) return;
+
+      const groupPrefs = await getGroupNotificationPreferences(params.recipientId, params.groupId);
+      if (!groupPrefs.allNotifications) return;
+
+      // Filter by sub-category
+      if (params.type === 'group_mention' && !groupPrefs.mentions) return;
+      if (params.type === 'group_reply' && !groupPrefs.replies) return;
+      if (params.type === 'group_chat_message' && !groupPrefs.chatMessages) return;
+      if (params.type === 'moment_created' && !groupPrefs.newMoments) return;
+      if (params.type === 'moment_comment' && !groupPrefs.momentComments) return;
+      if (params.type === 'poll_created' && !groupPrefs.polls) return;
+      if (params.type === 'poll_result' && !groupPrefs.pollResults) return;
+      if (params.type === 'event_created' && !groupPrefs.events) return;
+      if (params.type === 'group_announcement' && !groupPrefs.announcements) return;
+    }
+
     const targetPostId = params.postId || params.relatedPostId;
 
-    const notificationsRef = collection(db, 'notifications');
-    await addDoc(notificationsRef, {
+    const notifData = {
       recipientId: params.recipientId,
       type: params.type || 'system',
+      ...(params.category ? { category: params.category } : {}),
+      priority: params.priority || (params.severity === 'critical' ? 'critical' : 'normal'),
+      ...(params.groupId ? { groupId: params.groupId } : {}),
+      ...(params.groupName ? { groupName: params.groupName } : {}),
       ...(params.title ? { title: params.title } : {}),
       message: params.message,
       read: false,
+      createdAt: serverTimestamp(),
       timestamp: serverTimestamp(),
       ...(targetPostId ? { postId: targetPostId, relatedPostId: targetPostId } : {}),
       ...(params.channelId ? { channelId: params.channelId } : {}),
@@ -65,6 +97,21 @@ export const createNotification = async (params: CreateNotificationParams): Prom
       ...(params.actorName ? { actorName: params.actorName } : {}),
       ...(params.severity ? { severity: params.severity } : {}),
       ...(params.deepLink ? { deepLink: params.deepLink } : {}),
+    };
+
+    // Deduplication check if dedupId provided
+    if (params.dedupId) {
+      const dedupRef = doc(db, 'notifications', params.dedupId);
+      await setDoc(dedupRef, notifData, { merge: true });
+    } else {
+      const notificationsRef = collection(db, 'notifications');
+      await addDoc(notificationsRef, notifData);
+    }
+
+    logAnalyticsEvent('group_notification_created', {
+      recipientId: params.recipientId,
+      type: params.type || 'system',
+      groupId: params.groupId || 'none',
     });
   } catch (error) {
     console.error('Error creating notification:', error);
@@ -78,181 +125,116 @@ export const getNotificationsPaginated = async (
   userId: string,
   options: {
     limitCount?: number;
-    startAfterDoc?: DocumentSnapshot | null;
+    lastDoc?: DocumentSnapshot | null;
   } = {}
 ): Promise<{
   notifications: NotificationItem[];
   lastDoc: DocumentSnapshot | null;
-  hasMore: boolean;
 }> => {
-  if (!userId) return { notifications: [], lastDoc: null, hasMore: false };
+  if (!userId) return { notifications: [], lastDoc: null };
 
-  const fetchLimit = Math.min(options.limitCount || 20, 50);
-  const notificationsRef = collection(db, 'notifications');
+  const boundedLimit = Math.min(Math.max(options.limitCount || 20, 1), 50);
+  const notifRef = collection(db, 'notifications');
 
   let q = query(
-    notificationsRef,
+    notifRef,
     where('recipientId', '==', userId),
     orderBy('timestamp', 'desc'),
-    limit(fetchLimit + 1)
+    limit(boundedLimit)
   );
 
-  if (options.startAfterDoc) {
+  if (options.lastDoc) {
     q = query(
-      notificationsRef,
+      notifRef,
       where('recipientId', '==', userId),
       orderBy('timestamp', 'desc'),
-      startAfter(options.startAfterDoc),
-      limit(fetchLimit + 1)
+      startAfter(options.lastDoc),
+      limit(boundedLimit)
     );
   }
 
   const snap = await getDocs(q);
-  const docs = snap.docs;
-  const hasMore = docs.length > fetchLimit;
-  const pageDocs = hasMore ? docs.slice(0, fetchLimit) : docs;
-
-  const notifications: NotificationItem[] = pageDocs.map((d) => ({
-    id: d.id,
-    ...(d.data() as any),
-    createdAt: d.data().timestamp,
+  const notifications: NotificationItem[] = snap.docs.map((docSnap) => ({
+    id: docSnap.id,
+    ...(docSnap.data() as Omit<NotificationItem, 'id'>),
   }));
 
-  const lastDoc = pageDocs.length > 0 ? pageDocs[pageDocs.length - 1] : null;
+  const nextLastDoc = snap.docs.length > 0 ? snap.docs[snap.docs.length - 1] : null;
 
-  return { notifications, lastDoc, hasMore };
+  return { notifications, lastDoc: nextLastDoc };
 };
 
 /**
- * Real-time bounded unread count listener (max limit: 10).
+ * Listens to realtime unread notification count for a user.
  */
-export const subscribeToUnreadCount = (
+export const subscribeToUnreadNotificationCount = (
   userId: string,
-  callback: (unreadCount: number) => void
+  onCountUpdate: (count: number) => void
 ): Unsubscribe => {
   if (!userId) {
-    callback(0);
+    onCountUpdate(0);
     return () => {};
   }
 
-  const notificationsRef = collection(db, 'notifications');
+  const notifRef = collection(db, 'notifications');
   const q = query(
-    notificationsRef,
+    notifRef,
     where('recipientId', '==', userId),
     where('read', '==', false),
-    limit(10)
+    limit(50)
   );
 
   return onSnapshot(
     q,
-    (snapshot) => {
-      callback(snapshot.docs.length);
+    (snap) => {
+      onCountUpdate(snap.size);
     },
     (err) => {
-      console.error('Error in unread count subscription:', err);
-      callback(0);
+      console.error('Failed to listen to unread notification count:', err);
+      onCountUpdate(0);
     }
   );
 };
 
 /**
- * Marks a single notification document as read.
+ * Marks a notification as read.
  */
-export const markNotificationAsRead = async (notificationId: string): Promise<void> => {
-  if (!notificationId) return;
-  try {
-    const notifRef = doc(db, 'notifications', notificationId);
-    await updateDoc(notifRef, { read: true });
-    logAnalyticsEvent('notification_marked_read', { notificationId });
-  } catch (error) {
-    console.error('Error marking notification as read:', error);
-  }
-};
-
-/**
- * Batched update setting read: true for specified notification IDs.
- */
-export const markVisibleNotificationsAsRead = async (
-  userId: string,
-  notificationIds: string[]
+export const markNotificationAsRead = async (
+  notificationId: string,
+  userId: string
 ): Promise<void> => {
-  if (!userId || !notificationIds || notificationIds.length === 0) return;
-  try {
-    const batch = writeBatch(db);
-    notificationIds.forEach((id) => {
-      const notifRef = doc(db, 'notifications', id);
-      batch.update(notifRef, { read: true });
-    });
-    await batch.commit();
-  } catch (error) {
-    console.error('Error marking visible notifications as read:', error);
-  }
+  if (!notificationId || !userId) return;
+
+  const notifDocRef = doc(db, 'notifications', notificationId);
+  await updateDoc(notifDocRef, { read: true });
+  logAnalyticsEvent('group_notification_marked_read', { notificationId });
 };
 
 /**
- * Batched update setting read: true for all unread notifications.
+ * Marks all notifications as read for a user (bounded batch max 50).
  */
 export const markAllNotificationsAsRead = async (userId: string): Promise<void> => {
   if (!userId) return;
-  try {
-    const notificationsRef = collection(db, 'notifications');
-    const q = query(
-      notificationsRef,
-      where('recipientId', '==', userId),
-      where('read', '==', false),
-      limit(100)
-    );
 
-    const snapshot = await getDocs(q);
-    if (snapshot.empty) return;
-
-    const batch = writeBatch(db);
-    snapshot.docs.forEach((docSnap) => {
-      batch.update(docSnap.ref, { read: true });
-    });
-
-    await batch.commit();
-    logAnalyticsEvent('notifications_marked_all_read', {});
-  } catch (error) {
-    console.error('Error marking all notifications as read:', error);
-  }
-};
-
-/**
- * Backwards compatibility aliases for NotificationTray and Navbar.
- */
-export const markAllAsRead = markAllNotificationsAsRead;
-
-export const subscribeToNotifications = (
-  userId: string,
-  callback: (notifications: NotificationItem[]) => void
-): Unsubscribe => {
-  if (!userId) {
-    callback([]);
-    return () => {};
-  }
-
-  const notificationsRef = collection(db, 'notifications');
+  const notifRef = collection(db, 'notifications');
   const q = query(
-    notificationsRef,
+    notifRef,
     where('recipientId', '==', userId),
-    orderBy('timestamp', 'desc'),
-    limit(30)
+    where('read', '==', false),
+    limit(50)
   );
 
-  return onSnapshot(
-    q,
-    (snapshot) => {
-      const items: NotificationItem[] = snapshot.docs.map((docSnap) => ({
-        id: docSnap.id,
-        ...(docSnap.data() as any),
-        createdAt: docSnap.data().timestamp,
-      }));
-      callback(items);
-    },
-    (error) => {
-      console.error('Error in notification subscription:', error);
-      callback([]);
-    }
-  );
+  const snap = await getDocs(q);
+  if (snap.empty) return;
+
+  const batch = writeBatch(db);
+  snap.docs.forEach((docSnap) => {
+    batch.update(docSnap.ref, { read: true });
+  });
+
+  await batch.commit();
+  logAnalyticsEvent('group_notifications_marked_all_read', { userId });
 };
+
+export const subscribeToNotifications = subscribeToUnreadNotificationCount;
+export const markAllAsRead = markAllNotificationsAsRead;

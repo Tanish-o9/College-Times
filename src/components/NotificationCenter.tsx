@@ -13,10 +13,14 @@ import {
   CheckCheck,
   RefreshCw,
   MessageSquare,
-  Heart,
+  Sparkles,
   Calendar,
   ChevronRight,
   ShieldAlert,
+  BarChart3,
+  Megaphone,
+  UserCheck,
+  Users,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { DocumentSnapshot } from 'firebase/firestore';
@@ -28,7 +32,6 @@ export const NotificationCenter: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState<NotificationCategory>('all');
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [lastDoc, setLastDoc] = useState<DocumentSnapshot | null>(null);
-  const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
 
@@ -39,7 +42,6 @@ export const NotificationCenter: React.FC = () => {
       const res = await getNotificationsPaginated(currentUser.uid, { limitCount: 20 });
       setNotifications(res.notifications);
       setLastDoc(res.lastDoc);
-      setHasMore(res.hasMore);
     } catch (err) {
       toast.error('Failed to load notifications.');
     } finally {
@@ -57,11 +59,10 @@ export const NotificationCenter: React.FC = () => {
     try {
       const res = await getNotificationsPaginated(currentUser.uid, {
         limitCount: 20,
-        startAfterDoc: lastDoc,
+        lastDoc,
       });
       setNotifications((prev) => [...prev, ...res.notifications]);
       setLastDoc(res.lastDoc);
-      setHasMore(res.hasMore);
     } catch (err) {
       toast.error('Failed to load more notifications.');
     } finally {
@@ -70,11 +71,10 @@ export const NotificationCenter: React.FC = () => {
   };
 
   const handleMarkAsRead = async (id: string) => {
-    // Optimistic UI update
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n))
     );
-    await markNotificationAsRead(id);
+    await markNotificationAsRead(id, currentUser?.uid || '');
   };
 
   const handleMarkAllRead = async () => {
@@ -85,12 +85,14 @@ export const NotificationCenter: React.FC = () => {
   };
 
   const handleNotificationClick = async (item: NotificationItem) => {
-    if (!item.read) {
+    if (!item.read && currentUser) {
       handleMarkAsRead(item.id);
     }
 
     if (item.deepLink) {
       navigate(item.deepLink);
+    } else if (item.groupId) {
+      navigate(`/groups/${item.groupId}`);
     } else if (item.incidentId) {
       navigate(`/incidents/${item.incidentId}`);
     } else if (item.eventId) {
@@ -102,36 +104,68 @@ export const NotificationCenter: React.FC = () => {
     }
   };
 
-  // Category Filter Function
   const filteredNotifications = notifications.filter((item) => {
     if (activeCategory === 'unread') return !item.read;
-    if (activeCategory === 'mentions') return item.type === 'mention' || item.type === 'reply';
-    if (activeCategory === 'chat') return item.type === 'mention' || item.type === 'reply' || item.type === 'reaction' || item.type === 'chat_activity';
-    if (activeCategory === 'alerts') return item.type === 'campus_incident' || item.type === 'admin_broadcast';
+    if (activeCategory === 'mentions') return item.type === 'mention' || item.type === 'group_mention' || item.type === 'reply' || item.type === 'group_reply';
+    if (activeCategory === 'group_chat') return item.type === 'group_chat_message' || item.type === 'group_mention';
+    if (activeCategory === 'moments') return item.type === 'moment_created' || item.type === 'moment_comment' || item.type === 'moment_reaction';
+    if (activeCategory === 'polls') return item.type === 'poll_created' || item.type === 'poll_result';
     if (activeCategory === 'events') return item.type === 'event_created' || item.type === 'event_reminder' || item.type === 'event_rsvp';
-    if (activeCategory === 'social') return item.type === 'post_like' || item.type === 'post_comment' || item.type === 'lost_found';
+    if (activeCategory === 'announcements') return item.type === 'group_announcement' || item.type === 'admin_broadcast';
+    if (activeCategory === 'moderation') return item.type === 'group_moderation' || item.type === 'campus_incident';
+    if (activeCategory === 'membership') return item.type === 'join_request' || item.type === 'membership_change' || item.type === 'group_invite';
     return true;
   });
 
   const getItemIcon = (type: string) => {
     switch (type) {
       case 'campus_incident':
+      case 'group_moderation':
+        return <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />;
+      case 'group_announcement':
       case 'admin_broadcast':
-        return <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />;
+        return <Megaphone className="w-4 h-4 text-amber-400 shrink-0" />;
       case 'event_created':
       case 'event_reminder':
       case 'event_rsvp':
         return <Calendar className="w-4 h-4 text-emerald-400 shrink-0" />;
-      case 'post_like':
-      case 'post_comment':
-        return <Heart className="w-4 h-4 text-rose-400 shrink-0" />;
+      case 'moment_created':
+      case 'moment_comment':
+      case 'moment_reaction':
+        return <Sparkles className="w-4 h-4 text-purple-400 shrink-0" />;
+      case 'poll_created':
+      case 'poll_result':
+        return <BarChart3 className="w-4 h-4 text-indigo-400 shrink-0" />;
+      case 'join_request':
+      case 'membership_change':
+        return <UserCheck className="w-4 h-4 text-sky-400 shrink-0" />;
       case 'mention':
+      case 'group_mention':
       case 'reply':
-      case 'chat_activity':
+      case 'group_reply':
+      case 'group_chat_message':
         return <MessageSquare className="w-4 h-4 text-sky-400 shrink-0" />;
       default:
         return <Bell className="w-4 h-4 text-slate-400 shrink-0" />;
     }
+  };
+
+  const getPriorityBadge = (priority?: string) => {
+    if (priority === 'critical') {
+      return (
+        <span className="px-2 py-0.5 rounded font-mono text-[9px] font-bold uppercase bg-rose-500/20 text-rose-300 border border-rose-500/30">
+          CRITICAL
+        </span>
+      );
+    }
+    if (priority === 'high') {
+      return (
+        <span className="px-2 py-0.5 rounded font-mono text-[9px] font-bold uppercase bg-amber-500/20 text-amber-300 border border-amber-500/30">
+          HIGH
+        </span>
+      );
+    }
+    return null;
   };
 
   return (
@@ -139,21 +173,32 @@ export const NotificationCenter: React.FC = () => {
       {/* Category Tabs Header */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-none text-xs">
-          {(['all', 'unread', 'mentions', 'chat', 'alerts', 'events', 'social'] as NotificationCategory[]).map(
-            (cat) => (
-              <button
-                key={cat}
-                onClick={() => setActiveCategory(cat)}
-                className={`px-3 py-1.5 rounded-full font-bold uppercase text-[10px] transition-all whitespace-nowrap ${
-                  activeCategory === cat
-                    ? 'bg-sky-500 text-slate-950 shadow-md'
-                    : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                {cat.replace('_', ' ')}
-              </button>
-            )
-          )}
+          {(
+            [
+              'all',
+              'unread',
+              'mentions',
+              'group_chat',
+              'moments',
+              'polls',
+              'events',
+              'announcements',
+              'moderation',
+              'membership',
+            ] as NotificationCategory[]
+          ).map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setActiveCategory(cat)}
+              className={`px-3 py-1.5 rounded-full font-bold uppercase text-[10px] transition-all whitespace-nowrap ${
+                activeCategory === cat
+                  ? 'bg-sky-500 text-slate-950 shadow-md'
+                  : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              {cat.replace('_', ' ')}
+            </button>
+          ))}
         </div>
 
         <button
@@ -195,11 +240,13 @@ export const NotificationCenter: React.FC = () => {
                     {!item.read && (
                       <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse" />
                     )}
-                    {item.severity && (
-                      <span className="px-2 py-0.5 rounded font-mono text-[9px] font-bold uppercase bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                        {item.severity}
+                    {item.groupName && (
+                      <span className="px-2 py-0.5 rounded font-mono text-[9px] font-bold uppercase bg-slate-800 text-sky-300 flex items-center gap-1">
+                        <Users className="w-3 h-3" />
+                        <span>{item.groupName}</span>
                       </span>
                     )}
+                    {getPriorityBadge(item.priority)}
                     <span className="text-[10px] text-slate-500 font-mono">
                       {formatTimestamp(item.createdAt)}
                     </span>
@@ -219,7 +266,7 @@ export const NotificationCenter: React.FC = () => {
           ))}
 
           {/* Load More Button */}
-          {hasMore && (
+          {lastDoc && (
             <div className="pt-2 text-center">
               <button
                 onClick={handleLoadMore}

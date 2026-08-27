@@ -6,6 +6,13 @@ import {
   transferGroupOwnership,
   archiveGroup,
 } from '../../services/groupManagementService';
+import {
+  getGroupNotificationPreferences,
+  updateGroupNotificationPreferences,
+  muteGroupNotifications,
+  unmuteGroupNotifications,
+  type GroupNotificationPreferences,
+} from '../../services/groupNotificationPreferenceService';
 import { canEditSettings, canTransferOwnership, canArchiveGroup } from '../../services/groupPermissionService';
 import type { CampusGroup, GroupRole } from '../../types/group';
 import { GroupInviteManager } from './GroupInviteManager';
@@ -17,6 +24,8 @@ import {
   Archive,
   RefreshCw,
   Save,
+  Bell,
+  BellOff,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
@@ -37,6 +46,10 @@ export const GroupSettingsPage: React.FC = () => {
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('General');
   const [visibility, setVisibility] = useState<'public' | 'private'>('public');
+
+  // Notification Preferences State
+  const [notifPrefs, setNotifPrefs] = useState<GroupNotificationPreferences | null>(null);
+  const [isMuted, setIsMuted] = useState(false);
 
   // Ownership transfer state
   const [newOwnerUid, setNewOwnerUid] = useState('');
@@ -59,6 +72,13 @@ export const GroupSettingsPage: React.FC = () => {
       const snap = await getDoc(memberRef);
       if (snap.exists()) {
         setUserRole(snap.data().role || 'member');
+      }
+
+      const prefs = await getGroupNotificationPreferences(currentUser.uid, groupId);
+      setNotifPrefs(prefs);
+      if (prefs.mutedUntil) {
+        const muteTime = prefs.mutedUntil instanceof Date ? prefs.mutedUntil.getTime() : (prefs.mutedUntil as any).toMillis?.() || 0;
+        setIsMuted(Date.now() < muteTime);
       }
     } catch (err) {
       toast.error('Failed to load settings.');
@@ -90,6 +110,38 @@ export const GroupSettingsPage: React.FC = () => {
       toast.error(err.message || 'Failed to save settings.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleToggleNotifPref = async (key: keyof GroupNotificationPreferences) => {
+    if (!groupId || !currentUser || !notifPrefs) return;
+
+    const newValue = !notifPrefs[key];
+    const updated = { ...notifPrefs, [key]: newValue };
+    setNotifPrefs(updated);
+
+    try {
+      await updateGroupNotificationPreferences(currentUser.uid, groupId, { [key]: newValue });
+      toast.success('Notification preferences updated.');
+    } catch (err) {
+      toast.error('Failed to update notification preferences.');
+    }
+  };
+
+  const handleMuteToggle = async (durationMinutes: number) => {
+    if (!groupId || !currentUser) return;
+    try {
+      if (isMuted) {
+        await unmuteGroupNotifications(currentUser.uid, groupId);
+        setIsMuted(false);
+        toast.success('Group notifications unmuted.');
+      } else {
+        await muteGroupNotifications(currentUser.uid, groupId, durationMinutes);
+        setIsMuted(true);
+        toast.success(`Group notifications muted for ${durationMinutes} minutes.`);
+      }
+    } catch (err) {
+      toast.error('Failed to update mute state.');
     }
   };
 
@@ -138,7 +190,7 @@ export const GroupSettingsPage: React.FC = () => {
             <h1 className="text-base sm:text-lg font-bold text-white truncate">
               {group?.name || 'Group Settings'}
             </h1>
-            <p className="text-[11px] text-slate-400 font-mono">Administration & Controls</p>
+            <p className="text-[11px] text-slate-400 font-mono">Administration & Notification Controls</p>
           </div>
         </div>
       </header>
@@ -150,82 +202,164 @@ export const GroupSettingsPage: React.FC = () => {
             <RefreshCw className="w-4 h-4 animate-spin text-sky-400" />
             <span>Loading group settings...</span>
           </div>
-        ) : !canEdit ? (
-          <div className="p-8 bg-rose-500/10 border border-rose-500/20 rounded-3xl text-center space-y-3 text-rose-300 text-xs">
-            <ShieldAlert className="w-8 h-8 text-rose-400 mx-auto" />
-            <p className="font-bold">Access Denied: Only group owners and admins can edit settings.</p>
-          </div>
         ) : (
           <div className="space-y-6">
+            {/* Notification Preferences Section */}
+            <div className="p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Bell className="w-4 h-4 text-sky-400" />
+                  <span>My Group Notification Controls</span>
+                </h2>
+                <button
+                  onClick={() => handleMuteToggle(60)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    isMuted
+                      ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                  }`}
+                >
+                  {isMuted ? <BellOff className="w-3.5 h-3.5 text-rose-400" /> : <Bell className="w-3.5 h-3.5 text-sky-400" />}
+                  <span>{isMuted ? 'Unmute Group' : 'Mute for 1 Hour'}</span>
+                </button>
+              </div>
+
+              {notifPrefs && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 text-xs">
+                  <label className="flex items-center justify-between p-3 bg-slate-950 border border-slate-800 rounded-2xl cursor-pointer">
+                    <span className="text-slate-300 font-semibold">Mentions</span>
+                    <input
+                      type="checkbox"
+                      checked={notifPrefs.mentions}
+                      onChange={() => handleToggleNotifPref('mentions')}
+                      className="accent-sky-500 w-4 h-4 rounded"
+                    />
+                  </label>
+
+                  <label className="flex items-center justify-between p-3 bg-slate-950 border border-slate-800 rounded-2xl cursor-pointer">
+                    <span className="text-slate-300 font-semibold">Chat Messages</span>
+                    <input
+                      type="checkbox"
+                      checked={notifPrefs.chatMessages}
+                      onChange={() => handleToggleNotifPref('chatMessages')}
+                      className="accent-sky-500 w-4 h-4 rounded"
+                    />
+                  </label>
+
+                  <label className="flex items-center justify-between p-3 bg-slate-950 border border-slate-800 rounded-2xl cursor-pointer">
+                    <span className="text-slate-300 font-semibold">New Group Moments</span>
+                    <input
+                      type="checkbox"
+                      checked={notifPrefs.newMoments}
+                      onChange={() => handleToggleNotifPref('newMoments')}
+                      className="accent-sky-500 w-4 h-4 rounded"
+                    />
+                  </label>
+
+                  <label className="flex items-center justify-between p-3 bg-slate-950 border border-slate-800 rounded-2xl cursor-pointer">
+                    <span className="text-slate-300 font-semibold">Polls & Results</span>
+                    <input
+                      type="checkbox"
+                      checked={notifPrefs.polls}
+                      onChange={() => handleToggleNotifPref('polls')}
+                      className="accent-sky-500 w-4 h-4 rounded"
+                    />
+                  </label>
+
+                  <label className="flex items-center justify-between p-3 bg-slate-950 border border-slate-800 rounded-2xl cursor-pointer">
+                    <span className="text-slate-300 font-semibold">Events & RSVP</span>
+                    <input
+                      type="checkbox"
+                      checked={notifPrefs.events}
+                      onChange={() => handleToggleNotifPref('events')}
+                      className="accent-sky-500 w-4 h-4 rounded"
+                    />
+                  </label>
+
+                  <label className="flex items-center justify-between p-3 bg-slate-950 border border-slate-800 rounded-2xl cursor-pointer">
+                    <span className="text-slate-300 font-semibold">Announcements</span>
+                    <input
+                      type="checkbox"
+                      checked={notifPrefs.announcements}
+                      onChange={() => handleToggleNotifPref('announcements')}
+                      className="accent-sky-500 w-4 h-4 rounded"
+                    />
+                  </label>
+                </div>
+              )}
+            </div>
+
             {/* General Settings */}
-            <form onSubmit={handleSaveGeneralSettings} className="p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-4">
-              <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                <Settings className="w-4 h-4 text-sky-400" />
-                <span>General Group Settings</span>
-              </h2>
+            {canEdit && (
+              <form onSubmit={handleSaveGeneralSettings} className="p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-4">
+                <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Settings className="w-4 h-4 text-sky-400" />
+                  <span>General Group Settings</span>
+                </h2>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-300">Group Name</label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500/50"
-                  required
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-300">Description</label>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={3}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500/50 resize-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-300">Category</label>
-                  <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-sky-500/50"
-                  >
-                    <option value="General">General</option>
-                    <option value="Coding">Coding & Tech</option>
-                    <option value="Robotics">Robotics & Hardware</option>
-                    <option value="Cultural">Cultural & Arts</option>
-                    <option value="Sports">Sports & Fitness</option>
-                  </select>
+                  <label className="text-xs font-semibold text-slate-300">Group Name</label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500/50"
+                    required
+                  />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-300">Visibility</label>
-                  <select
-                    value={visibility}
-                    onChange={(e) => setVisibility(e.target.value as 'public' | 'private')}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-sky-500/50"
-                  >
-                    <option value="public">Public (Discoverable & open)</option>
-                    <option value="private">Private (Join via Pass Code or Request)</option>
-                  </select>
+                  <label className="text-xs font-semibold text-slate-300">Description</label>
+                  <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    rows={3}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500/50 resize-none"
+                  />
                 </div>
-              </div>
 
-              <button
-                type="submit"
-                disabled={saving}
-                className="px-5 py-2.5 bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs rounded-xl shadow-md flex items-center gap-1.5 transition-all"
-              >
-                {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                <span>Save General Settings</span>
-              </button>
-            </form>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-300">Category</label>
+                    <select
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-sky-500/50"
+                    >
+                      <option value="General">General</option>
+                      <option value="Coding">Coding & Tech</option>
+                      <option value="Robotics">Robotics & Hardware</option>
+                      <option value="Cultural">Cultural & Arts</option>
+                      <option value="Sports">Sports & Fitness</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-300">Visibility</label>
+                    <select
+                      value={visibility}
+                      onChange={(e) => setVisibility(e.target.value as 'public' | 'private')}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-sky-500/50"
+                    >
+                      <option value="public">Public (Discoverable & open)</option>
+                      <option value="private">Private (Join via Pass Code or Request)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="px-5 py-2.5 bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs rounded-xl shadow-md flex items-center gap-1.5 transition-all"
+                >
+                  {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  <span>Save General Settings</span>
+                </button>
+              </form>
+            )}
 
             {/* Invite Pass Management */}
-            {group && (
+            {group && canEdit && (
               <GroupInviteManager
                 group={group}
                 onGroupUpdated={(updated) => setGroup(updated)}
@@ -233,42 +367,44 @@ export const GroupSettingsPage: React.FC = () => {
             )}
 
             {/* Danger Zone: Transfer & Archive */}
-            <div className="p-6 bg-slate-900 border border-rose-500/20 rounded-3xl space-y-4">
-              <h2 className="text-sm font-bold text-rose-400 flex items-center gap-2">
-                <ShieldAlert className="w-4 h-4" />
-                <span>Administrative Controls & Danger Zone</span>
-              </h2>
+            {canEdit && (
+              <div className="p-6 bg-slate-900 border border-rose-500/20 rounded-3xl space-y-4">
+                <h2 className="text-sm font-bold text-rose-400 flex items-center gap-2">
+                  <ShieldAlert className="w-4 h-4" />
+                  <span>Administrative Controls & Danger Zone</span>
+                </h2>
 
-              <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
-                {canTransfer && (
-                  <div>
-                    <h3 className="text-xs font-bold text-white">Transfer Group Ownership</h3>
-                    <p className="text-[11px] text-slate-400">Transfer owner role to another admin member.</p>
-                    <button
-                      onClick={() => setIsTransferModalOpen(true)}
-                      className="mt-2 px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
-                    >
-                      <Crown className="w-4 h-4" />
-                      <span>Transfer Ownership</span>
-                    </button>
-                  </div>
-                )}
+                <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
+                  {canTransfer && (
+                    <div>
+                      <h3 className="text-xs font-bold text-white">Transfer Group Ownership</h3>
+                      <p className="text-[11px] text-slate-400">Transfer owner role to another admin member.</p>
+                      <button
+                        onClick={() => setIsTransferModalOpen(true)}
+                        className="mt-2 px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
+                      >
+                        <Crown className="w-4 h-4" />
+                        <span>Transfer Ownership</span>
+                      </button>
+                    </div>
+                  )}
 
-                {canArchive && (
-                  <div>
-                    <h3 className="text-xs font-bold text-white">Archive Campus Group</h3>
-                    <p className="text-[11px] text-slate-400">Make group read-only and hide from active creation.</p>
-                    <button
-                      onClick={handleArchive}
-                      className="mt-2 px-4 py-2 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
-                    >
-                      <Archive className="w-4 h-4" />
-                      <span>Archive Group</span>
-                    </button>
-                  </div>
-                )}
+                  {canArchive && (
+                    <div>
+                      <h3 className="text-xs font-bold text-white">Archive Campus Group</h3>
+                      <p className="text-[11px] text-slate-400">Make group read-only and hide from active creation.</p>
+                      <button
+                        onClick={handleArchive}
+                        className="mt-2 px-4 py-2 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
+                      >
+                        <Archive className="w-4 h-4" />
+                        <span>Archive Group</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
       </main>

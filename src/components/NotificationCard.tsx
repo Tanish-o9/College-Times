@@ -19,7 +19,7 @@ export const NotificationCard: React.FC<NotificationCardProps> = ({
 
   const handleClick = async () => {
     if (!notification.read && notification.id) {
-      await markNotificationAsRead(notification.id);
+      await markNotificationAsRead(notification.id, notification.recipientId || '');
     }
 
     if (notification.channelId) {

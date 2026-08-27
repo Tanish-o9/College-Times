@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useOverlayBackHandler } from '../hooks/useOverlayBackHandler';
-import { subscribeToNotifications, markAllAsRead } from '../services/notificationService';
+import { getNotificationsPaginated, markAllAsRead } from '../services/notificationService';
 import type { NotificationItem } from '../types/notification';
 import { NotificationCard } from './NotificationCard';
 import { Bell, X, Inbox } from 'lucide-react';
@@ -30,12 +30,15 @@ export const NotificationTray: React.FC<NotificationTrayProps> = ({ isOpen, onCl
       markAllAsRead(currentUser.uid);
     }
 
-    const unsubscribe = subscribeToNotifications(currentUser.uid, (items) => {
-      setNotifications(items);
+    let isMounted = true;
+    getNotificationsPaginated(currentUser.uid, { limitCount: 10 }).then((res) => {
+      if (isMounted) {
+        setNotifications(res.notifications);
+      }
     });
 
     return () => {
-      unsubscribe();
+      isMounted = false;
     };
   }, [currentUser, isOpen]);
 
