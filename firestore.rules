@@ -84,6 +84,11 @@ service cloud.firestore {
         allow read, create, update, delete: if true;
       }
 
+      // Phase 34: Group Instant Read State Sub-collection
+      match /groupInstantState/{groupId} {
+        allow read, create, update, delete: if true;
+      }
+
       // Chat Notification Preferences Sub-collection: 1 per user per channel
       match /chatNotificationPreferences/{channelId} {
         allow read: if isOwner(userId);
@@ -619,6 +624,15 @@ service cloud.firestore {
       match /members/{memberUid} {
         allow read: if isAuthenticated();
         allow create, update, delete: if isAuthenticated();
+      }
+
+      // Phase 34: Group Instants Sub-collection
+      match /instants/{instantId} {
+        allow read, create, update, delete: if isAuthenticated();
+
+        match /reports/{reporterId} {
+          allow read, create, update, delete: if isAuthenticated();
+        }
       }
     }
   }

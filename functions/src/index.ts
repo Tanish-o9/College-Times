@@ -429,3 +429,42 @@ export const onCampusBroadcastHandler = async (
     return null;
   }
 };
+
+/**
+ * Phase 34: Cloud Function triggered on new Group Instant creation.
+ * Publishes 1 scalable FCM notification to group_{groupId} topic with ZERO per-user Firestore fan-out.
+ */
+export const onGroupInstantCreate = functions.firestore
+  .document('groups/{groupId}/instants/{instantId}')
+  .onCreate(async (snapshot, context) => {
+    const { groupId, instantId } = context.params;
+    const data = snapshot.data();
+
+    if (!data || data.status !== 'active') return null;
+
+    const senderName = data.senderName || 'A group member';
+    const topic = `group_${groupId}`;
+
+    const payload = {
+      notification: {
+        title: `⚡ New Group Instant`,
+        body: `${senderName} shared a 24h moment with your group!`,
+      },
+      data: {
+        type: 'group_instant',
+        groupId,
+        instantId,
+      },
+    };
+
+    try {
+      if (admin.messaging) {
+        await admin.messaging().sendToTopic(topic, payload);
+        console.log(`Published Group Instant notification to FCM topic '${topic}' for instant ${instantId}.`);
+      }
+    } catch (err) {
+      console.error(`Failed to publish Group Instant FCM notification for ${instantId}:`, err);
+    }
+
+    return null;
+  });

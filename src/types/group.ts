@@ -49,3 +49,35 @@ export interface GroupInviteCodeDoc {
   createdAt: Timestamp | FieldValue | any;
   createdBy: string;
 }
+
+// Phase 34: Group Instant Experience Data Models
+export interface GroupInstant {
+  id: string;
+  groupId: string;
+  senderId: string;
+  senderName: string;
+  senderAvatar?: string;
+  type: 'text' | 'image' | 'video';
+  media: string[]; // Up to 5 image URLs
+  caption?: string;
+  createdAt: Timestamp | FieldValue | any;
+  expiresAt: Timestamp | FieldValue | any; // Default 24 hours
+  status: 'active' | 'expired' | 'deleted' | 'hidden';
+  reactionCounts?: Record<string, number>;
+  replyCount?: number;
+}
+
+export interface GroupInstantReadState {
+  groupId: string;
+  lastSeenInstantAt: Timestamp | FieldValue | any;
+  lastSeenInstantId: string;
+  updatedAt: Timestamp | FieldValue | any;
+}
+
+export interface GroupNotificationPreferences {
+  groupId: string;
+  instantsEnabled: boolean;
+  chatEnabled: boolean;
+  mentionsEnabled: boolean;
+  updatedAt: Timestamp | FieldValue | any;
+}

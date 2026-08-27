@@ -111,5 +111,9 @@ service firebase.storage {
     match /groupChatMedia/{groupId}/{userId}/{filename} {
       allow read, write: if true;
     }
+    // Phase 34: User Uploaded Group Instant Media Path: groupInstantMedia/{groupId}/{userId}/{instantId}/{filename}
+    match /groupInstantMedia/{groupId}/{userId}/{instantId}/{filename} {
+      allow read, write: if true;
+    }
   }
 }

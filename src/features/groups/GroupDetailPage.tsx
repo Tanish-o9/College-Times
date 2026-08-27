@@ -14,6 +14,7 @@ import { PollCard } from './PollCard';
 import { CreatePollModal } from './CreatePollModal';
 import { GroupInviteManager } from './GroupInviteManager';
 import { JoinGroupByCodeModal } from './JoinGroupByCodeModal';
+import { GroupInstantCarousel } from './GroupInstantCarousel';
 import {
   ArrowLeft,
   Users,
@@ -278,6 +279,17 @@ export const GroupDetailPage: React.FC = () => {
                 )}
               </div>
             </div>
+
+            {/* Phase 34: Group Instant Carousel */}
+            {(!isPrivateAndNonMember) && (
+              <div className="p-4 bg-slate-900 border border-slate-800 rounded-3xl">
+                <GroupInstantCarousel
+                  groupId={group.id}
+                  groupName={group.name}
+                  isMember={isMember}
+                />
+              </div>
+            )}
 
             {/* Private Group Non-Member Content Guard */}
             {isPrivateAndNonMember ? (
