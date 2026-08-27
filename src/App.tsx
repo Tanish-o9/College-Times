@@ -28,6 +28,8 @@ import { GroupMembersPage } from './features/groups/GroupMembersPage';
 import { GroupSettingsPage } from './features/groups/GroupSettingsPage';
 import { GroupModerationPage } from './features/groups/GroupModerationPage';
 
+import { SearchPage } from './features/search/SearchPage';
+
 import { BreakingAlertBanner } from './features/alerts/BreakingAlertBanner';
 import { AlertCenter } from './features/alerts/AlertCenter';
 import { ActiveIncidentStrip } from './features/incidents/ActiveIncidentStrip';
@@ -71,6 +73,7 @@ export const App: React.FC = () => {
               <Route path="/login" element={<LoginPage />} />
               <Route element={<RequireAuth />}>
                 <Route path="/" element={<FeedPage />} />
+                <Route path="/search" element={<SearchPage />} />
                 <Route path="/lost-found" element={<LostFoundPage />} />
                 <Route path="/events" element={<EventsList />} />
                 <Route path="/events/:eventId" element={<EventDetail />} />
