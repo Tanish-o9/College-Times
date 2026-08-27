@@ -167,6 +167,12 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    // Verified Campus Broadcasts Collection
+    match /campusBroadcasts/{incidentId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAdmin();
+    }
+
     // Aggregate Alert Metrics Collection (Admin read, authenticated atomic increment)
     match /alertMetrics/{alertId} {
       allow read: if isAdmin();

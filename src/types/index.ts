@@ -4,3 +4,4 @@ export * from './group';
 export * from './alert';
 export * from './incident';
 export * from './incidentReport';
+export * from './broadcast';

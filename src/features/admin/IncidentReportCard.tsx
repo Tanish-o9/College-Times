@@ -5,12 +5,14 @@ import {
   verifyIncidentReport,
   rejectOrDismissReport,
 } from '../../services/incidentReportService';
+import { initiateCampusBroadcast } from '../../services/broadcastService';
 import type { IncidentReport, ReportSeverity } from '../../types/incidentReport';
 import { formatTimestamp } from '../../utils/format';
 import {
   CheckCircle2,
   MapPin,
   UserCheck,
+  AlertTriangle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -34,6 +36,7 @@ export const IncidentReportCard: React.FC<IncidentReportCardProps> = ({ report, 
   const [affectedArea, setAffectedArea] = useState<'campus' | 'department' | 'building' | 'batch' | 'community'>('campus');
   const [existingIncidentId, setExistingIncidentId] = useState('');
   const [reviewNote, setReviewNote] = useState('');
+  const [broadcastToCampus, setBroadcastToCampus] = useState(false);
 
   const handleTakeReview = async () => {
     if (!currentUser || actionBusy) return;
@@ -53,7 +56,7 @@ export const IncidentReportCard: React.FC<IncidentReportCardProps> = ({ report, 
     if (!currentUser || actionBusy) return;
     setActionBusy(true);
     try {
-      await verifyIncidentReport(
+      const targetId = await verifyIncidentReport(
         report.id,
         severity,
         reviewNote,
@@ -70,7 +73,20 @@ export const IncidentReportCard: React.FC<IncidentReportCardProps> = ({ report, 
         userProfile
       );
 
-      toast.success('Incident report verified successfully!');
+      if (broadcastToCampus && targetId) {
+        await initiateCampusBroadcast(
+          targetId,
+          incidentTitle.trim() || 'Campus Incident Alert',
+          incidentSummary.trim() || report.description,
+          severity === 'unknown' ? 'moderate' : severity,
+          currentUser,
+          userProfile
+        );
+        toast.success('Campus push notification broadcast initiated!');
+      } else {
+        toast.success('Incident report verified successfully!');
+      }
+
       setShowVerifyModal(false);
       onRefresh();
     } catch (err: any) {
@@ -257,6 +273,28 @@ export const IncidentReportCard: React.FC<IncidentReportCardProps> = ({ report, 
                 placeholder="Leave blank to create a new incident"
                 className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs"
               />
+            </div>
+
+            {/* Broadcast Checkbox & Prominent Confirmation */}
+            <div className="p-3 bg-slate-950 border border-slate-800 rounded-2xl space-y-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={broadcastToCampus}
+                  onChange={(e) => setBroadcastToCampus(e.target.checked)}
+                  className="w-4 h-4 rounded bg-slate-900 border-slate-700 text-sky-500 focus:ring-0"
+                />
+                <span className="font-bold text-white text-xs">Broadcast Instant Alert to Campus</span>
+              </label>
+
+              {broadcastToCampus && (severity === 'high' || severity === 'critical') && (
+                <div className="p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-2 text-[11px] text-amber-300">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
+                  <span>
+                    <strong>Instant Push Warning:</strong> This will send an instant FCM push notification to 10,000+ subscribed campus members.
+                  </span>
+                </div>
+              )}
             </div>
 
             <div className="flex items-center gap-2 pt-2">

@@ -19,15 +19,18 @@ messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw.js] Received background message:', payload);
 
   const notificationTitle = payload.notification?.title || payload.data?.title || '🚨 Campus Alert';
+  const incidentId = payload.data?.incidentId;
+  const clickUrl = incidentId ? `/incidents/${incidentId}` : (payload.data?.postId ? `/feed?postId=${payload.data.postId}` : '/');
+
   const notificationOptions = {
     body: payload.notification?.body || payload.data?.body || 'New important campus update.',
-    icon: '/pwa-192x192.png',
-    badge: '/badge-72x72.png',
+    icon: '/favicon.svg',
+    badge: '/favicon.svg',
     data: {
+      type: payload.data?.type || 'campus_incident',
+      incidentId: incidentId,
       postId: payload.data?.postId,
-      channelId: payload.data?.channelId,
-      priority: payload.data?.priority || 'normal',
-      clickUrl: payload.data?.postId ? `/feed?postId=${payload.data.postId}` : '/',
+      clickUrl: clickUrl,
     },
   };
 
@@ -39,7 +42,7 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
   const clickData = event.notification.data || {};
-  const relativeUrl = clickData.clickUrl || (clickData.postId ? `/feed?postId=${clickData.postId}` : '/');
+  const relativeUrl = clickData.clickUrl || (clickData.incidentId ? `/incidents/${clickData.incidentId}` : '/');
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {

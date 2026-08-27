@@ -326,3 +326,88 @@ export const onPostCreateHandler = async (
     return null;
   }
 };
+
+export interface FirestoreCampusBroadcastData {
+  incidentId?: string;
+  type?: string;
+  title?: string;
+  body?: string;
+  severity?: string;
+  status?: string;
+  topic?: string;
+  attemptCount?: number;
+}
+
+/**
+ * Cloud Function handler triggered on campusBroadcasts/{incidentId} write.
+ * 1. Checks status == 'pending' & idempotency to prevent duplicate push dispatches.
+ * 2. Dispatches 1 FCM message to 'campus_all' topic for 10,000+ members (0 per-user writes).
+ * 3. Handles failure state recording & admin retries idempotently.
+ */
+export const onCampusBroadcastHandler = async (
+  db: any,
+  admin: any,
+  incidentId: string,
+  broadcastData: FirestoreCampusBroadcastData
+) => {
+  if (!broadcastData) return null;
+
+  const { title, body, severity = 'moderate', status, topic = 'campus_all' } = broadcastData;
+
+  if (status !== 'pending') {
+    console.log(`Skipping campus broadcast for ${incidentId} with status '${status}'.`);
+    return null;
+  }
+
+  const broadcastRef = db.collection('campusBroadcasts').doc(incidentId);
+
+  try {
+    // Idempotency state lock: set sending
+    await broadcastRef.update({
+      status: 'sending',
+      lastAttemptAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    const titlePrefix =
+      severity === 'critical'
+        ? '🔴 CRITICAL CAMPUS ALERT'
+        : severity === 'high'
+        ? '🟠 HIGH SEVERITY CAMPUS ALERT'
+        : '🚨 CAMPUS INCIDENT UPDATE';
+
+    const payload = {
+      notification: {
+        title: `${titlePrefix}: ${title || 'Campus Incident'}`,
+        body: (body || 'A verified campus incident has been updated. Tap to view details.').slice(0, 150),
+      },
+      data: {
+        type: 'campus_incident',
+        incidentId,
+        severity,
+        category: 'accident',
+        channel: topic,
+      },
+    };
+
+    if (admin.messaging) {
+      await admin.messaging().sendToTopic(topic, payload);
+      console.log(`Successfully published FCM campus alert to topic '${topic}' for incident ${incidentId}.`);
+    }
+
+    // Lock status as 'sent'
+    await broadcastRef.update({
+      status: 'sent',
+      broadcastedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    return true;
+  } catch (error: any) {
+    console.error(`Error broadcasting campus incident ${incidentId}:`, error);
+    await broadcastRef.update({
+      status: 'failed',
+      errorCode: error?.message || 'FCM_PUBLISH_FAILED',
+      lastAttemptAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    return null;
+  }
+};

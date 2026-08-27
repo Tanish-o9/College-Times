@@ -26,6 +26,8 @@ import { BreakingAlertBanner } from './features/alerts/BreakingAlertBanner';
 import { AlertCenter } from './features/alerts/AlertCenter';
 import { ActiveIncidentStrip } from './features/incidents/ActiveIncidentStrip';
 import { IncidentDetail } from './features/incidents/IncidentDetail';
+import { CampusAlertBanner } from './components/CampusAlertBanner';
+import { CampusNotificationPrompt } from './components/CampusNotificationPrompt';
 
 import { MyIncidentReports } from './features/incidents/MyIncidentReports';
 import { IncidentReportDetail } from './features/incidents/IncidentReportDetail';
@@ -51,8 +53,10 @@ export const App: React.FC = () => {
             }} 
           />
           <Navbar />
+          <CampusNotificationPrompt />
           <main className="flex-1 container mx-auto px-4 py-6">
             <ActiveIncidentStrip />
+            <CampusAlertBanner />
             <BreakingAlertBanner />
             <Routes>
               <Route path="/login" element={<LoginPage />} />
