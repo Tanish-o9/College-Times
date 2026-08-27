@@ -17,10 +17,6 @@ import {
   Archive,
   RefreshCw,
   Save,
-  Globe,
-  Lock,
-  Building2,
-  GraduationCap
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';

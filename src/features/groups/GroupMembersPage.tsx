@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { getGroupById, isGroupMember } from '../../services/groupService';
+import { getGroupById } from '../../services/groupService';
 import {
   getGroupJoinRequests,
   approveJoinRequest,
@@ -25,7 +25,6 @@ import {
   Check,
   X,
   RefreshCw,
-  MoreVertical,
   UserPlus
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -41,7 +40,6 @@ export const GroupMembersPage: React.FC = () => {
 
   const [group, setGroup] = useState<CampusGroup | null>(null);
   const [userRole, setUserRole] = useState<GroupRole>('member');
-  const [loading, setLoading] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<Tab>('members');
 
   // Members state
@@ -57,7 +55,6 @@ export const GroupMembersPage: React.FC = () => {
 
   const loadGroupAndRole = async () => {
     if (!groupId || !currentUser) return;
-    setLoading(true);
     try {
       const g = await getGroupById(groupId);
       setGroup(g);
@@ -71,8 +68,6 @@ export const GroupMembersPage: React.FC = () => {
       }
     } catch (err) {
       toast.error('Failed to load group details.');
-    } finally {
-      setLoading(false);
     }
   };
 

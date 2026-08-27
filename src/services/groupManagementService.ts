@@ -20,14 +20,11 @@ import { db, logAnalyticsEvent } from '../lib/firebase';
 import type { User } from '../types/models';
 import type {
   GroupRole,
-  GroupMember,
   GroupJoinRequest,
   GroupAnnouncement,
   GroupMemberReport,
   GroupAuditLog,
-  CampusGroup,
 } from '../types/group';
-import { canManageMembers, canTransferOwnership, canArchiveGroup } from './groupPermissionService';
 import { createNotification } from './notificationService';
 
 /**
@@ -284,7 +281,7 @@ export const banMemberFromGroup = async (
 export const unbanMemberFromGroup = async (
   groupId: string,
   targetUid: string,
-  adminUser: FirebaseUser
+  _adminUser: FirebaseUser
 ): Promise<void> => {
   if (!groupId || !targetUid) return;
 

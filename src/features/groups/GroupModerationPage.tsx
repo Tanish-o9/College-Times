@@ -11,13 +11,10 @@ import { canModerateContent } from '../../services/groupPermissionService';
 import type { CampusGroup, GroupRole, GroupMemberReport, GroupAuditLog } from '../../types/group';
 import {
   ArrowLeft,
-  Shield,
   ShieldAlert,
   FileText,
   Ban,
   RefreshCw,
-  Clock,
-  User
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
@@ -32,7 +29,6 @@ export const GroupModerationPage: React.FC = () => {
 
   const [group, setGroup] = useState<CampusGroup | null>(null);
   const [userRole, setUserRole] = useState<GroupRole>('member');
-  const [loading, setLoading] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<Tab>('reports');
 
   // Moderation state
@@ -43,7 +39,6 @@ export const GroupModerationPage: React.FC = () => {
 
   const loadGroupAndRole = async () => {
     if (!groupId || !currentUser) return;
-    setLoading(true);
     try {
       const g = await getGroupById(groupId);
       setGroup(g);
@@ -55,8 +50,6 @@ export const GroupModerationPage: React.FC = () => {
       }
     } catch (err) {
       toast.error('Failed to load moderation info.');
-    } finally {
-      setLoading(false);
     }
   };
 
