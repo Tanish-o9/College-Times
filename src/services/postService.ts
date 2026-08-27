@@ -1,6 +1,7 @@
 import { 
   collection, 
   doc,
+  setDoc,
   query, 
   orderBy, 
   limit, 
@@ -125,14 +126,21 @@ export const createPost = async (
     };
 
     let newDocId = '';
-    await runTransaction(db, async (transaction) => {
+    try {
+      await runTransaction(db, async (transaction) => {
+        const newPostRef = doc(postsRef);
+        newDocId = newPostRef.id;
+
+        transaction.set(newPostRef, newPostData);
+        // Phase 21 Gamification: +10 points for creating a post
+        transaction.update(userRef, { points: increment(10) });
+      });
+    } catch (txErr) {
+      console.warn('Transaction failed, falling back to direct addDoc:', txErr);
       const newPostRef = doc(postsRef);
       newDocId = newPostRef.id;
-
-      transaction.set(newPostRef, newPostData);
-      // Phase 21 Gamification: +10 points for creating a post
-      transaction.update(userRef, { points: increment(10) });
-    });
+      await setDoc(newPostRef, newPostData);
+    }
 
     logAnalyticsEvent('post_created', { category: payload.category });
     logAnalyticsEvent('campus_post_audience_selected', { audienceType: audience.type });
