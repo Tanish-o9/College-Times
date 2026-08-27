@@ -8,7 +8,10 @@ import {
   leaveGroup,
 } from '../../services/groupService';
 import type { CampusGroup } from '../../types/group';
+import type { Post } from '../../types/models';
 import { GroupMembers } from './GroupMembers';
+import { PollCard } from './PollCard';
+import { CreatePollModal } from './CreatePollModal';
 import {
   ArrowLeft,
   Users,
@@ -19,9 +22,15 @@ import {
   Check,
   Plus,
   RefreshCw,
-  ShieldCheck
+  ShieldCheck,
+  MessageSquare,
+  BarChart3
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
+
+type GroupTab = 'members' | 'polls';
 
 export const GroupDetailPage: React.FC = () => {
   const { groupId } = useParams<{ groupId: string }>();
@@ -32,6 +41,11 @@ export const GroupDetailPage: React.FC = () => {
   const [isMember, setIsMember] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
   const [actionBusy, setActionBusy] = useState<boolean>(false);
+
+  const [activeTab, setActiveTab] = useState<GroupTab>('members');
+  const [groupPolls, setGroupPolls] = useState<Post[]>([]);
+  const [loadingPolls, setLoadingPolls] = useState<boolean>(false);
+  const [isPollModalOpen, setIsPollModalOpen] = useState<boolean>(false);
 
   const loadGroupDetails = async () => {
     if (!groupId || !currentUser) return;
@@ -51,9 +65,39 @@ export const GroupDetailPage: React.FC = () => {
     }
   };
 
+  const loadGroupPolls = async () => {
+    if (!groupId) return;
+    setLoadingPolls(true);
+    try {
+      const postsRef = collection(db, 'posts');
+      const q = query(
+        postsRef,
+        where('groupId', '==', groupId),
+        where('status', '==', 'active'),
+        orderBy('timestamp', 'desc'),
+        limit(20)
+      );
+      const snap = await getDocs(q);
+      const polls = snap.docs
+        .map((d) => ({ id: d.id, ...(d.data() as Post) }))
+        .filter((p) => p.poll);
+      setGroupPolls(polls);
+    } catch (err) {
+      console.error('Failed to load group polls:', err);
+    } finally {
+      setLoadingPolls(false);
+    }
+  };
+
   useEffect(() => {
     loadGroupDetails();
   }, [groupId, currentUser]);
+
+  useEffect(() => {
+    if (activeTab === 'polls') {
+      loadGroupPolls();
+    }
+  }, [activeTab, groupId]);
 
   const handleToggleMembership = async () => {
     if (!group || !currentUser || actionBusy) return;
@@ -99,6 +143,16 @@ export const GroupDetailPage: React.FC = () => {
             </p>
           </div>
         </div>
+
+        {/* Quick Group Chat Channel Navigation */}
+        <button
+          onClick={() => navigate(`/chat?channel=channel-${groupId}`)}
+          className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-sky-400 border border-slate-800 rounded-xl text-xs font-semibold flex items-center gap-1.5 shrink-0"
+          title="Open Group Chat"
+        >
+          <MessageSquare className="w-4 h-4" />
+          <span className="hidden sm:inline">Group Chat</span>
+        </button>
       </header>
 
       {/* Main Body */}
@@ -192,13 +246,82 @@ export const GroupDetailPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Paginated Group Members Component */}
-            <div className="p-6 bg-slate-900 border border-slate-800 rounded-3xl">
-              <GroupMembers groupId={group.id} isAdmin={userProfile?.role === 'admin'} />
+            {/* Tab Navigation */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setActiveTab('members')}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    activeTab === 'members'
+                      ? 'bg-sky-500/10 text-sky-400 border border-sky-500/30'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Users className="w-4 h-4" />
+                  <span>Members</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('polls')}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    activeTab === 'polls'
+                      ? 'bg-purple-500/10 text-purple-400 border border-purple-500/30'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <BarChart3 className="w-4 h-4" />
+                  <span>Group Polls</span>
+                </button>
+              </div>
+
+              {activeTab === 'polls' && isMember && (
+                <button
+                  onClick={() => setIsPollModalOpen(true)}
+                  className="px-3.5 py-1.5 bg-purple-500 hover:bg-purple-400 text-slate-950 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-md"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Create Poll</span>
+                </button>
+              )}
             </div>
+
+            {/* Tab Content */}
+            {activeTab === 'members' ? (
+              <div className="p-6 bg-slate-900 border border-slate-800 rounded-3xl">
+                <GroupMembers groupId={group.id} isAdmin={userProfile?.role === 'admin'} />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {loadingPolls ? (
+                  <div className="p-8 bg-slate-900/40 border border-slate-800 rounded-3xl flex items-center justify-center gap-2 text-slate-400 text-xs">
+                    <RefreshCw className="w-4 h-4 animate-spin text-purple-400" />
+                    <span>Loading group polls...</span>
+                  </div>
+                ) : groupPolls.length === 0 ? (
+                  <div className="p-8 bg-slate-900/40 border border-slate-800 rounded-3xl text-center space-y-3">
+                    <BarChart3 className="w-8 h-8 text-slate-600 mx-auto" />
+                    <p className="text-slate-400 text-xs font-semibold">No active polls in this group.</p>
+                  </div>
+                ) : (
+                  groupPolls.map((post) => (
+                    <PollCard key={post.id} postId={post.id!} poll={post.poll} />
+                  ))
+                )}
+              </div>
+            )}
           </div>
         )}
       </main>
+
+      {/* Create Poll Modal */}
+      {group && (
+        <CreatePollModal
+          isOpen={isPollModalOpen}
+          onClose={() => setIsPollModalOpen(false)}
+          groupId={group.id}
+          onPollCreated={() => loadGroupPolls()}
+        />
+      )}
     </div>
   );
 };

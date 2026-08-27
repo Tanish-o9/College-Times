@@ -87,6 +87,9 @@ export interface Post {
   sharesCount?: number;
   isEdited?: boolean;
   editedAt?: any;
+  groupId?: string;
+  poll?: any;
+  reactionCounts?: Record<string, number>;
   audience?: PostAudience;
   priority?: PostPriority;
   notificationPolicy?: NotificationPolicy;

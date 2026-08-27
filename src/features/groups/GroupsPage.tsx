@@ -22,6 +22,8 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
+import { CreateGroupModal } from './CreateGroupModal';
+
 export const GroupsPage: React.FC = () => {
   const { currentUser, userProfile } = useAuth();
   const navigate = useNavigate();
@@ -32,6 +34,7 @@ export const GroupsPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [actionGroupId, setActionGroupId] = useState<string | null>(null);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const loadData = async () => {
     if (!currentUser) return;
@@ -131,15 +134,25 @@ export const GroupsPage: React.FC = () => {
           </div>
         </div>
 
-        {userProfile?.role === 'admin' && (
+        <div className="flex items-center gap-2">
           <button
-            onClick={handleSeedDefaults}
-            className="px-3.5 py-1.5 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-300 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
+            onClick={() => setIsCreateModalOpen(true)}
+            className="px-3.5 py-1.5 bg-sky-500 hover:bg-sky-400 text-slate-950 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md"
           >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Init Groups</span>
+            <Plus className="w-3.5 h-3.5" />
+            <span>Create Group</span>
           </button>
-        )}
+
+          {userProfile?.role === 'admin' && (
+            <button
+              onClick={handleSeedDefaults}
+              className="px-3.5 py-1.5 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-300 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Init Groups</span>
+            </button>
+          )}
+        </div>
       </header>
 
       {/* Main Body */}
@@ -266,6 +279,13 @@ export const GroupsPage: React.FC = () => {
           </div>
         )}
       </main>
+
+      {/* Create Group Modal */}
+      <CreateGroupModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onGroupCreated={() => loadData()}
+      />
     </div>
   );
 };

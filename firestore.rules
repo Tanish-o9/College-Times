@@ -266,6 +266,19 @@ service cloud.firestore {
         allow update: if false;
       }
 
+      // Poll Votes Sub-collection
+      match /pollVotes/{userId} {
+        allow read: if isAuthenticated();
+        allow create, update: if isAuthenticated() && userId == request.auth.uid;
+        allow delete: if false;
+      }
+
+      // Post Reactions Sub-collection
+      match /reactions/{userId} {
+        allow read: if isAuthenticated();
+        allow create, update, delete: if isAuthenticated() && userId == request.auth.uid;
+      }
+
       // Reports Sub-collection
       match /reports/{reporterId} {
         allow read: if isAuthenticated();
