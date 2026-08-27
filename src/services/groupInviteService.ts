@@ -134,6 +134,12 @@ export const joinGroupWithPassCode = async (
       throw new Error('Invalid or expired group code.');
     }
 
+    const banRef = doc(db, 'groups', groupId, 'bannedMembers', uid);
+    const banSnap = await transaction.get(banRef);
+    if (banSnap.exists()) {
+      throw new Error('Access denied: You are banned from joining this campus group.');
+    }
+
     const groupData = groupSnap.data() as CampusGroup;
     if (!groupData.active || groupData.inviteEnabled === false) {
       throw new Error('Invalid or expired group code.');

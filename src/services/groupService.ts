@@ -326,6 +326,12 @@ export const joinGroup = async (
       throw new Error('Group does not exist.');
     }
 
+    const banRef = doc(db, 'groups', groupId, 'bannedMembers', uid);
+    const banSnap = await transaction.get(banRef);
+    if (banSnap.exists()) {
+      throw new Error('Access denied: You are banned from joining this campus group.');
+    }
+
     const groupData = groupSnap.data() as CampusGroup;
     if (!groupData.active) {
       throw new Error('Cannot join an inactive group.');

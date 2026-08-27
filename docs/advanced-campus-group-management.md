@@ -1,53 +1,51 @@
-# Phase 35 — Advanced Campus Group Management, Roles, Member Controls, Moderation & Community Safety
+# Phase 37 — Advanced Campus Group Management, Roles, Moderation, Announcements & Community Controls
 
 ## Overview
-Phase 35 makes Campus Groups production-grade by introducing role hierarchy (`owner`, `admin`, `moderator`, `member`), join request approvals for private groups, official announcements, member bans and removals, atomic ownership transfer, group archiving, unified moderation dashboard, audit logs, and security rule hardening.
+Phase 37 upgrades Campus Groups into a production-grade community management system with role permissions (`owner`, `admin`, `moderator`, `member`), group banned roster enforcement (`groups/{groupId}/bannedMembers/{uid}`), official announcements with priority levels and FCM topic broadcasts, unified moderation queue (`Posts`, `Comments`, `Polls`, `Moments`, `Messages`, `Members`), group notification mute preferences, Group Activity Overview dashboard, and security rule hardening.
 
 ---
 
-## 1. Role Hierarchy & Permissions
+## 1. Role Hierarchy & Permission Boundaries
 
-- **`OWNER`**: Full group management, transfer ownership, archive group, manage admins/mods, edit settings, manage invite pass, moderate content.
-- **`ADMIN`**: Manage members, approve/reject join requests, moderate content, edit general settings, create announcements, manage invite pass.
-- **`MODERATOR`**: Moderate feed posts, chat messages, Instants, announcements, review member reports, hide/remove inappropriate content.
-- **`MEMBER`**: Normal group participation (feed, chat, polls, events, Instants, reporting content).
-
----
-
-## 2. Join Request System (Private Groups)
-
-- **Path**: `groups/{groupId}/joinRequests/{uid}`
-- **Status Flow**: `pending` -> `approved` or `rejected`.
-- **Atomic Approval**: Creates `groups/{groupId}/members/{uid}` (`role: 'member'`), creates `users/{uid}/groupMemberships/{groupId}`, increments `memberCount: +1`, and updates request status to `approved`.
+- **`OWNER`**: Full group administration, transfer ownership, archive group, manage admins/mods, edit settings, manage invite pass, moderate content, create announcements.
+- **`ADMIN`**: Manage members, approve/reject join requests, moderate content, edit settings, create announcements, manage invite pass.
+- **`MODERATOR`**: Remove/hide reported content, review moderation queue (`Posts`, `Comments`, `Polls`, `Moments`, `Messages`, `Members`), mute/ban members if authorized. Cannot transfer ownership or delete group.
+- **`MEMBER`**: Group participation (feed, chat, polls, events, moments, reactions, reporting content, leave group).
 
 ---
 
-## 3. Ban & Member Removal Controls
+## 2. Transactional Ownership Transfer & Security
 
-- **`removeMemberFromGroup()`**: Atomically deletes `groups/{groupId}/members/{uid}` and `users/{uid}/groupMemberships/{uid}`, decrements `memberCount: -1`.
-- **`banMemberFromGroup()`**: Updates `groups/{groupId}/members/{uid}` status to `'banned'`. Prevents rejoining via invite pass codes or join requests.
+- **Service**: `src/services/groupRoleService.ts` -> `transferOwnership()`
+- **Rules**: Only the current group owner (`role === 'owner'`) can transfer ownership. Target user must be an active group member. Operates within an atomic Firestore transaction. Old owner becomes admin. Prevents self-escalation and moderator-to-owner hijacking.
 
 ---
 
-## 4. Official Group Announcements
+## 3. Banned Roster & Rejoin Control
+
+- **Banned Path**: `groups/{groupId}/bannedMembers/{uid}`
+- **Security Check**: Enforced in `joinGroup()` (public join) and `joinGroupWithPassCode()` (CT-XXXXXX invite pass join). Banned users are rejected immediately even if they hold a valid pass code or join link.
+
+---
+
+## 4. Official Group Announcements & FCM Topic Broadcast
 
 - **Path**: `groups/{groupId}/announcements/{announcementId}`
-- Fields: `title`, `content`, `createdBy`, `creatorName`, `createdAt`, `pinned`, `status`.
-- Supports pinning important announcements at the top of group detail pages.
+- **Priority**: `'normal' | 'important' | 'urgent'`
+- **Zero Fan-Out Writes**: Creating an announcement creates 0 notification documents.
+- **FCM Push Broadcast**: Publishes 1 push notification to topic `group_{groupId}` via Cloud Function.
 
 ---
 
-## 5. Audit Logging & Moderation Dashboard
+## 5. Group Notification Mute Preferences
 
-- **Audit Log Path**: `groups/{groupId}/auditLogs/{logId}`
-  - Logs administrative actions (`member_joined`, `member_removed`, `member_banned`, `role_changed`, `announcement_created`, `ownership_transferred`, `group_archived`).
-- **Member Reports Path**: `groups/{groupId}/memberReports/{reportId}`
-  - Logs member reports (`spam`, `harassment`, `inappropriate`, `impersonation`, `abuse`).
+- **Path**: `users/{uid}/groupNotificationPreferences/{groupId}`
+- **Fields**: `muted`, `announcements`, `moments`, `chat`, `updatedAt`.
+- Allows students to mute group push notifications without losing group access or manual feed visibility.
 
 ---
 
-## 6. Scalability & 10,000 Member Rules
+## 6. Bounded Pagination & 10,000 Scale
 
-- **Bounded Member Queries**: Member roster and join request lists limited to **50 items per page**.
-- **O(1) User Membership Index**: `users/{uid}/groupMemberships/{groupId}` continues to provide O(1) membership lookups.
-- **Zero Broadcast Notification Fan-Out**: Normal administrative actions produce zero broadcast notification writes.
+- Member roster, join requests, announcements, and moderation queue items are limited to **20–50 items per page**.
+- O(1) membership lookups continue via `users/{uid}/groupMemberships/{groupId}`.

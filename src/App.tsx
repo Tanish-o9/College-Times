@@ -27,6 +27,7 @@ import { DirectMessageRoom } from './features/directMessages/DirectMessageRoom';
 import { GroupMembersPage } from './features/groups/GroupMembersPage';
 import { GroupSettingsPage } from './features/groups/GroupSettingsPage';
 import { GroupModerationPage } from './features/groups/GroupModerationPage';
+import { GroupActivityDashboard } from './features/groups/GroupActivityDashboard';
 
 import { SearchPage } from './features/search/SearchPage';
 
@@ -88,6 +89,7 @@ export const App: React.FC = () => {
                 <Route path="/groups/:groupId/members" element={<GroupMembersPage />} />
                 <Route path="/groups/:groupId/settings" element={<GroupSettingsPage />} />
                 <Route path="/groups/:groupId/moderation" element={<GroupModerationPage />} />
+                <Route path="/groups/:groupId/dashboard" element={<GroupActivityDashboard />} />
                 <Route path="/alerts" element={<AlertCenter />} />
                 <Route path="/incidents/:incidentId" element={<IncidentDetail />} />
                 <Route path="/my-reports" element={<MyIncidentReports />} />

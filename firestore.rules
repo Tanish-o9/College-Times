@@ -649,8 +649,17 @@ service cloud.firestore {
         allow read, create, update, delete: if isAuthenticated();
       }
 
-      // Phase 35: Group Member Reports Sub-collection
+      // Phase 35 & 37: Group Member Reports & Moderation Logs
       match /memberReports/{reportId} {
+        allow read, create, update, delete: if isAuthenticated();
+      }
+
+      match /moderationLogs/{logId} {
+        allow read, create, update, delete: if isAuthenticated();
+      }
+
+      // Phase 35 & 37: Group Banned Members Sub-collection
+      match /bannedMembers/{uid} {
         allow read, create, update, delete: if isAuthenticated();
       }
 
