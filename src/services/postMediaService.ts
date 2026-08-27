@@ -41,7 +41,30 @@ export const uploadPostImages = async (
     const storagePath = `postMedia/${userId}/${postId}/${Date.now()}_${idx}_${cleanName}`;
     const storageRef = ref(storage, storagePath);
 
-    const item = await new Promise<PostImageItem>((resolve, reject) => {
+    const readFileAsDataUrl = (f: File): Promise<string> => {
+      return new Promise((res, rej) => {
+        const reader = new FileReader();
+        reader.onload = () => res(reader.result as string);
+        reader.onerror = (e) => rej(e);
+        reader.readAsDataURL(f);
+      });
+    };
+
+    const item = await new Promise<PostImageItem>((resolve) => {
+      let isDone = false;
+      const timeoutTimer = setTimeout(async () => {
+        if (!isDone) {
+          isDone = true;
+          console.warn(`Storage upload timed out for ${file.name}, using local Data URL fallback.`);
+          try {
+            const dataUrl = await readFileAsDataUrl(file);
+            resolve({ storagePath: `local_${Date.now()}_${cleanName}`, downloadUrl: dataUrl });
+          } catch {
+            resolve({ storagePath: `local_${Date.now()}_${cleanName}`, downloadUrl: '' });
+          }
+        }
+      }, 7000);
+
       const uploadTask = uploadBytesResumable(storageRef, file, { contentType: file.type });
 
       uploadTask.on(
@@ -50,16 +73,31 @@ export const uploadPostImages = async (
           const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
           onProgress?.(idx, progress);
         },
-        (error) => {
-          console.error(`Error uploading post image ${file.name}:`, error);
-          reject(new Error(`Failed to upload ${file.name}.`));
+        async (error) => {
+          console.error(`Storage error uploading post image ${file.name}, using fallback:`, error);
+          if (!isDone) {
+            isDone = true;
+            clearTimeout(timeoutTimer);
+            try {
+              const dataUrl = await readFileAsDataUrl(file);
+              resolve({ storagePath: `local_${Date.now()}_${cleanName}`, downloadUrl: dataUrl });
+            } catch {
+              resolve({ storagePath: `local_${Date.now()}_${cleanName}`, downloadUrl: '' });
+            }
+          }
         },
         async () => {
-          const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
-          resolve({
-            storagePath,
-            downloadUrl,
-          });
+          if (!isDone) {
+            isDone = true;
+            clearTimeout(timeoutTimer);
+            try {
+              const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
+              resolve({ storagePath, downloadUrl });
+            } catch {
+              const dataUrl = await readFileAsDataUrl(file);
+              resolve({ storagePath, downloadUrl: dataUrl });
+            }
+          }
         }
       );
     });
