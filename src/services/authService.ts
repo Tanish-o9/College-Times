@@ -254,10 +254,26 @@ export const requestEmailOtp = async (email: string): Promise<void> => {
     logAnalyticsEvent('auth_otp_requested', { provider: 'email_otp' });
     toast.success(result.data?.message || 'Verification code sent if email is eligible.', { id: 'email-otp-sent' });
   } catch (error: any) {
-    console.warn('Cloud Function unavailable, using local development fallback:', error?.message);
+    console.warn('Cloud Function unavailable, sending real email via local Nodemailer SMTP handler...', error?.message);
     const randomOtp = Math.floor(100000 + Math.random() * 900000).toString();
     sessionStorage.setItem(`dev_email_otp_${cleanEmail}`, randomOtp);
-    toast.success(`Verification code sent! Your OTP is: ${randomOtp}`, { id: 'email-otp-sent-dev', duration: 12000 });
+
+    // Call local Nodemailer dev server to dispatch actual Gmail email
+    try {
+      const resp = await fetch('/api/send-email-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleanEmail, otp: randomOtp }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'Failed to send OTP email');
+      
+      toast.success(`Verification code sent to ${cleanEmail}! Please check your inbox/spam.`, { id: 'email-otp-sent-real', duration: 8000 });
+    } catch (apiErr: any) {
+      console.error('Local Nodemailer error:', apiErr);
+      toast.success(`Verification code generated! Code: ${randomOtp}`, { id: 'email-otp-sent-dev', duration: 12000 });
+    }
+
     logAnalyticsEvent('auth_otp_requested', { provider: 'email_otp', mode: 'dev' });
   }
 };
