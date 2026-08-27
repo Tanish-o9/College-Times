@@ -148,6 +148,7 @@ export interface GroupAnnouncement {
   creatorName: string;
   createdAt: Timestamp | FieldValue | any;
   updatedAt?: Timestamp | FieldValue | any;
+  priority?: 'normal' | 'important' | 'urgent';
   pinned: boolean;
   status: 'active' | 'deleted';
 }

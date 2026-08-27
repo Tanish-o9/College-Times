@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import {
   getGroupById,
@@ -7,47 +7,74 @@ import {
   joinGroup,
   leaveGroup,
 } from '../../services/groupService';
-import type { CampusGroup } from '../../types/group';
+import type { CampusGroup, GroupRole } from '../../types/group';
 import type { Post } from '../../types/models';
-import { GroupMembers } from './GroupMembers';
 import { PollCard } from './PollCard';
 import { CreatePollModal } from './CreatePollModal';
 import { GroupInviteManager } from './GroupInviteManager';
 import { JoinGroupByCodeModal } from './JoinGroupByCodeModal';
 import { GroupInstantCarousel } from './GroupInstantCarousel';
+import { GroupHomeDashboard } from './GroupHomeDashboard';
+import { GroupAnnouncements } from './GroupAnnouncements';
+import { GroupMembersExplorer } from './GroupMembersExplorer';
+import { GroupLeaderboard } from './GroupLeaderboard';
+import { GroupSearchTab } from './GroupSearchTab';
+import { GroupActivityTimeline } from './GroupActivityTimeline';
+import { RealtimeGroupActivity } from './RealtimeGroupActivity';
 import {
   ArrowLeft,
   Users,
   Building2,
   GraduationCap,
-  Globe,
   Sparkles,
   Check,
   Plus,
   RefreshCw,
-  ShieldCheck,
   MessageSquare,
   BarChart3,
   Lock,
-  Key
+  Key,
+  Home,
+  Megaphone,
+  TrendingUp,
+  Trophy,
+  Search,
+  Settings,
+  ShieldAlert,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 
-type GroupTab = 'members' | 'polls' | 'invites' | 'moments';
+export type GroupTab =
+  | 'overview'
+  | 'posts'
+  | 'moments'
+  | 'polls'
+  | 'events'
+  | 'announcements'
+  | 'activity'
+  | 'members'
+  | 'leaderboard'
+  | 'search'
+  | 'invites';
 
 export const GroupDetailPage: React.FC = () => {
   const { groupId } = useParams<{ groupId: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { currentUser, userProfile } = useAuth();
   const navigate = useNavigate();
 
   const [group, setGroup] = useState<CampusGroup | null>(null);
   const [isMember, setIsMember] = useState<boolean>(false);
+  const [userRole, setUserRole] = useState<GroupRole>('member');
   const [loading, setLoading] = useState<boolean>(true);
   const [actionBusy, setActionBusy] = useState<boolean>(false);
 
-  const [activeTab, setActiveTab] = useState<GroupTab>('members');
+  // Tab State
+  const initialTab = (searchParams.get('tab') as GroupTab) || 'overview';
+  const [activeTab, setActiveTab] = useState<GroupTab>(initialTab);
+
   const [groupPolls, setGroupPolls] = useState<Post[]>([]);
   const [loadingPolls, setLoadingPolls] = useState<boolean>(false);
   const [isPollModalOpen, setIsPollModalOpen] = useState<boolean>(false);
@@ -64,6 +91,13 @@ export const GroupDetailPage: React.FC = () => {
 
       setGroup(g);
       setIsMember(memberStatus);
+
+      // Fetch user role
+      const memberRef = doc(db, 'groups', groupId, 'members', currentUser.uid);
+      const snap = await getDoc(memberRef);
+      if (snap.exists()) {
+        setUserRole(snap.data().role || 'member');
+      }
     } catch (err) {
       toast.error('Failed to load group details.');
     } finally {
@@ -104,6 +138,11 @@ export const GroupDetailPage: React.FC = () => {
       loadGroupPolls();
     }
   }, [activeTab, groupId, isMember]);
+
+  const handleTabChange = (tab: GroupTab) => {
+    setActiveTab(tab);
+    setSearchParams({ tab });
+  };
 
   const handleToggleMembership = async () => {
     if (!group || !currentUser || actionBusy) return;
@@ -158,17 +197,40 @@ export const GroupDetailPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Quick Group Chat Channel Navigation */}
-        {isMember && (
-          <button
-            onClick={() => navigate(`/chat?channel=channel-${groupId}`)}
-            className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-sky-400 border border-slate-800 rounded-xl text-xs font-semibold flex items-center gap-1.5 shrink-0"
-            title="Open Group Chat"
-          >
-            <MessageSquare className="w-4 h-4" />
-            <span className="hidden sm:inline">Group Chat</span>
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {/* Group Moderation & Settings Triggers for Admin/Owner */}
+          {isMember && (userRole === 'owner' || userRole === 'admin' || userRole === 'moderator') && (
+            <button
+              onClick={() => navigate(`/groups/${groupId}/moderation`)}
+              className="p-2 text-rose-400 hover:bg-slate-900 border border-slate-800 rounded-xl"
+              title="Moderation Hub"
+            >
+              <ShieldAlert className="w-4 h-4" />
+            </button>
+          )}
+
+          {isMember && (userRole === 'owner' || userRole === 'admin') && (
+            <button
+              onClick={() => navigate(`/groups/${groupId}/settings`)}
+              className="p-2 text-slate-400 hover:text-white hover:bg-slate-900 border border-slate-800 rounded-xl"
+              title="Group Settings"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+          )}
+
+          {/* Quick Group Chat Channel Navigation */}
+          {isMember && (
+            <button
+              onClick={() => navigate(`/chat?channel=group-${groupId}`)}
+              className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-sky-400 border border-slate-800 rounded-xl text-xs font-semibold flex items-center gap-1.5 shrink-0"
+              title="Open Group Chat"
+            >
+              <MessageSquare className="w-4 h-4" />
+              <span className="hidden sm:inline">Group Chat</span>
+            </button>
+          )}
+        </div>
       </header>
 
       {/* Main Body */}
@@ -180,71 +242,46 @@ export const GroupDetailPage: React.FC = () => {
           </div>
         ) : !group ? (
           <div className="p-12 bg-slate-900/40 border border-slate-800 rounded-3xl text-center space-y-3">
-            <Users className="w-8 h-8 text-slate-600 mx-auto" />
-            <p className="text-slate-400 text-xs font-semibold">Group not found or inactive.</p>
+            <p className="text-slate-400 text-xs">Group not found or no longer available.</p>
+            <button
+              onClick={() => navigate('/groups')}
+              className="px-4 py-2 bg-sky-500 text-slate-950 font-bold text-xs rounded-xl"
+            >
+              Back to Groups
+            </button>
           </div>
         ) : (
           <div className="space-y-6">
-            {/* Group Banner & Card */}
-            <div className="p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-6">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 rounded-3xl bg-sky-500/10 border border-sky-500/20 text-sky-400 flex items-center justify-center shrink-0">
-                    {group.type === 'department' ? (
-                      <Building2 className="w-7 h-7" />
-                    ) : group.type === 'batch' ? (
-                      <GraduationCap className="w-7 h-7" />
-                    ) : group.type === 'campus' ? (
-                      <Globe className="w-7 h-7" />
-                    ) : (
-                      <Sparkles className="w-7 h-7 text-purple-400" />
-                    )}
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                      <span>{group.name}</span>
-                      {group.type === 'campus' && (
-                        <span title="Official Group">
-                          <ShieldCheck className="w-4 h-4 text-sky-400" />
-                        </span>
-                      )}
-                    </h2>
-                    <span className="text-xs text-slate-400 font-mono uppercase flex items-center gap-1.5">
-                      <span>{group.type}</span>
-                      <span>•</span>
-                      <span className="flex items-center gap-1 text-amber-400">
-                        {group.visibility === 'private' ? <Lock className="w-3 h-3" /> : <Globe className="w-3 h-3 text-emerald-400" />}
-                        <span>{group.visibility}</span>
-                      </span>
-                    </span>
-                  </div>
+            {/* Group Banner & Header Card */}
+            <div className="p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-4 shadow-xl">
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">{group.name}</h2>
+                  <p className="text-xs text-slate-400 font-mono mt-1">
+                    Group Pass Code ID: <span className="text-sky-300 font-bold">{group.inviteCodePlaintext || 'CT-PUBLIC'}</span>
+                  </p>
                 </div>
 
                 <button
                   onClick={handleToggleMembership}
                   disabled={actionBusy}
-                  className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all shadow-md flex items-center gap-1.5 ${
+                  className={`px-5 py-2.5 rounded-xl font-bold text-xs shadow-md transition-all flex items-center gap-1.5 ${
                     isMember
-                      ? 'bg-emerald-500/10 hover:bg-rose-500/20 text-emerald-400 hover:text-rose-400 border border-emerald-500/30 hover:border-rose-500/30'
-                      : group.visibility === 'private'
-                      ? 'bg-amber-500 hover:bg-amber-400 text-slate-950'
-                      : 'bg-sky-500 hover:bg-sky-400 text-slate-950'
+                      ? 'bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-300 border border-slate-700'
+                      : 'bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-slate-950'
                   }`}
                 >
-                  {isMember ? (
+                  {actionBusy ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : isMember ? (
                     <>
-                      <Check className="w-4 h-4" />
-                      <span>Joined</span>
-                    </>
-                  ) : group.visibility === 'private' ? (
-                    <>
-                      <Key className="w-4 h-4" />
-                      <span>Enter Pass Code</span>
+                      <Check className="w-4 h-4 text-emerald-400" />
+                      <span>Joined (Member)</span>
                     </>
                   ) : (
                     <>
                       <Plus className="w-4 h-4" />
-                      <span>Join Group</span>
+                      <span>{group.visibility === 'private' ? 'Enter Pass Code' : 'Join Group'}</span>
                     </>
                   )}
                 </button>
@@ -280,14 +317,10 @@ export const GroupDetailPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Phase 34: Group Instant Carousel */}
-            {(!isPrivateAndNonMember) && (
+            {/* Group Moments Carousel */}
+            {!isPrivateAndNonMember && (
               <div className="p-4 bg-slate-900 border border-slate-800 rounded-3xl">
-                <GroupInstantCarousel
-                  groupId={group.id}
-                  groupName={group.name}
-                  isMember={isMember}
-                />
+                <GroupInstantCarousel groupId={group.id} groupName={group.name} isMember={isMember} />
               </div>
             )}
 
@@ -311,87 +344,162 @@ export const GroupDetailPage: React.FC = () => {
               </div>
             ) : (
               <>
-                {/* Tab Navigation */}
-                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setActiveTab('members')}
-                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-                        activeTab === 'members'
-                          ? 'bg-sky-500/10 text-sky-400 border border-sky-500/30'
-                          : 'text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      <Users className="w-4 h-4" />
-                      <span>Members</span>
-                    </button>
+                {/* Unified Navigation Tabs Header */}
+                <div className="flex items-center gap-2 border-b border-slate-800 pb-2 overflow-x-auto scrollbar-none">
+                  <button
+                    onClick={() => handleTabChange('overview')}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+                      activeTab === 'overview'
+                        ? 'bg-sky-500/10 text-sky-400 border border-sky-500/30'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Home className="w-4 h-4" />
+                    <span>Overview</span>
+                  </button>
 
-                    <button
-                      onClick={() => setActiveTab('polls')}
-                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-                        activeTab === 'polls'
-                          ? 'bg-purple-500/10 text-purple-400 border border-purple-500/30'
-                          : 'text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      <BarChart3 className="w-4 h-4" />
-                      <span>Group Polls</span>
-                    </button>
+                  <button
+                    onClick={() => handleTabChange('announcements')}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+                      activeTab === 'announcements'
+                        ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Megaphone className="w-4 h-4" />
+                    <span>Announcements</span>
+                  </button>
 
-                    {isMember && (
-                      <button
-                        onClick={() => setActiveTab('invites')}
-                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-                          activeTab === 'invites'
-                            ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
-                            : 'text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        <Key className="w-4 h-4" />
-                        <span>Pass Code & Invites</span>
-                      </button>
-                    )}
-                  </div>
+                  <button
+                    onClick={() => handleTabChange('members')}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+                      activeTab === 'members'
+                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Users className="w-4 h-4" />
+                    <span>Members</span>
+                  </button>
 
-                  {activeTab === 'polls' && isMember && (
-                    <button
-                      onClick={() => setIsPollModalOpen(true)}
-                      className="px-3.5 py-1.5 bg-purple-500 hover:bg-purple-400 text-slate-950 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-md"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Create Poll</span>
-                    </button>
-                  )}
+                  <button
+                    onClick={() => handleTabChange('polls')}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+                      activeTab === 'polls'
+                        ? 'bg-purple-500/10 text-purple-400 border border-purple-500/30'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <BarChart3 className="w-4 h-4" />
+                    <span>Polls</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleTabChange('activity')}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+                      activeTab === 'activity'
+                        ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/30'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <TrendingUp className="w-4 h-4" />
+                    <span>Activity</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleTabChange('leaderboard')}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+                      activeTab === 'leaderboard'
+                        ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/30'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Trophy className="w-4 h-4" />
+                    <span>Leaderboard</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleTabChange('search')}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+                      activeTab === 'search'
+                        ? 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Search className="w-4 h-4" />
+                    <span>Search</span>
+                  </button>
                 </div>
 
-                {/* Tab Content */}
-                {activeTab === 'members' ? (
-                  <div className="p-6 bg-slate-900 border border-slate-800 rounded-3xl">
-                    <GroupMembers groupId={group.id} isAdmin={userProfile?.role === 'admin'} />
-                  </div>
-                ) : activeTab === 'invites' ? (
-                  <GroupInviteManager
+                {/* Tab Views */}
+                {activeTab === 'overview' && (
+                  <GroupHomeDashboard
                     group={group}
-                    onGroupUpdated={(updated) => setGroup(updated)}
+                    userId={currentUser?.uid || ''}
+                    onSelectTab={(tab) => handleTabChange(tab as GroupTab)}
                   />
-                ) : (
+                )}
+
+                {activeTab === 'announcements' && (
+                  <GroupAnnouncements groupId={group.id} userRole={userRole} />
+                )}
+
+                {activeTab === 'members' && (
+                  <GroupMembersExplorer groupId={group.id} />
+                )}
+
+                {activeTab === 'activity' && (
+                  <GroupActivityTimeline groupId={group.id} userId={currentUser?.uid || ''} />
+                )}
+
+                {activeTab === 'leaderboard' && (
+                  <GroupLeaderboard groupId={group.id} />
+                )}
+
+                {activeTab === 'search' && (
+                  <GroupSearchTab groupId={group.id} />
+                )}
+
+                {activeTab === 'polls' && (
                   <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                        <BarChart3 className="w-4 h-4 text-purple-400" />
+                        <span>Group Community Polls</span>
+                      </h3>
+
+                      {isMember && (
+                        <button
+                          onClick={() => setIsPollModalOpen(true)}
+                          className="px-3.5 py-1.5 bg-purple-500 hover:bg-purple-400 text-slate-950 font-bold text-xs rounded-xl shadow-md flex items-center gap-1 transition-all"
+                        >
+                          <Plus className="w-4 h-4" />
+                          <span>Create Poll</span>
+                        </button>
+                      )}
+                    </div>
+
                     {loadingPolls ? (
                       <div className="p-8 bg-slate-900/40 border border-slate-800 rounded-3xl flex items-center justify-center gap-2 text-slate-400 text-xs">
                         <RefreshCw className="w-4 h-4 animate-spin text-purple-400" />
                         <span>Loading group polls...</span>
                       </div>
                     ) : groupPolls.length === 0 ? (
-                      <div className="p-8 bg-slate-900/40 border border-slate-800 rounded-3xl text-center space-y-3">
-                        <BarChart3 className="w-8 h-8 text-slate-600 mx-auto" />
-                        <p className="text-slate-400 text-xs font-semibold">No active polls in this group.</p>
+                      <div className="p-8 bg-slate-900/40 border border-slate-800 rounded-3xl text-center text-xs text-slate-400 italic">
+                        No active polls in this group yet.
                       </div>
                     ) : (
-                      groupPolls.map((post) => (
-                        <PollCard key={post.id} postId={post.id!} poll={post.poll} />
-                      ))
+                      <div className="space-y-4">
+                        {groupPolls.map((pollPost) => (
+                          <PollCard key={pollPost.id} postId={pollPost.id || ''} poll={pollPost.poll!} />
+                        ))}
+                      </div>
                     )}
                   </div>
+                )}
+
+                {activeTab === 'invites' && isMember && (
+                  <GroupInviteManager group={group} onGroupUpdated={(updated) => setGroup(updated)} />
                 )}
               </>
             )}
@@ -399,25 +507,31 @@ export const GroupDetailPage: React.FC = () => {
         )}
       </main>
 
+      {/* Bounded Realtime Activity Toast Indicator */}
+      {group && isMember && (
+        <RealtimeGroupActivity groupId={group.id} />
+      )}
+
       {/* Modals */}
       {group && (
         <CreatePollModal
           isOpen={isPollModalOpen}
           onClose={() => setIsPollModalOpen(false)}
           groupId={group.id}
-          onPollCreated={() => loadGroupPolls()}
+          onPollCreated={loadGroupPolls}
         />
       )}
 
-      <JoinGroupByCodeModal
-        isOpen={isJoinCodeModalOpen}
-        onClose={() => setIsJoinCodeModalOpen(false)}
-        initialCode={group?.inviteCodePlaintext || ''}
-        onJoined={() => {
-          setIsMember(true);
-          loadGroupDetails();
-        }}
-      />
+      {group && (
+        <JoinGroupByCodeModal
+          isOpen={isJoinCodeModalOpen}
+          onClose={() => setIsJoinCodeModalOpen(false)}
+          onJoined={() => {
+            setIsJoinCodeModalOpen(false);
+            loadGroupDetails();
+          }}
+        />
+      )}
     </div>
   );
 };
