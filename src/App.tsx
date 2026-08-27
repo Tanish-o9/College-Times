@@ -1,0 +1,97 @@
+import React, { Suspense, lazy } from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
+import { AuthProvider } from './context/AuthContext';
+import { Navbar } from './components/Navbar';
+import { RequireAuth } from './components/RequireAuth';
+import { RequireAdmin } from './components/RequireAdmin';
+import { Skeleton } from './components/Skeleton';
+import { FeedPage } from './features/feed/FeedPage';
+import { LoginPage } from './features/auth/LoginPage';
+import { AccountPage } from './features/account/AccountPage';
+import { LostFoundPage } from './features/lostfound/LostFoundPage';
+import { EventsList } from './features/events/EventsList';
+import { EventDetail } from './features/events/EventDetail';
+import { Leaderboard } from './features/leaderboard/Leaderboard';
+import { PrivacyPage } from './features/privacy/PrivacyPage';
+import { ChatRoom } from './features/chat/ChatRoom';
+import { ChannelList } from './features/chat/ChannelList';
+import { SavedMessagesPage } from './features/chat/SavedMessagesPage';
+import { ChatNotificationSettings } from './features/chat/ChatNotificationSettings';
+import { CampusNotificationSettings } from './features/account/CampusNotificationSettings';
+import { GroupsPage } from './features/groups/GroupsPage';
+import { GroupDetailPage } from './features/groups/GroupDetailPage';
+
+import { BreakingAlertBanner } from './features/alerts/BreakingAlertBanner';
+import { AlertCenter } from './features/alerts/AlertCenter';
+import { ActiveIncidentStrip } from './features/incidents/ActiveIncidentStrip';
+import { IncidentDetail } from './features/incidents/IncidentDetail';
+
+import { MyIncidentReports } from './features/incidents/MyIncidentReports';
+import { IncidentReportDetail } from './features/incidents/IncidentReportDetail';
+
+// Code-split heavy AdminPortal route
+const AdminPage = lazy(() => import('./features/admin/AdminPage').then(module => ({ default: module.AdminPage })));
+
+export const App: React.FC = () => {
+  return (
+    <AuthProvider>
+      <Router>
+        <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+          <Toaster 
+            position="top-right" 
+            toastOptions={{
+              duration: 4000,
+              style: {
+                background: '#1e293b',
+                color: '#f8fafc',
+                border: '1px solid #334155',
+                borderRadius: '0.75rem',
+              },
+            }} 
+          />
+          <Navbar />
+          <main className="flex-1 container mx-auto px-4 py-6">
+            <ActiveIncidentStrip />
+            <BreakingAlertBanner />
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
+              <Route element={<RequireAuth />}>
+                <Route path="/" element={<FeedPage />} />
+                <Route path="/lost-found" element={<LostFoundPage />} />
+                <Route path="/events" element={<EventsList />} />
+                <Route path="/events/:eventId" element={<EventDetail />} />
+                <Route path="/leaderboard" element={<Leaderboard />} />
+                <Route path="/chat/:channelId" element={<ChatRoom />} />
+                <Route path="/channels" element={<ChannelList />} />
+                <Route path="/groups" element={<GroupsPage />} />
+                <Route path="/groups/:groupId" element={<GroupDetailPage />} />
+                <Route path="/alerts" element={<AlertCenter />} />
+                <Route path="/incidents/:incidentId" element={<IncidentDetail />} />
+                <Route path="/my-reports" element={<MyIncidentReports />} />
+                <Route path="/my-reports/:reportId" element={<IncidentReportDetail />} />
+                <Route path="/saved-messages" element={<SavedMessagesPage />} />
+                <Route path="/chat/settings" element={<ChatNotificationSettings />} />
+                <Route path="/settings/notifications" element={<CampusNotificationSettings />} />
+                <Route path="/privacy" element={<PrivacyPage />} />
+                <Route path="/account" element={<AccountPage />} />
+                <Route element={<RequireAdmin />}>
+                  <Route 
+                    path="/admin-portal" 
+                    element={
+                      <Suspense fallback={<div className="p-8 space-y-4"><Skeleton variant="rectangular" className="h-12 w-full" /><Skeleton variant="card" /></div>}>
+                        <AdminPage />
+                      </Suspense>
+                    } 
+                  />
+                </Route>
+              </Route>
+            </Routes>
+          </main>
+        </div>
+      </Router>
+    </AuthProvider>
+  );
+};
+
+export default App;

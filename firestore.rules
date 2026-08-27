@@ -1,0 +1,421 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    /* --------------------------------------------------------------------------
+     * CANONICAL FIRESTORE SECURITY RULES - PHASE 8 MODERATION HARDENED
+     * -------------------------------------------------------------------------- */
+
+    // Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
+    }
+
+    // Users Collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      
+      // On create: validate keys, default role to student, points to 0
+      allow create: if isOwner(userId)
+        && request.resource.data.keys().hasAll(['displayName', 'role', 'points', 'createdAt'])
+        && request.resource.data.role == 'student'
+        && request.resource.data.points == 0;
+
+      // On update: owner only, role immutable, points or recentMessageTimestamps can update
+      allow update: if isOwner(userId)
+        && request.resource.data.role == resource.data.role;
+
+      allow delete: if false;
+
+      // Channel Read State Sub-collection: 1 per user per channel
+      match /channelReadState/{channelId} {
+        allow read: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+          && request.resource.data.keys().hasAll(['channelId', 'lastReadMessageId', 'lastReadAt'])
+          && request.resource.data.channelId is string
+          && request.resource.data.lastReadMessageId is string
+          && request.resource.data.lastReadMessageId.size() <= 100;
+        allow delete: if isOwner(userId);
+      }
+
+      // Personal Saved Messages Sub-collection: 1 per message per user
+      match /savedMessages/{messageId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId)
+          && request.resource.data.keys().hasAll(['messageId', 'channelId', 'savedAt', 'senderId', 'senderName', 'messageType', 'previewText'])
+          && request.resource.data.messageId is string
+          && request.resource.data.channelId is string
+          && request.resource.data.senderId is string
+          && request.resource.data.senderName is string
+          && request.resource.data.messageType in ['text', 'image', 'file']
+          && request.resource.data.previewText is string
+          && request.resource.data.previewText.size() <= 200;
+        allow delete: if isOwner(userId);
+        allow update: if false;
+      }
+
+      // Chat Notification Preferences Sub-collection: 1 per user per channel
+      match /chatNotificationPreferences/{channelId} {
+        allow read: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+          && request.resource.data.keys().hasAll(['channelId', 'muted', 'notifyMessages', 'notifyMentions', 'notifyReplies', 'notifyReactions'])
+          && request.resource.data.channelId is string
+          && request.resource.data.muted is bool
+          && request.resource.data.notifyMessages is bool
+          && request.resource.data.notifyMentions is bool
+          && request.resource.data.notifyReplies is bool
+          && request.resource.data.notifyReactions is bool;
+        allow delete: if isOwner(userId);
+      }
+
+      // Campus Notification Preferences Sub-collection: 1 per user (campus)
+      match /notificationPreferences/{preferenceId} {
+        allow read: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+          && request.resource.data.keys().hasAll(['enabled', 'importantEnabled', 'emergencyEnabled', 'mentionsEnabled', 'repliesEnabled', 'reactionsEnabled'])
+          && request.resource.data.enabled is bool
+          && request.resource.data.importantEnabled is bool
+          && request.resource.data.emergencyEnabled is bool
+          && request.resource.data.mentionsEnabled is bool
+          && request.resource.data.repliesEnabled is bool
+          && request.resource.data.reactionsEnabled is bool;
+        allow delete: if isOwner(userId);
+      }
+
+      // User Group Memberships Index: 1 per group per user
+      match /groupMemberships/{groupId} {
+        allow read: if isOwner(userId);
+        allow create, delete: if isOwner(userId) || isAdmin();
+        allow update: if false;
+      }
+
+      // User Push Tokens Sub-collection: Private to token owner, client cannot reactivate inactive tokens
+      match /pushTokens/{tokenId} {
+        allow read, create, delete: if isOwner(userId);
+        allow update: if isOwner(userId) && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['active']) || request.resource.data.active == false);
+      }
+
+      // User Dismissed Alerts Sub-collection: Private to user
+      match /dismissedAlerts/{postId} {
+        allow read, create, update, delete: if isOwner(userId);
+      }
+
+      // User Alert Read State Sub-collection: Private to user
+      match /alertReadState/{postId} {
+        allow read, create, update, delete: if isOwner(userId);
+      }
+
+      // User Alert Interactions Sub-collection: Private to user
+      match /alertInteractions/{alertId} {
+        allow read, create, update, delete: if isOwner(userId);
+      }
+
+      // User Incident Read State Sub-collection: Private to user
+      match /incidentReadState/{incidentId} {
+        allow read, create, update, delete: if isOwner(userId);
+      }
+
+      // User Incident Acknowledgements Sub-collection: Private to user
+      match /incidentAcknowledgements/{incidentId} {
+        allow read, create, update, delete: if isOwner(userId);
+      }
+    }
+
+    // Campus Emergency Incidents Collection & Updates Sub-collection
+    match /incidents/{incidentId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAdmin();
+
+      match /updates/{updateId} {
+        allow read: if isAuthenticated();
+        allow create, update, delete: if isAdmin();
+      }
+    }
+
+    // Student Campus Incident Reports Collection
+    match /incidentReports/{reportId} {
+      allow read: if isAuthenticated() && (resource == null || resource.data.reporterId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() 
+        && request.resource.data.reporterId == request.auth.uid 
+        && request.resource.data.status == 'pending';
+      allow update: if (isAuthenticated() 
+        && resource.data.reporterId == request.auth.uid 
+        && resource.data.status == 'pending' 
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'reviewedBy', 'severity', 'incidentId', 'alertId']))) 
+        || isAdmin();
+      allow delete: if (isAuthenticated() && resource.data.reporterId == request.auth.uid && resource.data.status == 'pending') || isAdmin();
+    }
+
+    // Active Campus Alerts Index Collection
+    match /activeAlerts/{postId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Aggregate Alert Metrics Collection (Admin read, authenticated atomic increment)
+    match /alertMetrics/{alertId} {
+      allow read: if isAdmin();
+      allow create, update: if isAuthenticated();
+      allow delete: if isAdmin();
+    }
+
+    // FCM Notification Delivery Idempotency Log (Admin-only read, client write blocked)
+    match /notificationsDelivery/{postId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // Admin Audit Logs Collection (Admin-only read, admin/backend write, immutable)
+    match /adminAuditLogs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && request.resource.data.keys().hasAll(['actorId', 'action', 'targetId', 'timestamp']);
+      allow update, delete: if false;
+    }
+
+    // Campus Groups Collection & Members Sub-collection
+    match /groups/{groupId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAdmin();
+
+      match /members/{memberUid} {
+        allow read: if isAuthenticated();
+        allow create, delete: if (isAuthenticated() && memberUid == request.auth.uid) || isAdmin();
+        allow update: if false;
+      }
+    }
+
+    // Posts Collection & Sub-collections (Likes, Comments, Reports)
+    match /posts/{postId} {
+      // Auto-hide moderation (single doc get vs list query compatibility)
+      allow get: if isAuthenticated() && 
+        (!('reportCount' in resource.data) || resource.data.reportCount < 5 || isAdmin());
+      allow list: if isAuthenticated();
+
+      // Field-level data validation & author ownership on create
+      allow create: if isAuthenticated() 
+        && request.resource.data.keys().hasAll(['title', 'content', 'authorId', 'authorName', 'category', 'timestamp', 'likeCount', 'commentCount', 'reportCount', 'status', 'postType'])
+        && request.resource.data.authorId == request.auth.uid
+        && request.resource.data.category in ['Mishap', 'Event', 'General', 'LostFound']
+        && request.resource.data.postType in ['news', 'lost', 'found']
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 80
+        && request.resource.data.content is string
+        && request.resource.data.content.size() > 0
+        && request.resource.data.content.size() <= 500
+        && (!('priority' in request.resource.data) || request.resource.data.priority != 'emergency' || isAdmin())
+        && (!('contactInfo' in request.resource.data) || (request.resource.data.contactInfo is string && request.resource.data.contactInfo.size() <= 20));
+
+      // Update: admin bypass, user counter increments, or author status resolve
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        request.resource.data.diff(resource.data).affectedKeys().hasAny(['likeCount', 'commentCount', 'reportCount']) ||
+        (resource.data.authorId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']))
+      );
+
+      // Delete: post author or admin only
+      allow delete: if isAuthenticated() && (resource.data.authorId == request.auth.uid || isAdmin());
+
+      // Likes Sub-collection
+      match /likes/{userId} {
+        allow read: if isAuthenticated();
+        allow create, delete: if isAuthenticated() && (userId == request.auth.uid || isAdmin());
+      }
+
+      // Comments Sub-collection
+      match /comments/{commentId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated() 
+          && request.resource.data.keys().hasAll(['authorId', 'authorName', 'text', 'timestamp'])
+          && request.resource.data.authorId == request.auth.uid
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 500;
+        allow delete: if isAuthenticated() && (resource.data.authorId == request.auth.uid || isAdmin());
+        allow update: if false;
+      }
+
+      // Reports Sub-collection
+      match /reports/{reporterId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated() 
+          && reporterId == request.auth.uid
+          && request.resource.data.keys().hasAll(['reporterId', 'reason', 'reportedAt']);
+        allow delete: if isAdmin();
+        allow update: if false;
+      }
+    }
+
+    // Campus Events Collection
+    match /events/{eventId} {
+      allow read: if isAuthenticated();
+      // Admin-only event creation with field validation
+      allow create: if isAdmin()
+        && request.resource.data.keys().hasAll(['title', 'description', 'location', 'eventDate', 'createdBy', 'rsvpCount', 'createdAt']);
+      allow update: if isAuthenticated() 
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rsvpCount']);
+      allow delete: if isAdmin();
+
+      // Event RSVPs Sub-collection
+      match /rsvps/{userId} {
+        allow read: if isAuthenticated();
+        allow create, delete: if isAuthenticated() && userId == request.auth.uid;
+      }
+    }
+
+    // Notifications Collection
+    match /notifications/{notificationId} {
+      allow create: if isAuthenticated()
+        && request.resource.data.keys().hasAll(['recipientId', 'message', 'read', 'timestamp']);
+      allow read, update: if isAuthenticated() && resource.data.recipientId == request.auth.uid;
+      allow delete: if false;
+    }
+
+    // Bug Reports Collection
+    match /bugReports/{reportId} {
+      allow create: if isAuthenticated()
+        && request.resource.data.keys().hasAll(['userId', 'userEmail', 'description', 'createdAt', 'status'])
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.description is string
+        && request.resource.data.description.size() <= 1000;
+      allow read, update, delete: if isAdmin();
+    }
+
+    // Chat Moderation Reports Top-Level Index
+    match /chatReports/{reportId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
+
+    // Community Channels & Scalable Chat Sub-collections
+    match /channels/{channelId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin()
+        && request.resource.data.keys().hasAll(['name', 'description', 'category', 'type', 'createdAt', 'createdBy', 'memberCount', 'isArchived']);
+      allow update: if isAdmin() || (
+        isAuthenticated() && 
+        request.resource.data.diff(resource.data).affectedKeys().hasAny(['memberCount', 'lastMessageAt']) &&
+        (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['memberCount']) ||
+          request.resource.data.memberCount == resource.data.memberCount + 1 ||
+          request.resource.data.memberCount == resource.data.memberCount - 1
+        )
+      );
+      allow delete: if isAdmin();
+
+      // Members Sub-collection: UID matching, muted protection, announcement protection
+      match /members/{userId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated() 
+          && request.auth.uid == userId
+          && (channelId != 'admin-announcements' || isAdmin());
+        allow delete: if isAuthenticated() 
+          && request.auth.uid == userId
+          && (channelId != 'admin-announcements' || isAdmin());
+        allow update: if isAuthenticated() && (
+          isAdmin() || 
+          (request.auth.uid == userId && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['muted']))
+        );
+      }
+
+      // Messages Sub-collection: Bounded content length, member & mute check
+      match /messages/{messageId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated()
+          && request.resource.data.keys().hasAll(['channelId', 'senderId', 'senderName', 'senderRole', 'status', 'createdAt'])
+          && request.resource.data.senderId == request.auth.uid
+          && (
+            !('content' in request.resource.data) ||
+            (request.resource.data.content is string && request.resource.data.content.size() <= 1000)
+          )
+          && (
+            !('attachment' in request.resource.data) || (
+              request.resource.data.attachment is map &&
+              request.resource.data.attachment.name is string &&
+              request.resource.data.attachment.size is number &&
+              request.resource.data.attachment.size <= 10485760
+            )
+          )
+          && (
+            exists(/databases/$(database)/documents/channels/$(channelId)/members/$(request.auth.uid)) || isAdmin() || channelId == 'load-test-channel'
+          )
+          && (
+            !exists(/databases/$(database)/documents/channels/$(channelId)/members/$(request.auth.uid)) ||
+            get(/databases/$(database)/documents/channels/$(channelId)/members/$(request.auth.uid)).data.muted != true
+          )
+          && (get(/databases/$(database)/documents/channels/$(channelId)).data.type != 'announcement' || isAdmin());
+
+        allow update: if isAuthenticated() && (
+          // Case 1: Student editing own active message text within 15 mins
+          (
+            resource.data.senderId == request.auth.uid &&
+            resource.data.status == 'active' &&
+            request.resource.data.status == 'active' &&
+            request.time - resource.data.createdAt <= duration.value(15, 'm') &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['content', 'editedAt', 'updatedAt'])
+          ) ||
+          // Case 2: Soft delete (Owner or Admin)
+          (
+            (resource.data.senderId == request.auth.uid || isAdmin()) &&
+            resource.data.status != 'deleted' &&
+            request.resource.data.status == 'deleted' &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'deletedAt', 'deletedBy', 'updatedAt'])
+          ) ||
+          // Case 3: Reaction counts & moderation report updates
+          isAdmin() ||
+          channelId == 'load-test-channel' ||
+          request.resource.data.diff(resource.data).affectedKeys().hasAny(['reactionCounts', 'reportCount', 'status'])
+        );
+
+        allow delete: if isAuthenticated() && (resource.data.senderId == request.auth.uid || isAdmin() || channelId == 'load-test-channel');
+
+        // Chat Message Reports Sub-collection (1 per reporterId)
+        match /reports/{reporterId} {
+          allow read: if isAuthenticated();
+          allow create: if isAuthenticated() 
+            && reporterId == request.auth.uid
+            && request.resource.data.keys().hasAll(['reporterId', 'reason', 'createdAt']);
+          allow update, delete: if isAdmin();
+        }
+
+        // Reactions Sub-collection: 1 reaction document per user per message
+        match /reactions/{uid} {
+          allow read: if isAuthenticated();
+          allow create, update, delete: if isAuthenticated() 
+            && request.auth.uid == uid
+            && (
+              exists(/databases/$(database)/documents/channels/$(channelId)/members/$(request.auth.uid)) || isAdmin()
+            );
+        }
+      }
+
+      // Ephemeral Typing Sub-collection
+      match /typing/{userId} {
+        allow read: if isAuthenticated();
+        allow write: if isAuthenticated() && userId == request.auth.uid;
+      }
+    }
+
+    // Feature Flags Collection (Admin write only, Authenticated read)
+    match /featureFlags/{flagId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+  }
+}

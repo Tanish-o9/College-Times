@@ -1,0 +1,62 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Default Deny
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    // User Uploaded Post Photos Path: posts/{userId}/{filename}
+    match /posts/{userId}/{filename} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // User Uploaded Chat Media Path: chatMedia/{channelId}/{userId}/{filename}
+    match /chatMedia/{channelId}/{userId}/{filename} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // User Uploaded Chat Files Path: chatFiles/{channelId}/{userId}/{filename}
+    match /chatFiles/{channelId}/{userId}/{filename} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.size <= 10 * 1024 * 1024
+        && (
+          request.resource.contentType == 'application/pdf' ||
+          request.resource.contentType == 'application/msword' ||
+          request.resource.contentType == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+          request.resource.contentType == 'application/vnd.ms-excel' ||
+          request.resource.contentType == 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+          request.resource.contentType == 'application/vnd.ms-powerpoint' ||
+          request.resource.contentType == 'application/vnd.openxmlformats-officedocument.presentationml.presentation' ||
+          request.resource.contentType == 'text/plain' ||
+          request.resource.contentType == 'text/csv' ||
+          request.resource.contentType == 'application/zip' ||
+          request.resource.contentType == 'application/octet-stream'
+        );
+    }
+
+    // User Uploaded Incident Evidence Path: incidentEvidence/{reportId}/{userId}/{filename}
+    match /incidentEvidence/{reportId}/{userId}/{filename} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.size <= 10 * 1024 * 1024
+        && (
+          request.resource.contentType.matches('image/.*') ||
+          request.resource.contentType == 'video/mp4' ||
+          request.resource.contentType == 'video/webm'
+        );
+    }
+  }
+}
