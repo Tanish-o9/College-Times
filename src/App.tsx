@@ -45,6 +45,8 @@ import { IncidentReportDetail } from './features/incidents/IncidentReportDetail'
 import { NotificationsPage } from './features/notifications/NotificationsPage';
 import { NotificationSettings } from './features/settings/NotificationSettings';
 import { SystemHealthPage } from './features/admin/SystemHealthPage';
+import { ProfilePage } from './features/profile/ProfilePage';
+import { ConnectionsPage } from './features/profile/ConnectionsPage';
 
 // Code-split heavy AdminPortal route
 const AdminPage = lazy(() => import('./features/admin/AdminPage').then(module => ({ default: module.AdminPage })));
@@ -101,6 +103,8 @@ export const App: React.FC = () => {
                 <Route path="/saved-messages" element={<SavedMessagesPage />} />
                 <Route path="/chat/settings" element={<ChatNotificationSettings />} />
                 <Route path="/settings/notifications" element={<NotificationSettings />} />
+                <Route path="/profile/:username" element={<ProfilePage />} />
+                <Route path="/connections" element={<ConnectionsPage />} />
                 <Route path="/privacy" element={<PrivacyPage />} />
                 <Route path="/account" element={<AccountPage />} />
                 <Route element={<RequireAdmin />}>

@@ -635,6 +635,13 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Phase 45: Unique Usernames Collection
+    match /usernames/{username} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated();
+      allow delete: if isAdmin();
+    }
+
     // Phase 32: Group Invite Pass Codes Collection
     match /groupInviteCodes/{code} {
       allow read: if isAuthenticated();
