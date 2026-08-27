@@ -105,6 +105,11 @@ service cloud.firestore {
         allow create, update, delete: if isAuthenticated();
       }
 
+      // Phase 47: User Home Preferences Sub-collection
+      match /homePreferences/{settingId} {
+        allow read, create, update, delete: if isOwner(userId);
+      }
+
       // Phase 41: Group Notification Preferences Sub-collection
       match /groupNotificationPreferences/{groupId} {
         allow read, create, update, delete: if isOwner(userId);

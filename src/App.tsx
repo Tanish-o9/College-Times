@@ -47,6 +47,7 @@ import { NotificationSettings } from './features/settings/NotificationSettings';
 import { SystemHealthPage } from './features/admin/SystemHealthPage';
 import { ProfilePage } from './features/profile/ProfilePage';
 import { ConnectionsPage } from './features/profile/ConnectionsPage';
+import { CampusHome } from './features/home/CampusHome';
 
 // Code-split heavy AdminPortal route
 const AdminPage = lazy(() => import('./features/admin/AdminPage').then(module => ({ default: module.AdminPage })));
@@ -77,7 +78,8 @@ export const App: React.FC = () => {
             <Routes>
               <Route path="/login" element={<LoginPage />} />
               <Route element={<RequireAuth />}>
-                <Route path="/" element={<FeedPage />} />
+                <Route path="/" element={<CampusHome />} />
+                <Route path="/feed" element={<FeedPage />} />
                 <Route path="/search" element={<SearchPage />} />
                 <Route path="/lost-found" element={<LostFoundPage />} />
                 <Route path="/events" element={<EventsList />} />
