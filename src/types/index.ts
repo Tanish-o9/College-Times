@@ -9,3 +9,4 @@ export * from './notification';
 export * from './feed';
 export * from './poll';
 export * from './lostFound';
+export * from './marketplace';

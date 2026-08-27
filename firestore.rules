@@ -339,6 +339,35 @@ service cloud.firestore {
       }
     }
 
+    // Phase 31: Campus Marketplace Collection
+    match /marketplaceListings/{listingId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated()
+        && request.resource.data.keys().hasAll(['title', 'description', 'category', 'price', 'condition', 'sellerId', 'status', 'createdAt']);
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        resource.data.sellerId == request.auth.uid ||
+        request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'interestCount', 'saveCount', 'viewCount'])
+      );
+      allow delete: if isAdmin() || (resource.data.sellerId == request.auth.uid);
+
+      // Listing Interests Sub-collection
+      match /interests/{userId} {
+        allow read, create, update, delete: if isAuthenticated() && userId == request.auth.uid;
+      }
+
+      // Listing Offers Sub-collection
+      match /offers/{offerId} {
+        allow read: if isAuthenticated() && (
+          resource.data.buyerId == request.auth.uid ||
+          resource.data.sellerId == request.auth.uid ||
+          isAdmin()
+        );
+        allow create, update: if isAuthenticated() && request.auth.uid == request.resource.data.buyerId;
+        allow delete: if isAdmin() || (resource.data.sellerId == request.auth.uid);
+      }
+    }
+
     // Notifications Collection
     match /notifications/{notificationId} {
       allow create: if isAuthenticated()

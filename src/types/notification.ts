@@ -22,6 +22,10 @@ export type NotificationType =
   | 'campus_incident'
   | 'admin_broadcast'
   | 'chat_activity'
+  | 'marketplace_interest'
+  | 'marketplace_offer_received'
+  | 'marketplace_offer_accepted'
+  | 'marketplace_offer_rejected'
   | 'system';
 
 export interface NotificationItem {
