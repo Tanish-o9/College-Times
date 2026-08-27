@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import type { CampusEvent } from '../../types';
-import { getEventById, hasUserRsvpd, toggleRsvp, getEventParticipants } from '../../services/eventService';
+import type { CampusEvent } from '../../types/models';
+import { getEventById, hasUserRsvpd, getEventParticipants, toggleRsvpStatus, cancelEvent } from '../../services/eventService';
+import { toggleEventReminder, hasUserReminder } from '../../services/eventReminderService';
 import { useAuth } from '../../hooks/useAuth';
 import toast from 'react-hot-toast';
 import { 
@@ -12,7 +13,11 @@ import {
   CheckCircle2, 
   ExternalLink, 
   RefreshCw,
-  AlertCircle
+  AlertCircle,
+  Bell, 
+  BellOff, 
+  AlertTriangle, 
+  X
 } from 'lucide-react';
 
 export const EventDetail: React.FC = () => {
@@ -25,9 +30,17 @@ export const EventDetail: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   // RSVP state
-  const [rsvpd, setRsvpd] = useState<boolean>(false);
+  const [userRsvpStatus, setUserRsvpStatus] = useState<string | null>(null);
   const [rsvpCount, setRsvpCount] = useState<number>(0);
+  const [interestedCount, setInterestedCount] = useState<number>(0);
   const [togglingRsvp, setTogglingRsvp] = useState<boolean>(false);
+
+  // Reminder & Cancel Modal state
+  const [hasReminder, setHasReminder] = useState<boolean>(false);
+  const [togglingReminder, setTogglingReminder] = useState<boolean>(false);
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState<boolean>(false);
+  const [cancelReason, setCancelReason] = useState<string>('');
+  const [cancelling, setCancelling] = useState<boolean>(false);
 
   // Participants list
   const [participants, setParticipants] = useState<{ userId: string; userName: string }[]>([]);
@@ -49,11 +62,18 @@ export const EventDetail: React.FC = () => {
         if (mounted) {
           setEvent(evtData);
           setRsvpCount(evtData.rsvpCount ?? 0);
+          setInterestedCount(evtData.interestedCount ?? 0);
         }
 
         if (currentUser) {
-          const userHasRsvpd = await hasUserRsvpd(eventId, currentUser.uid);
-          if (mounted) setRsvpd(userHasRsvpd);
+          const [userHasRsvpd, remStatus] = await Promise.all([
+            hasUserRsvpd(eventId, currentUser.uid),
+            hasUserReminder(eventId, currentUser.uid),
+          ]);
+          if (mounted) {
+            setUserRsvpStatus(userHasRsvpd ? 'going' : null);
+            setHasReminder(remStatus);
+          }
         }
 
         const partyList = await getEventParticipants(eventId, 20);
@@ -72,35 +92,59 @@ export const EventDetail: React.FC = () => {
     };
   }, [eventId, currentUser]);
 
-  const handleRsvpToggle = async () => {
+  const handleRsvpChange = async (newStatus: 'going' | 'interested' | 'maybe' | 'cancelled') => {
     if (!currentUser || !event || !event.id || togglingRsvp) return;
-
-    const prevRsvpd = rsvpd;
-    const prevCount = rsvpCount;
-
-    // Optimistic UI flip
-    const nextRsvpd = !prevRsvpd;
-    const nextCount = nextRsvpd ? prevCount + 1 : Math.max(0, prevCount - 1);
-    setRsvpd(nextRsvpd);
-    setRsvpCount(nextCount);
     setTogglingRsvp(true);
 
     try {
-      const res = await toggleRsvp(event.id, currentUser.uid, userProfile);
-      setRsvpd(res.rsvpd);
-      setRsvpCount(res.newRsvpCount);
+      const res = await toggleRsvpStatus(event.id, currentUser.uid, newStatus, userProfile);
+      setUserRsvpStatus(res.status === 'cancelled' ? null : res.status);
+      setRsvpCount(res.rsvpCount);
+      setInterestedCount(res.interestedCount);
 
-      // Refresh participant list
       const updatedParty = await getEventParticipants(event.id, 20);
       setParticipants(updatedParty);
 
-      toast.success(res.rsvpd ? "RSVP confirmed! You're going 🎉" : "RSVP removed.");
+      toast.success(newStatus === 'cancelled' ? 'RSVP removed.' : `RSVP updated to ${newStatus}!`);
     } catch (err: any) {
-      setRsvpd(prevRsvpd);
-      setRsvpCount(prevCount);
-      toast.error('Failed to update RSVP status.');
+      toast.error(err.message || 'Failed to update RSVP status.');
     } finally {
       setTogglingRsvp(false);
+    }
+  };
+
+  const handleReminderToggle = async () => {
+    if (!currentUser || !event || !event.id || togglingReminder) return;
+    setTogglingReminder(true);
+
+    try {
+      const enabled = await toggleEventReminder(event.id, currentUser.uid, event.title);
+      setHasReminder(enabled);
+      toast.success(enabled ? 'Reminder enabled!' : 'Reminder disabled.');
+    } catch (err: any) {
+      toast.error('Failed to toggle reminder.');
+    } finally {
+      setTogglingReminder(false);
+    }
+  };
+
+  const handleConfirmCancelEvent = async () => {
+    if (!currentUser || !event || !event.id || cancelling) return;
+    if (!cancelReason.trim()) {
+      toast.error('Please provide a cancellation reason.');
+      return;
+    }
+
+    setCancelling(true);
+    try {
+      await cancelEvent(event.id, cancelReason, currentUser);
+      setEvent({ ...event, status: 'cancelled', isCancelled: true, cancellationReason: cancelReason });
+      toast.success('Event cancelled.');
+      setIsCancelModalOpen(false);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to cancel event.');
+    } finally {
+      setCancelling(false);
     }
   };
 
@@ -238,37 +282,108 @@ export const EventDetail: React.FC = () => {
           </p>
         </div>
 
-        {/* RSVP Action Bar */}
-        <div className="pt-4 border-t border-slate-800 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-2 text-sm text-slate-300 font-medium">
-            <Users className="w-5 h-5 text-emerald-400" />
-            <span className="font-bold text-white font-mono">{rsvpCount}</span> Students Attending
+        {/* Cancellation Notice Banner */}
+        {event.isCancelled && (
+          <div className="p-4 bg-rose-500/10 border border-rose-500/30 rounded-2xl flex items-start gap-3 text-rose-300 text-xs">
+            <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+            <div>
+              <h4 className="font-bold text-sm text-rose-200">Event Cancelled</h4>
+              <p className="mt-0.5 leading-relaxed">{event.cancellationReason || 'This campus event has been cancelled by the organizer.'}</p>
+            </div>
           </div>
+        )}
 
-          <button
-            onClick={handleRsvpToggle}
-            disabled={togglingRsvp}
-            className={`px-6 py-3 rounded-2xl font-bold text-sm shadow-xl flex items-center gap-2 transition-all ${
-              rsvpd
-                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-emerald-500/10'
-                : 'bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white shadow-purple-500/20'
-            }`}
-          >
-            {togglingRsvp ? (
-              <RefreshCw className="w-4 h-4 animate-spin" />
-            ) : rsvpd ? (
-              <>
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span>Going ✓</span>
-              </>
-            ) : (
-              <>
-                <Calendar className="w-4 h-4" />
-                <span>RSVP to Event</span>
-              </>
-            )}
-          </button>
-        </div>
+        {/* Capacity Bar (If capacity set) */}
+        {event.capacity && event.capacity > 0 && (
+          <div className="p-4 bg-slate-950/80 rounded-2xl border border-slate-800 space-y-2">
+            <div className="flex items-center justify-between text-xs font-mono">
+              <span className="text-slate-400">Registration Capacity</span>
+              <span className="font-bold text-slate-200">
+                {rsvpCount} / {event.capacity} Seats Filled ({Math.round((rsvpCount / event.capacity) * 100)}%)
+              </span>
+            </div>
+            <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+              <div
+                className={`h-full transition-all duration-500 ${
+                  rsvpCount >= event.capacity ? 'bg-rose-500' : 'bg-purple-500'
+                }`}
+                style={{ width: `${Math.min(100, Math.round((rsvpCount / event.capacity) * 100))}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Action Bar (RSVP, Reminders, Organizer Controls) */}
+        {!event.isCancelled && (
+          <div className="pt-4 border-t border-slate-800 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              {/* RSVP Status Selector Buttons */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={() => handleRsvpChange('going')}
+                  disabled={togglingRsvp || (!!event.capacity && rsvpCount >= event.capacity && userRsvpStatus !== 'going')}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border flex items-center gap-1.5 ${
+                    userRsvpStatus === 'going'
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-lg shadow-emerald-500/10'
+                      : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700'
+                  }`}
+                >
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <span>Going ({rsvpCount})</span>
+                </button>
+
+                <button
+                  onClick={() => handleRsvpChange('interested')}
+                  disabled={togglingRsvp}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border flex items-center gap-1.5 ${
+                    userRsvpStatus === 'interested'
+                      ? 'bg-sky-500/20 text-sky-300 border-sky-500/40 shadow-lg shadow-sky-500/10'
+                      : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700'
+                  }`}
+                >
+                  <Users className="w-4 h-4 text-sky-400" />
+                  <span>Interested ({interestedCount})</span>
+                </button>
+
+                {userRsvpStatus && (
+                  <button
+                    onClick={() => handleRsvpChange('cancelled')}
+                    disabled={togglingRsvp}
+                    className="px-3 py-2 bg-slate-950 hover:bg-slate-800 text-rose-400 border border-slate-800 rounded-xl text-xs font-semibold"
+                  >
+                    Cancel RSVP
+                  </button>
+                )}
+              </div>
+
+              {/* Reminder Toggle & Organizer Controls */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleReminderToggle}
+                  disabled={togglingReminder}
+                  className={`p-2.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    hasReminder
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                      : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700'
+                  }`}
+                  title={hasReminder ? 'Reminder Enabled' : 'Enable Event Reminder'}
+                >
+                  {hasReminder ? <Bell className="w-4 h-4 text-amber-400 fill-amber-400" /> : <BellOff className="w-4 h-4" />}
+                  <span className="hidden sm:inline">{hasReminder ? 'Reminder On' : 'Remind Me'}</span>
+                </button>
+
+                {currentUser && (event.createdBy === currentUser.uid || userProfile?.role === 'admin') && (
+                  <button
+                    onClick={() => setIsCancelModalOpen(true)}
+                    className="px-3 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded-xl text-xs font-bold"
+                  >
+                    Cancel Event
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Participant Avatar List */}
         <div className="pt-4 border-t border-slate-800/80 space-y-3">
@@ -300,6 +415,56 @@ export const EventDetail: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Organizer Cancel Modal */}
+      {isCancelModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm" onClick={() => setIsCancelModalOpen(false)} />
+          <div className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 z-10 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-rose-400" />
+                <span>Cancel Campus Event</span>
+              </h3>
+              <button onClick={() => setIsCancelModalOpen(false)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-400">
+              Provide a reason for cancellation. Registered attendees will be notified.
+            </p>
+
+            <textarea
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="e.g. Unavoidable venue maintenance conflict..."
+              rows={3}
+              required
+              className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-500"
+            />
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsCancelModalOpen(false)}
+                className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold"
+              >
+                Keep Event
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmCancelEvent}
+                disabled={cancelling}
+                className="px-4 py-2 bg-rose-500 hover:bg-rose-400 text-white font-bold text-xs rounded-xl shadow-lg flex items-center gap-1.5"
+              >
+                {cancelling ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : null}
+                <span>Confirm Cancel</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

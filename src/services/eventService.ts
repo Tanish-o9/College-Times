@@ -213,3 +213,142 @@ export const getEventParticipants = async (
     return [];
   }
 };
+
+/**
+ * Phase 29: Atomically updates RSVP status ('going' | 'interested' | 'maybe' | 'cancelled').
+ * Enforces capacity server-side for 'going' status.
+ */
+export const toggleRsvpStatus = async (
+  eventId: string,
+  userId: string,
+  newStatus: 'going' | 'interested' | 'maybe' | 'cancelled',
+  userProfile?: User | null
+): Promise<{ status: string; rsvpCount: number; interestedCount: number }> => {
+  if (!eventId || !userId) throw new Error('Event ID and User ID required.');
+
+  const eventRef = doc(db, 'events', eventId);
+  const rsvpRef = doc(db, 'events', eventId, 'rsvps', userId);
+
+  let updatedRsvpCount = 0;
+  let updatedInterestedCount = 0;
+
+  await runTransaction(db, async (transaction) => {
+    const eventSnap = await transaction.get(eventRef);
+    if (!eventSnap.exists()) throw new Error('Event does not exist.');
+
+    const eventData = eventSnap.data() as CampusEvent;
+    if (eventData.status === 'cancelled' || eventData.isCancelled) {
+      throw new Error('Cannot RSVP to a cancelled event.');
+    }
+
+    const currentRsvp = eventData.rsvpCount || 0;
+    const currentInterested = eventData.interestedCount || 0;
+    const capacity = eventData.capacity || 0;
+
+    const rsvpSnap = await transaction.get(rsvpRef);
+    const prevStatus = rsvpSnap.exists() ? rsvpSnap.data().status : null;
+
+    if (newStatus === 'going' && capacity > 0 && prevStatus !== 'going' && currentRsvp >= capacity) {
+      throw new Error(`Registration capacity (${capacity}) has been reached.`);
+    }
+
+    let deltaRsvp = 0;
+    let deltaInterested = 0;
+
+    // Remove previous status counts
+    if (prevStatus === 'going') deltaRsvp -= 1;
+    if (prevStatus === 'interested') deltaInterested -= 1;
+
+    // Add new status counts
+    if (newStatus === 'going') deltaRsvp += 1;
+    if (newStatus === 'interested') deltaInterested += 1;
+
+    updatedRsvpCount = Math.max(0, currentRsvp + deltaRsvp);
+    updatedInterestedCount = Math.max(0, currentInterested + deltaInterested);
+
+    if (newStatus === 'cancelled') {
+      transaction.delete(rsvpRef);
+    } else {
+      transaction.set(rsvpRef, {
+        userId,
+        status: newStatus,
+        userName: userProfile?.displayName || 'Student',
+        updatedAt: serverTimestamp(),
+      });
+    }
+
+    transaction.update(eventRef, {
+      rsvpCount: updatedRsvpCount,
+      interestedCount: updatedInterestedCount,
+      updatedAt: serverTimestamp(),
+    });
+  });
+
+  return {
+    status: newStatus,
+    rsvpCount: updatedRsvpCount,
+    interestedCount: updatedInterestedCount,
+  };
+};
+
+/**
+ * Phase 29: Cancels an event (organizer or admin only).
+ */
+export const cancelEvent = async (
+  eventId: string,
+  reason: string,
+  currentUser: FirebaseUser
+): Promise<void> => {
+  if (!eventId || !currentUser) throw new Error('Event ID and User required.');
+
+  const eventRef = doc(db, 'events', eventId);
+  const snap = await getDoc(eventRef);
+  if (!snap.exists()) throw new Error('Event not found.');
+
+  const data = snap.data() as CampusEvent;
+  if (data.createdBy !== currentUser.uid) {
+    throw new Error('Unauthorized to cancel this event.');
+  }
+
+  await runTransaction(db, async (transaction) => {
+    transaction.update(eventRef, {
+      status: 'cancelled',
+      isCancelled: true,
+      cancellationReason: reason.trim().slice(0, 300),
+      updatedAt: serverTimestamp(),
+    });
+  });
+};
+
+/**
+ * Phase 29: Edits an event (organizer or admin only).
+ */
+export const editEvent = async (
+  eventId: string,
+  updates: Partial<CampusEvent>,
+  currentUser: FirebaseUser
+): Promise<void> => {
+  if (!eventId || !currentUser) throw new Error('Event ID and User required.');
+
+  const eventRef = doc(db, 'events', eventId);
+  await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(eventRef);
+    if (!snap.exists()) throw new Error('Event not found.');
+
+    const data = snap.data() as CampusEvent;
+    if (data.createdBy !== currentUser.uid) {
+      throw new Error('Unauthorized to edit this event.');
+    }
+
+    const payload = {
+      ...updates,
+      updatedAt: serverTimestamp(),
+    };
+    delete payload.id;
+    delete payload.createdBy;
+    delete payload.rsvpCount;
+    delete payload.createdAt;
+
+    transaction.update(eventRef, payload);
+  });
+};

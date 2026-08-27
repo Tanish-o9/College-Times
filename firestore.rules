@@ -293,17 +293,30 @@ service cloud.firestore {
     // Campus Events Collection
     match /events/{eventId} {
       allow read: if isAuthenticated();
-      // Admin-only event creation with field validation
-      allow create: if isAdmin()
+      allow create: if isAuthenticated()
         && request.resource.data.keys().hasAll(['title', 'description', 'location', 'eventDate', 'createdBy', 'rsvpCount', 'createdAt']);
-      allow update: if isAuthenticated() 
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rsvpCount']);
-      allow delete: if isAdmin();
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        resource.data.createdBy == request.auth.uid ||
+        request.resource.data.diff(resource.data).affectedKeys().hasAny(['rsvpCount', 'interestedCount'])
+      );
+      allow delete: if isAdmin() || (resource.data.createdBy == request.auth.uid);
 
-      // Event RSVPs Sub-collection
+      // Event RSVPs / Attendees Sub-collection
       match /rsvps/{userId} {
         allow read: if isAuthenticated();
-        allow create, delete: if isAuthenticated() && userId == request.auth.uid;
+        allow create, update, delete: if isAuthenticated() && userId == request.auth.uid;
+      }
+
+      match /attendees/{userId} {
+        allow read: if isAuthenticated();
+        allow create, update, delete: if isAuthenticated() && userId == request.auth.uid;
+      }
+
+      // Event Reminders Sub-collection
+      match /reminders/{userId} {
+        allow read: if isAuthenticated();
+        allow create, update, delete: if isAuthenticated() && userId == request.auth.uid;
       }
     }
 

@@ -124,9 +124,23 @@ export interface CampusEvent {
   description: string;
   location: string;
   eventDate: any;
+  endAt?: any;
+  coverImage?: string;
+  category?: 'Cultural' | 'Technical' | 'Sports' | 'Workshop' | 'Seminar' | 'Placement' | 'Club' | 'Academic' | 'Fest' | 'Competition' | 'Social' | 'Other';
+  groupId?: string;
+  status?: 'draft' | 'published' | 'cancelled' | 'completed' | 'archived';
+  visibility?: 'campus' | 'group' | 'private';
   createdBy: string;
+  organizerName?: string;
   rsvpCount: number;
+  interestedCount?: number;
+  capacity?: number;
+  registrationRequired?: boolean;
+  registrationDeadline?: any;
+  isCancelled?: boolean;
+  cancellationReason?: string;
   createdAt?: any;
+  updatedAt?: any;
 }
 
 export interface Report {
