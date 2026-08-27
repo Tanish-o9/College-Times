@@ -26,13 +26,13 @@ export const NotificationSettings: React.FC = () => {
     if (!currentUser) return;
     setLoading(true);
     getUserNotificationPreferences(currentUser.uid)
-      .then((data) => setPrefs(data))
+      .then((data) => setPrefs(data as any))
       .catch(() => toast.error('Failed to load notification settings.'))
       .finally(() => setLoading(false));
   }, [currentUser]);
 
   const handleToggle = (key: keyof UserNotificationPreferences) => {
-    if (key === 'campusAlerts') {
+    if ((key as string) === 'campusAlerts') {
       toast.error('Critical campus safety alerts cannot be disabled.');
       return;
     }
@@ -44,7 +44,7 @@ export const NotificationSettings: React.FC = () => {
     if (!currentUser || !prefs || saving) return;
     setSaving(true);
     try {
-      await updateUserNotificationPreferences(currentUser.uid, prefs);
+      await updateUserNotificationPreferences(currentUser.uid, prefs as any);
       toast.success('Notification preferences saved!');
     } catch (err: any) {
       toast.error(err.message || 'Failed to save settings.');

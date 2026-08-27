@@ -99,6 +99,12 @@ service cloud.firestore {
         allow read, create, update, delete: if isOwner(userId);
       }
 
+      // Phase 41 & 46: User Notifications Sub-collection
+      match /notifications/{notificationId} {
+        allow read: if isOwner(userId);
+        allow create, update, delete: if isAuthenticated();
+      }
+
       // Phase 41: Group Notification Preferences Sub-collection
       match /groupNotificationPreferences/{groupId} {
         allow read, create, update, delete: if isOwner(userId);

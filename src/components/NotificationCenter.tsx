@@ -40,7 +40,7 @@ export const NotificationCenter: React.FC = () => {
     setLoading(true);
     try {
       const res = await getNotificationsPaginated(currentUser.uid, { limitCount: 20 });
-      setNotifications(res.notifications);
+      setNotifications(res.notifications as any);
       setLastDoc(res.lastDoc);
     } catch (err) {
       toast.error('Failed to load notifications.');
@@ -61,7 +61,7 @@ export const NotificationCenter: React.FC = () => {
         limitCount: 20,
         lastDoc,
       });
-      setNotifications((prev) => [...prev, ...res.notifications]);
+      setNotifications((prev) => [...prev, ...(res.notifications as any)]);
       setLastDoc(res.lastDoc);
     } catch (err) {
       toast.error('Failed to load more notifications.');

@@ -31,9 +31,9 @@ export const NotificationTray: React.FC<NotificationTrayProps> = ({ isOpen, onCl
     }
 
     let isMounted = true;
-    getNotificationsPaginated(currentUser.uid, { limitCount: 10 }).then((res) => {
+    getNotificationsPaginated(currentUser.uid).then((res: any) => {
       if (isMounted) {
-        setNotifications(res.notifications);
+        setNotifications(Array.isArray(res) ? res : res.notifications || []);
       }
     });
 
