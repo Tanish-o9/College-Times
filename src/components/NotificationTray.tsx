@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useOverlayBackHandler } from '../hooks/useOverlayBackHandler';
 import { subscribeToNotifications, markAllAsRead } from '../services/notificationService';
-import type { Notification } from '../types';
+import type { NotificationItem } from '../types/notification';
 import { NotificationCard } from './NotificationCard';
 import { Bell, X, Inbox } from 'lucide-react';
 
@@ -14,7 +14,7 @@ interface NotificationTrayProps {
 export const NotificationTray: React.FC<NotificationTrayProps> = ({ isOpen, onClose }) => {
   const { currentUser } = useAuth();
   useOverlayBackHandler(isOpen, onClose);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const trayRef = useRef<HTMLDivElement>(null);
   const hasMarkedRef = useRef<boolean>(false);
 

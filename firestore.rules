@@ -97,6 +97,11 @@ service cloud.firestore {
         allow delete: if isOwner(userId);
       }
 
+      // User Notification Preferences Sub-collection: Private to user owner
+      match /notificationPreferences/{settingId} {
+        allow read, create, update, delete: if isOwner(userId);
+      }
+
       // User Group Memberships Index: 1 per group per user
       match /groupMemberships/{groupId} {
         allow read: if isOwner(userId);
@@ -288,7 +293,10 @@ service cloud.firestore {
     match /notifications/{notificationId} {
       allow create: if isAuthenticated()
         && request.resource.data.keys().hasAll(['recipientId', 'message', 'read', 'timestamp']);
-      allow read, update: if isAuthenticated() && resource.data.recipientId == request.auth.uid;
+      allow read: if isAuthenticated() && resource.data.recipientId == request.auth.uid;
+      allow update: if isAuthenticated() 
+        && resource.data.recipientId == request.auth.uid 
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
       allow delete: if false;
     }
 

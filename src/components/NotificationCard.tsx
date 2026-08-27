@@ -1,14 +1,14 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { Notification } from '../types';
+import type { NotificationItem } from '../types/notification';
 import { formatTimestamp } from '../utils/format';
 import { markNotificationAsRead } from '../services/notificationService';
 import { Bell, Heart, Check, AtSign, CornerDownRight } from 'lucide-react';
 import { logAnalyticsEvent } from '../lib/firebase';
 
 interface NotificationCardProps {
-  notification: Notification;
-  onSelect?: (notification: Notification) => void;
+  notification: NotificationItem | any;
+  onSelect?: (notification: NotificationItem | any) => void;
 }
 
 export const NotificationCard: React.FC<NotificationCardProps> = ({
@@ -80,7 +80,7 @@ export const NotificationCard: React.FC<NotificationCardProps> = ({
           {notification.message}
         </p>
         <span className="text-[10px] text-slate-500 font-mono mt-1 block">
-          {formatTimestamp(notification.timestamp)}
+          {formatTimestamp(notification.timestamp || notification.createdAt)}
         </span>
       </div>
 

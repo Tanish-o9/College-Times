@@ -18,7 +18,6 @@ import { ChatRoom } from './features/chat/ChatRoom';
 import { ChannelList } from './features/chat/ChannelList';
 import { SavedMessagesPage } from './features/chat/SavedMessagesPage';
 import { ChatNotificationSettings } from './features/chat/ChatNotificationSettings';
-import { CampusNotificationSettings } from './features/account/CampusNotificationSettings';
 import { GroupsPage } from './features/groups/GroupsPage';
 import { GroupDetailPage } from './features/groups/GroupDetailPage';
 
@@ -31,6 +30,9 @@ import { CampusNotificationPrompt } from './components/CampusNotificationPrompt'
 
 import { MyIncidentReports } from './features/incidents/MyIncidentReports';
 import { IncidentReportDetail } from './features/incidents/IncidentReportDetail';
+
+import { NotificationsPage } from './features/notifications/NotificationsPage';
+import { NotificationSettings } from './features/settings/NotificationSettings';
 
 // Code-split heavy AdminPortal route
 const AdminPage = lazy(() => import('./features/admin/AdminPage').then(module => ({ default: module.AdminPage })));
@@ -74,9 +76,10 @@ export const App: React.FC = () => {
                 <Route path="/incidents/:incidentId" element={<IncidentDetail />} />
                 <Route path="/my-reports" element={<MyIncidentReports />} />
                 <Route path="/my-reports/:reportId" element={<IncidentReportDetail />} />
+                <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="/saved-messages" element={<SavedMessagesPage />} />
                 <Route path="/chat/settings" element={<ChatNotificationSettings />} />
-                <Route path="/settings/notifications" element={<CampusNotificationSettings />} />
+                <Route path="/settings/notifications" element={<NotificationSettings />} />
                 <Route path="/privacy" element={<PrivacyPage />} />
                 <Route path="/account" element={<AccountPage />} />
                 <Route element={<RequireAdmin />}>

@@ -122,23 +122,32 @@ export const Navbar: React.FC = () => {
             </NavLink>
           )}
 
-          {/* Notification Bell Button (Visible when logged in) */}
+          {/* Notification Center NavLink & Tray Button */}
           {currentUser && (
-            <button
-              onClick={() => {
-                if (!isTrayOpen) setUnreadCount(0);
-                setIsTrayOpen(!isTrayOpen);
-              }}
-              className="relative p-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all"
-              title="Notifications"
-            >
-              <Bell className="w-4 h-4" />
-              {unreadCount > 0 && (
-                <span className="absolute top-1 right-1 w-4 h-4 bg-sky-500 text-white font-bold text-[9px] rounded-full flex items-center justify-center animate-pulse shadow-md shadow-sky-500/50">
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </span>
-              )}
-            </button>
+            <div className="flex items-center gap-1">
+              <NavLink to="/notifications" className={linkClass} title="Notification Center">
+                <div className="relative flex items-center gap-1.5">
+                  <Bell className="w-4 h-4 text-sky-400" />
+                  <span className="hidden sm:inline">Alerts</span>
+                  {unreadCount > 0 && (
+                    <span className="px-1.5 py-0.5 rounded-full bg-sky-500 text-white font-mono text-[9px] font-bold animate-pulse shadow-md shrink-0">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </div>
+              </NavLink>
+
+              <button
+                onClick={() => {
+                  if (!isTrayOpen) setUnreadCount(0);
+                  setIsTrayOpen(!isTrayOpen);
+                }}
+                className="p-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all"
+                title="Quick Notification Tray"
+              >
+                <Bell className="w-4 h-4" />
+              </button>
+            </div>
           )}
 
           {!currentUser && (

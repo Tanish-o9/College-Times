@@ -5,3 +5,4 @@ export * from './alert';
 export * from './incident';
 export * from './incidentReport';
 export * from './broadcast';
+export * from './notification';
