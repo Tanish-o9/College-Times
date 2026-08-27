@@ -73,6 +73,13 @@ service firebase.storage {
         && request.resource.size < 10 * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
     }
+    // Phase 42: User Uploaded Group Chat Media Path: groupChatMedia/{groupId}/{userId}/{filename}
+    match /groupChatMedia/{groupId}/{userId}/{filename} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.size <= 10 * 1024 * 1024;
+    }
     // User Uploaded Event Media Path: eventMedia/{eventId}/{userId}/{filename}
     match /eventMedia/{eventId}/{userId}/{filename} {
       allow read: if request.auth != null;

@@ -622,6 +622,11 @@ service cloud.firestore {
         allow read: if isAuthenticated();
         allow write: if isAuthenticated() && userId == request.auth.uid;
       }
+
+      // Phase 42: Pinned Chat Messages Sub-collection
+      match /pinnedMessages/{messageId} {
+        allow read, create, update, delete: if isAuthenticated();
+      }
     }
 
     // Feature Flags Collection (Admin write only, Authenticated read)

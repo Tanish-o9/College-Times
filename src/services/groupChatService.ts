@@ -5,8 +5,12 @@ import {
   updateDoc,
   collection,
   addDoc,
+  query,
+  limit,
+  getDocs,
   serverTimestamp,
   runTransaction,
+  QueryDocumentSnapshot,
 } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import type { User as FirebaseUser } from 'firebase/auth';
@@ -343,3 +347,140 @@ export const toggleMuteGroupChat = async (groupId: string, uid: string): Promise
 
   return nextMuted;
 };
+
+/**
+ * Edits a group chat message enforcing a 15-minute edit window from creation.
+ */
+export const editGroupMessage = async (
+  channelId: string,
+  messageId: string,
+  newContent: string,
+  currentUser: FirebaseUser
+): Promise<void> => {
+  if (!channelId || !messageId || !newContent.trim() || !currentUser) return;
+
+  const msgRef = doc(db, 'channels', channelId, 'messages', messageId);
+  const snap = await getDoc(msgRef);
+
+  if (!snap.exists()) {
+    throw new Error('Message not found.');
+  }
+
+  const msgData = snap.data();
+  if (msgData.senderId !== currentUser.uid) {
+    throw new Error('Access denied: You can only edit your own messages.');
+  }
+
+  // 15-minute edit window enforcement
+  const createdAtMillis = msgData.createdAt?.toMillis ? msgData.createdAt.toMillis() : (msgData.createdAt instanceof Date ? msgData.createdAt.getTime() : Date.now());
+  const elapsedMinutes = (Date.now() - createdAtMillis) / (1000 * 60);
+
+  if (elapsedMinutes > 15) {
+    throw new Error('Editing window expired (messages can only be edited within 15 minutes of creation).');
+  }
+
+  await updateDoc(msgRef, {
+    content: newContent.trim().slice(0, 2000),
+    isEdited: true,
+    editedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+
+  logAnalyticsEvent('group_chat_message_edited', { channelId, messageId });
+};
+
+/**
+ * Soft deletes a group chat message by updating status to 'deleted'.
+ */
+export const deleteGroupMessage = async (
+  channelId: string,
+  messageId: string,
+  currentUser: FirebaseUser
+): Promise<void> => {
+  if (!channelId || !messageId || !currentUser) return;
+
+  const msgRef = doc(db, 'channels', channelId, 'messages', messageId);
+  const snap = await getDoc(msgRef);
+
+  if (!snap.exists()) return;
+
+  await updateDoc(msgRef, {
+    status: 'deleted',
+    content: 'This message was deleted.',
+    updatedAt: serverTimestamp(),
+  });
+
+  logAnalyticsEvent('group_chat_message_deleted', { channelId, messageId });
+};
+
+/**
+ * Pins a group chat message (max 20 pins per channel).
+ */
+export const pinGroupChatMessage = async (
+  channelId: string,
+  messageId: string,
+  currentUser: FirebaseUser
+): Promise<void> => {
+  if (!channelId || !messageId || !currentUser) return;
+
+  const pinnedColRef = collection(db, 'channels', channelId, 'pinnedMessages');
+  const snap = await getDocs(query(pinnedColRef, limit(20)));
+
+  if (snap.size >= 20) {
+    throw new Error('Maximum limit of 20 pinned messages reached for this chat.');
+  }
+
+  const pinDocRef = doc(pinnedColRef, messageId);
+  await setDoc(pinDocRef, {
+    messageId,
+    pinnedBy: currentUser.uid,
+    pinnedAt: serverTimestamp(),
+  });
+
+  logAnalyticsEvent('group_chat_message_pinned', { channelId, messageId });
+};
+
+/**
+ * Unpins a group chat message.
+ */
+export const unpinGroupChatMessage = async (
+  channelId: string,
+  messageId: string
+): Promise<void> => {
+  if (!channelId || !messageId) return;
+
+  const pinDocRef = doc(db, 'channels', channelId, 'pinnedMessages', messageId);
+  await updateDoc(pinDocRef, { status: 'removed', updatedAt: serverTimestamp() }).catch(() => {});
+
+  logAnalyticsEvent('group_chat_message_unpinned', { channelId, messageId });
+};
+
+/**
+ * Searches group chat messages by text or sender (bounded max 50 results).
+ */
+export const searchGroupChatMessages = async (
+  channelId: string,
+  queryText: string,
+  limitCount: number = 20
+): Promise<ChatMessage[]> => {
+  if (!channelId || !queryText.trim()) return [];
+
+  const clean = queryText.trim().toLowerCase();
+  const boundedSize = Math.min(50, Math.max(1, limitCount));
+
+  const msgsRef = collection(db, 'channels', channelId, 'messages');
+  const snap = await getDocs(query(msgsRef, limit(100)));
+
+  const results: ChatMessage[] = [];
+  snap.docs.forEach((d: QueryDocumentSnapshot) => {
+    const data = d.data() as ChatMessage;
+    const content = (data.content || '').toLowerCase();
+    const sender = (data.senderName || '').toLowerCase();
+    if (data.status !== 'deleted' && (content.includes(clean) || sender.includes(clean))) {
+      results.push({ id: d.id, ...data });
+    }
+  });
+
+  return results.slice(0, boundedSize);
+};
+
