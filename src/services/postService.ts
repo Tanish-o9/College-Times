@@ -108,11 +108,21 @@ export const createPost = async (
 
     const audience = payload.audience || { type: 'campus' };
 
-    const newPostData = {
+    const sanitizedImages = (payload.images || [])
+      .filter((img) => img && (img.downloadUrl || (img as any).url))
+      .map((img) => ({
+        downloadUrl: String(img.downloadUrl || (img as any).url || ''),
+        storagePath: String(img.storagePath || ''),
+      }));
+
+    const primaryImageUrl = sanitizedImages.length > 0
+      ? sanitizedImages[0].downloadUrl
+      : payload.imageUrl?.trim() || '';
+
+    const newPostData: Record<string, any> = {
       title: payload.title.trim(),
       content: payload.content.trim(),
       category: payload.category,
-      ...(payload.images && payload.images.length > 0 ? { images: payload.images, imageUrl: payload.images[0].downloadUrl } : payload.imageUrl?.trim() ? { imageUrl: payload.imageUrl.trim() } : {}),
       authorId: currentUser.uid,
       authorName,
       timestamp: serverTimestamp(),
@@ -125,6 +135,14 @@ export const createPost = async (
       priority: postPriority,
       notifyAudience: payload.notifyAudience ?? false,
     };
+
+    if (primaryImageUrl) {
+      newPostData.imageUrl = primaryImageUrl;
+    }
+
+    if (sanitizedImages.length > 0) {
+      newPostData.images = sanitizedImages;
+    }
 
     let newDocId = '';
     try {
