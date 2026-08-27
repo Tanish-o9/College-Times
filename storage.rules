@@ -99,5 +99,16 @@ service firebase.storage {
         && request.resource.size < 10 * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
     }
+    // User Uploaded Opportunity Media Path: opportunityMedia/{opportunityId}/{userId}/{filename}
+    match /opportunityMedia/{opportunityId}/{userId}/{filename} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.size < 10 * 1024 * 1024
+        && (
+          request.resource.contentType.matches('image/.*') ||
+          request.resource.contentType == 'application/pdf'
+        );
+    }
   }
 }

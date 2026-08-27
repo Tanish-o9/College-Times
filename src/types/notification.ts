@@ -26,6 +26,7 @@ export type NotificationType =
   | 'marketplace_offer_received'
   | 'marketplace_offer_accepted'
   | 'marketplace_offer_rejected'
+  | 'opportunity_deadline_reminder'
   | 'system';
 
 export interface NotificationItem {

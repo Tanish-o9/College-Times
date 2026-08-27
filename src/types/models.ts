@@ -109,7 +109,7 @@ export interface Notification {
   id?: string;
   recipientId: string;
   message: string;
-  type?: 'mention' | 'reply' | 'reaction' | 'system';
+  type?: 'mention' | 'reply' | 'reaction' | 'opportunity_deadline_reminder' | 'system';
   relatedPostId?: string;
   channelId?: string;
   messageId?: string;

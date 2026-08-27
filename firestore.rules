@@ -107,6 +107,16 @@ service cloud.firestore {
         allow read, create, update, delete: if isOwner(userId);
       }
 
+      // Phase 33: Saved Opportunities Sub-collection (Private to user)
+      match /savedOpportunities/{opportunityId} {
+        allow read, create, update, delete: if isOwner(userId);
+      }
+
+      // Phase 33: Private Opportunity Application Tracking Sub-collection (Private to user)
+      match /opportunityApplications/{opportunityId} {
+        allow read, create, update, delete: if isOwner(userId);
+      }
+
       // User Group Memberships Index: 1 per group per user
       match /groupMemberships/{groupId} {
         allow read: if isOwner(userId);
@@ -365,6 +375,24 @@ service cloud.firestore {
         );
         allow create, update: if isAuthenticated() && request.auth.uid == request.resource.data.buyerId;
         allow delete: if isAdmin() || (resource.data.sellerId == request.auth.uid);
+      }
+    }
+
+    // Phase 33: Campus Opportunities Collection
+    match /opportunities/{opportunityId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated()
+        && request.resource.data.keys().hasAll(['title', 'organizationName', 'type', 'createdBy', 'status', 'createdAt']);
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        resource.data.createdBy == request.auth.uid ||
+        request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'saveCount', 'viewCount', 'applicationCount'])
+      );
+      allow delete: if isAdmin() || (resource.data.createdBy == request.auth.uid);
+
+      // Opportunity Reminders Sub-collection
+      match /reminders/{userId} {
+        allow read, create, update, delete: if isAuthenticated() && userId == request.auth.uid;
       }
     }
 
