@@ -89,6 +89,16 @@ service cloud.firestore {
         allow read, create, update, delete: if isOwner(userId);
       }
 
+      // Phase 39: Saved Group Content Sub-collection
+      match /savedGroupContent/{saveId} {
+        allow read, create, update, delete: if isOwner(userId);
+      }
+
+      // Phase 39: Group Activity State Sub-collection
+      match /groupActivityState/{groupId} {
+        allow read, create, update, delete: if isOwner(userId);
+      }
+
       // Phase 34: Group Instant Read State Sub-collection
       match /groupInstantState/{groupId} {
         allow read, create, update, delete: if true;
@@ -674,6 +684,16 @@ service cloud.firestore {
 
       // Phase 35: Group Audit Logs Sub-collection
       match /auditLogs/{logId} {
+        allow read, create, update, delete: if isAuthenticated();
+      }
+
+      // Phase 39: Group Activity Timeline Sub-collection
+      match /activity/{activityId} {
+        allow read, create, update, delete: if isAuthenticated();
+      }
+
+      // Phase 39: Group Pinned Content Sub-collection
+      match /pinnedItems/{pinId} {
         allow read, create, update, delete: if isAuthenticated();
       }
     }
