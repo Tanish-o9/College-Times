@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import {
-  getPublicGroups,
+  getPublicGroupsPage,
+  searchGroups,
   getUserGroupIds,
   joinGroup,
   leaveGroup,
@@ -18,35 +19,62 @@ import {
   Sparkles,
   Plus,
   Check,
-  RefreshCw
+  RefreshCw,
+  Lock,
+  Key,
+  ChevronRight
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 import { CreateGroupModal } from './CreateGroupModal';
+import { JoinGroupByCodeModal } from './JoinGroupByCodeModal';
+
+type FilterTab = 'all' | 'campus' | 'department' | 'batch' | 'community' | 'my_groups';
 
 export const GroupsPage: React.FC = () => {
   const { currentUser, userProfile } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [groups, setGroups] = useState<CampusGroup[]>([]);
   const [joinedGroupIds, setJoinedGroupIds] = useState<Set<string>>(new Set());
-  const [activeTab, setActiveTab] = useState<'all' | CampusGroupType>('all');
+  const [activeTab, setActiveTab] = useState<FilterTab>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [actionGroupId, setActionGroupId] = useState<string | null>(null);
+
+  // Modals
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isJoinCodeModalOpen, setIsJoinCodeModalOpen] = useState(false);
+  const [initialJoinCode, setInitialJoinCode] = useState('');
+
+  // Check URL query parameters for pass codes (e.g. ?code=CT-7K4P9X or /groups/join?code=...)
+  useEffect(() => {
+    const codeParam = searchParams.get('code') || searchParams.get('joinCode');
+    if (codeParam) {
+      setInitialJoinCode(codeParam.toUpperCase());
+      setIsJoinCodeModalOpen(true);
+    }
+  }, [searchParams]);
 
   const loadData = async () => {
     if (!currentUser) return;
     setLoading(true);
     try {
-      const [allGroups, myGroupIds] = await Promise.all([
-        getPublicGroups(),
+      const [myGroupIds, publicResult] = await Promise.all([
         getUserGroupIds(currentUser.uid),
+        getPublicGroupsPage(30),
       ]);
 
-      setGroups(allGroups);
       setJoinedGroupIds(new Set(myGroupIds));
+      setGroups(publicResult.groups);
+
+      // Auto-seed default campus groups if none exist
+      if (publicResult.groups.length === 0 && userProfile?.role === 'admin') {
+        await seedStandardCampusGroups(currentUser, userProfile);
+        const reloaded = await getPublicGroupsPage(30);
+        setGroups(reloaded.groups);
+      }
     } catch (err) {
       toast.error('Failed to load campus groups.');
     } finally {
@@ -58,18 +86,55 @@ export const GroupsPage: React.FC = () => {
     loadData();
   }, [currentUser]);
 
-  const handleJoin = async (group: CampusGroup, e: React.MouseEvent) => {
+  // Handle Search & Filtering
+  useEffect(() => {
+    const handleSearchFilter = async () => {
+      if (!currentUser) return;
+      if (!searchQuery.trim() && activeTab === 'all') {
+        return;
+      }
+
+      setLoading(true);
+      try {
+        if (activeTab === 'my_groups') {
+          // My Joined Groups tab
+          const myIds = Array.from(joinedGroupIds);
+          const filteredMyGroups = groups.filter((g) => myIds.includes(g.id));
+          setGroups(filteredMyGroups);
+        } else {
+          const cat = activeTab !== 'all' ? activeTab : 'all';
+          const results = await searchGroups(searchQuery, cat, 30);
+          setGroups(results);
+        }
+      } catch (err) {
+        console.error('Error filtering groups:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const timer = setTimeout(handleSearchFilter, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery, activeTab]);
+
+  const handleJoinPublic = async (group: CampusGroup, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!currentUser || actionGroupId) return;
-    setActionGroupId(group.id);
 
+    if (group.visibility === 'private') {
+      setInitialJoinCode(group.inviteCodePlaintext || '');
+      setIsJoinCodeModalOpen(true);
+      return;
+    }
+
+    setActionGroupId(group.id);
     try {
       await joinGroup(group.id, currentUser, userProfile);
       setJoinedGroupIds((prev) => new Set([...prev, group.id]));
       setGroups((prev) =>
         prev.map((g) => (g.id === group.id ? { ...g, memberCount: g.memberCount + 1 } : g))
       );
-      toast.success(`Joined ${group.name}`);
+      toast.success(`Joined ${group.name}! 🎉`);
     } catch (err: any) {
       toast.error(err.message || 'Failed to join group.');
     } finally {
@@ -100,191 +165,255 @@ export const GroupsPage: React.FC = () => {
     }
   };
 
-  const handleSeedDefaults = async () => {
-    if (!currentUser || userProfile?.role !== 'admin') return;
-    toast.loading('Seeding standard campus groups...', { id: 'seed-groups' });
-    try {
-      await seedStandardCampusGroups(currentUser, userProfile);
-      toast.success('Standard campus groups initialized!', { id: 'seed-groups' });
-      await loadData();
-    } catch (err: any) {
-      toast.error('Failed to seed groups.', { id: 'seed-groups' });
+  const getGroupTypeBadge = (type: CampusGroupType) => {
+    switch (type) {
+      case 'department':
+        return { color: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20', label: 'Department' };
+      case 'batch':
+        return { color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', label: 'Batch' };
+      case 'campus':
+        return { color: 'bg-purple-500/10 text-purple-400 border-purple-500/20', label: 'Campus' };
+      case 'community':
+      default:
+        return { color: 'bg-sky-500/10 text-sky-400 border-sky-500/20', label: 'Community' };
     }
   };
 
-  const filteredGroups = groups.filter((g) => {
-    const matchesTab = activeTab === 'all' || g.type === activeTab;
-    const matchesSearch =
-      g.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      g.description.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesTab && matchesSearch;
-  });
-
   return (
-    <div className="min-h-screen bg-slate-950 text-white flex flex-col">
-      {/* Header */}
-      <header className="bg-slate-950/90 backdrop-blur-xl border-b border-slate-800 px-4 py-4 sm:px-6 flex items-center justify-between sticky top-0 z-30">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-sky-500/10 border border-sky-500/20 text-sky-400 flex items-center justify-center">
-            <Users className="w-5 h-5" />
-          </div>
-          <div>
-            <h1 className="text-base sm:text-lg font-bold text-white">Campus Groups</h1>
-            <p className="text-[11px] text-slate-400">Discover departments, batches & communities</p>
-          </div>
-        </div>
+    <div className="space-y-6 pb-12 max-w-6xl mx-auto">
+      {/* Hero Header */}
+      <div className="relative overflow-hidden bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-xl">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-sky-500/5 rounded-full blur-3xl -z-0 pointer-events-none" />
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setIsCreateModalOpen(true)}
-            className="px-3.5 py-1.5 bg-sky-500 hover:bg-sky-400 text-slate-950 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Create Group</span>
-          </button>
-
-          {userProfile?.role === 'admin' && (
-            <button
-              onClick={handleSeedDefaults}
-              className="px-3.5 py-1.5 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-300 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
-            >
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="space-y-2 max-w-2xl">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-sky-500/10 border border-sky-500/20 rounded-full text-xs font-semibold text-sky-400">
               <Sparkles className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Init Groups</span>
-            </button>
-          )}
-        </div>
-      </header>
+              <span>Campus Community Hub</span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+              Campus Groups & Clubs
+            </h1>
+            <p className="text-slate-400 text-xs sm:text-sm leading-relaxed">
+              Discover departments, graduation batches, tech societies, and student communities. Join public groups or enter a private pass code.
+            </p>
+          </div>
 
-      {/* Main Body */}
-      <main className="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 space-y-6">
-        {/* Search & Tabs */}
-        <div className="space-y-4">
-          <div className="relative">
-            <Search className="w-4 h-4 text-slate-500 absolute left-4 top-3.5" />
+          <div className="flex flex-wrap items-center gap-3 shrink-0">
+            <button
+              onClick={() => setIsJoinCodeModalOpen(true)}
+              className="px-4 py-2.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 font-bold text-xs rounded-2xl shadow-lg flex items-center gap-2 transition-all"
+            >
+              <Key className="w-4 h-4 text-amber-400" />
+              <span>Join with Pass Code</span>
+            </button>
+
+            <button
+              onClick={() => setIsCreateModalOpen(true)}
+              className="px-5 py-2.5 bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-xs rounded-2xl shadow-xl flex items-center gap-2 transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Create Group</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Controls Bar: Search & Category Tabs */}
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row items-center gap-3">
+          <div className="relative flex-1 w-full">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search departments, batches, or community groups..."
-              className="w-full pl-11 pr-4 py-3 bg-slate-900 border border-slate-800 focus:border-sky-500 rounded-2xl text-white text-xs placeholder:text-slate-500 focus:outline-none transition-all"
+              placeholder="Search groups by name, category, department, or batch..."
+              className="w-full bg-slate-900/90 border border-slate-800 rounded-2xl pl-11 pr-4 py-3 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 transition-colors shadow-inner"
             />
-          </div>
-
-          {/* Filter Tabs */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
-            {[
-              { id: 'all', label: 'All Groups', icon: <Users className="w-3.5 h-3.5" /> },
-              { id: 'campus', label: 'Campus', icon: <Globe className="w-3.5 h-3.5" /> },
-              { id: 'department', label: 'Departments', icon: <Building2 className="w-3.5 h-3.5" /> },
-              { id: 'batch', label: 'Batches', icon: <GraduationCap className="w-3.5 h-3.5" /> },
-              { id: 'community', label: 'Communities', icon: <Sparkles className="w-3.5 h-3.5" /> },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition-all shrink-0 flex items-center gap-1.5 ${
-                  activeTab === tab.id
-                    ? 'bg-sky-500 text-white border-sky-400 shadow-md shadow-sky-500/20'
-                    : 'bg-slate-900/80 text-slate-400 border-slate-800 hover:border-slate-700 hover:text-slate-200'
-                }`}
-              >
-                {tab.icon}
-                <span>{tab.label}</span>
-              </button>
-            ))}
           </div>
         </div>
 
-        {/* Group Grid */}
-        {loading ? (
-          <div className="p-12 bg-slate-900/40 border border-slate-800 rounded-3xl flex items-center justify-center gap-3 text-slate-400 text-xs">
-            <RefreshCw className="w-4 h-4 animate-spin text-sky-400" />
-            <span>Loading campus groups...</span>
-          </div>
-        ) : filteredGroups.length === 0 ? (
-          <div className="p-12 bg-slate-900/40 border border-slate-800 rounded-3xl text-center space-y-3">
-            <Users className="w-8 h-8 text-slate-600 mx-auto" />
-            <p className="text-slate-400 text-xs font-semibold">No groups match your search or filter.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredGroups.map((group) => {
-              const isJoined = joinedGroupIds.has(group.id);
-              const isBusy = actionGroupId === group.id;
+        {/* Tab Filters */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+          {[
+            { id: 'all', label: 'All Groups', icon: Globe },
+            { id: 'campus', label: 'Campus', icon: Building2 },
+            { id: 'department', label: 'Departments', icon: GraduationCap },
+            { id: 'batch', label: 'Batches', icon: Users },
+            { id: 'community', label: 'Communities', icon: Sparkles },
+            { id: 'my_groups', label: `Joined (${joinedGroupIds.size})`, icon: Check },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const active = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as FilterTab)}
+                className={`px-4 py-2 rounded-xl border text-xs font-bold whitespace-nowrap flex items-center gap-2 transition-all ${
+                  active
+                    ? 'bg-sky-500/10 border-sky-500/40 text-sky-400 shadow-md'
+                    : 'bg-slate-900/70 border-slate-800 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
-              return (
-                <div
-                  key={group.id}
-                  onClick={() => navigate(`/groups/${group.id}`)}
-                  className="p-5 bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-3xl transition-all cursor-pointer flex flex-col justify-between space-y-4 group"
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="w-10 h-10 rounded-2xl bg-sky-500/10 border border-sky-500/20 text-sky-400 flex items-center justify-center shrink-0">
-                        {group.type === 'department' ? (
-                          <Building2 className="w-5 h-5" />
-                        ) : group.type === 'batch' ? (
-                          <GraduationCap className="w-5 h-5" />
-                        ) : group.type === 'campus' ? (
-                          <Globe className="w-5 h-5" />
-                        ) : (
-                          <Sparkles className="w-5 h-5 text-purple-400" />
-                        )}
+      {/* Group Cards Grid */}
+      {loading ? (
+        <div className="flex items-center justify-center py-16">
+          <RefreshCw className="w-8 h-8 text-sky-400 animate-spin" />
+        </div>
+      ) : groups.length === 0 ? (
+        <div className="bg-slate-900/60 border border-slate-800 rounded-3xl p-12 text-center space-y-4">
+          <div className="w-12 h-12 rounded-2xl bg-slate-800 text-slate-400 flex items-center justify-center mx-auto">
+            <Users className="w-6 h-6" />
+          </div>
+          <h3 className="text-base font-bold text-white">No Groups Found</h3>
+          <p className="text-slate-400 text-xs max-w-sm mx-auto">
+            No campus groups match your search criteria or category filter. Try clearing filters or create a new group.
+          </p>
+          <button
+            onClick={() => setIsCreateModalOpen(true)}
+            className="px-4 py-2 bg-sky-500 text-slate-950 font-bold text-xs rounded-xl"
+          >
+            Create Campus Group
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {groups.map((group) => {
+            const isJoined = joinedGroupIds.has(group.id);
+            const badge = getGroupTypeBadge(group.type);
+            const isPrivate = group.visibility === 'private';
+
+            return (
+              <div
+                key={group.id}
+                onClick={() => navigate(`/groups/${group.id}`)}
+                className="bg-slate-900/80 hover:bg-slate-900 border border-slate-800/90 hover:border-slate-700 rounded-3xl p-5 shadow-xl flex flex-col justify-between cursor-pointer group transition-all duration-300 relative overflow-hidden"
+              >
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-sky-500/20 to-indigo-500/20 border border-sky-500/30 text-sky-300 font-extrabold flex items-center justify-center text-sm shrink-0">
+                        {group.name.charAt(0).toUpperCase()}
                       </div>
+                      <div className="min-w-0">
+                        <h3 className="text-base font-extrabold text-white truncate group-hover:text-sky-400 transition-colors">
+                          {group.name}
+                        </h3>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className={`px-2 py-0.5 rounded-full border text-[10px] font-bold uppercase tracking-wider ${badge.color}`}>
+                            {group.category || badge.label}
+                          </span>
 
-                      <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-mono text-[10px] font-bold uppercase">
-                        {group.type}
-                      </span>
-                    </div>
-
-                    <div>
-                      <h3 className="font-bold text-white text-sm group-hover:text-sky-400 transition-colors">
-                        {group.name}
-                      </h3>
-                      <p className="text-xs text-slate-400 line-clamp-2 mt-1 leading-snug">
-                        {group.description || 'Campus student group'}
-                      </p>
+                          <span className="text-[11px] text-slate-400 flex items-center gap-1 font-mono">
+                            {isPrivate ? (
+                              <Lock className="w-3 h-3 text-amber-400" />
+                            ) : (
+                              <Globe className="w-3 h-3 text-emerald-400" />
+                            )}
+                            <span>{isPrivate ? 'Private' : 'Public'}</span>
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between pt-3 border-t border-slate-800/80">
-                    <span className="text-[11px] text-slate-400 font-mono flex items-center gap-1">
-                      <Users className="w-3.5 h-3.5 text-sky-400" />
-                      <span>{group.memberCount} members</span>
-                    </span>
+                  <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
+                    {group.description || 'Campus community group for collaborative discussions and activities.'}
+                  </p>
+                </div>
 
-                    {isJoined ? (
+                <div className="pt-4 mt-4 border-t border-slate-800/80 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 text-xs text-slate-400 font-mono">
+                    <Users className="w-3.5 h-3.5 text-slate-500" />
+                    <span className="font-semibold text-slate-200">{group.memberCount || 1}</span>
+                    <span>members</span>
+                  </div>
+
+                  {isJoined ? (
+                    <div className="flex items-center gap-1.5">
                       <button
                         onClick={(e) => handleLeave(group, e)}
-                        disabled={isBusy}
-                        className="px-3 py-1.5 bg-emerald-500/10 hover:bg-rose-500/20 text-emerald-400 hover:text-rose-400 border border-emerald-500/30 hover:border-rose-500/30 rounded-xl text-xs font-bold transition-all flex items-center gap-1"
+                        disabled={actionGroupId === group.id}
+                        title="Leave Group"
+                        className="px-2.5 py-1.5 bg-slate-950 hover:bg-rose-500/10 hover:text-rose-400 border border-slate-800 rounded-xl text-xs font-semibold text-slate-400 transition-colors"
                       >
-                        <Check className="w-3.5 h-3.5" />
-                        <span>Joined</span>
+                        {actionGroupId === group.id ? (
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <span>Leave</span>
+                        )}
                       </button>
-                    ) : (
                       <button
-                        onClick={(e) => handleJoin(group, e)}
-                        disabled={isBusy}
-                        className="px-3.5 py-1.5 bg-sky-500 hover:bg-sky-400 text-slate-950 rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/groups/${group.id}`);
+                        }}
+                        className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold flex items-center gap-1 transition-all"
                       >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Join</span>
+                        <span>Open</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
                       </button>
-                    )}
-                  </div>
+                    </div>
+                  ) : isPrivate ? (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setInitialJoinCode(group.inviteCodePlaintext || '');
+                        setIsJoinCodeModalOpen(true);
+                      }}
+                      className="px-3.5 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all"
+                    >
+                      <Key className="w-3.5 h-3.5" />
+                      <span>Pass Code</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={(e) => handleJoinPublic(group, e)}
+                      disabled={actionGroupId === group.id}
+                      className="px-4 py-1.5 bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs rounded-xl shadow-md flex items-center gap-1 transition-all"
+                    >
+                      {actionGroupId === group.id ? (
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Plus className="w-3.5 h-3.5" />
+                      )}
+                      <span>Join Group</span>
+                    </button>
+                  )}
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </main>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
-      {/* Create Group Modal */}
+      {/* Modals */}
       <CreateGroupModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        onGroupCreated={() => loadData()}
+        onGroupCreated={(newGroup) => {
+          setGroups((prev) => [newGroup, ...prev]);
+          setJoinedGroupIds((prev) => new Set([...prev, newGroup.id]));
+        }}
+      />
+
+      <JoinGroupByCodeModal
+        isOpen={isJoinCodeModalOpen}
+        onClose={() => setIsJoinCodeModalOpen(false)}
+        initialCode={initialJoinCode}
+        onJoined={(groupId) => {
+          setJoinedGroupIds((prev) => new Set([...prev, groupId]));
+          loadData();
+        }}
       />
     </div>
   );

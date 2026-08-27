@@ -10,6 +10,8 @@ export interface CampusGroup {
   description: string;
   type: CampusGroupType;
   visibility: CampusGroupVisibility;
+  category?: string;
+  rules?: string;
   departmentId?: string;
   batchYear?: number;
   iconUrl?: string;
@@ -19,6 +21,12 @@ export interface CampusGroup {
   createdAt: Timestamp | FieldValue | any;
   updatedAt: Timestamp | FieldValue | any;
   chatChannelId?: string;
+
+  // Phase 32: Invite Pass System fields
+  inviteCodeHash?: string;
+  inviteCodeVersion?: number;
+  inviteEnabled?: boolean;
+  inviteCodePlaintext?: string;
 }
 
 export interface GroupMember {
@@ -32,4 +40,12 @@ export interface GroupMember {
 export interface UserGroupMembership {
   groupId: string;
   joinedAt: Timestamp | FieldValue | any;
+}
+
+export interface GroupInviteCodeDoc {
+  code: string;
+  groupId: string;
+  active: boolean;
+  createdAt: Timestamp | FieldValue | any;
+  createdBy: string;
 }

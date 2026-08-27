@@ -17,14 +17,22 @@ import type { User as FirebaseUser } from 'firebase/auth';
 import { db, logAnalyticsEvent } from '../lib/firebase';
 import type { User } from '../types/models';
 import type { CampusGroup, CampusGroupType, GroupMember, UserGroupMembership } from '../types/group';
+import { createInviteCodeForGroup } from './groupInviteService';
+
+export interface PaginatedGroupsResult {
+  groups: CampusGroup[];
+  lastDoc: QueryDocumentSnapshot | null;
+}
 
 export interface PaginatedMembersResult {
   members: GroupMember[];
   lastDoc: QueryDocumentSnapshot | null;
 }
 
+const MAX_GROUP_CAPACITY = 10000;
+
 /**
- * Fetches all active public campus groups.
+ * Fetches all active public campus groups (bounded up to 50).
  */
 export const getPublicGroups = async (): Promise<CampusGroup[]> => {
   try {
@@ -39,6 +47,36 @@ export const getPublicGroups = async (): Promise<CampusGroup[]> => {
   } catch (err) {
     console.error('Error fetching public groups:', err);
     return [];
+  }
+};
+
+/**
+ * Cursor-paginated fetching of active public campus groups.
+ */
+export const getPublicGroupsPage = async (
+  pageSize: number = 20,
+  lastDoc: QueryDocumentSnapshot | null = null
+): Promise<PaginatedGroupsResult> => {
+  const boundedSize = Math.min(50, Math.max(1, pageSize));
+  try {
+    const colRef = collection(db, 'groups');
+    let q = query(colRef, where('active', '==', true), orderBy('createdAt', 'desc'), limit(boundedSize));
+
+    if (lastDoc) {
+      q = query(colRef, where('active', '==', true), orderBy('createdAt', 'desc'), startAfter(lastDoc), limit(boundedSize));
+    }
+
+    const snap = await getDocs(q);
+    const groups: CampusGroup[] = snap.docs.map((d) => ({
+      ...(d.data() as CampusGroup),
+      id: d.id,
+    }));
+
+    const newLastDoc = snap.docs.length > 0 ? snap.docs[snap.docs.length - 1] : null;
+    return { groups, lastDoc: newLastDoc };
+  } catch (err) {
+    console.error('Error fetching paginated public groups:', err);
+    return { groups: [], lastDoc: null };
   }
 };
 
@@ -81,51 +119,133 @@ export const getGroupsByType = async (type: CampusGroupType): Promise<CampusGrou
 };
 
 /**
- * Admin-only: Creates a new Campus Group.
+ * Bounded group search supporting search by name, category, department, batch, or community.
+ */
+export const searchGroups = async (
+  searchQuery: string,
+  categoryFilter: string = 'all',
+  pageSize: number = 20
+): Promise<CampusGroup[]> => {
+  const boundedSize = Math.min(50, Math.max(1, pageSize));
+  try {
+    const colRef = collection(db, 'groups');
+    let q = query(colRef, where('active', '==', true), limit(50));
+
+    if (categoryFilter !== 'all') {
+      if (['campus', 'department', 'batch', 'community'].includes(categoryFilter)) {
+        q = query(colRef, where('type', '==', categoryFilter), where('active', '==', true), limit(50));
+      }
+    }
+
+    const snap = await getDocs(q);
+    let items = snap.docs.map((d) => ({
+      ...(d.data() as CampusGroup),
+      id: d.id,
+    }));
+
+    if (categoryFilter !== 'all' && !['campus', 'department', 'batch', 'community'].includes(categoryFilter)) {
+      items = items.filter((g) => g.category?.toLowerCase() === categoryFilter.toLowerCase());
+    }
+
+    if (searchQuery.trim()) {
+      const term = searchQuery.trim().toLowerCase();
+      items = items.filter(
+        (g) =>
+          g.name.toLowerCase().includes(term) ||
+          (g.description && g.description.toLowerCase().includes(term)) ||
+          (g.category && g.category.toLowerCase().includes(term)) ||
+          (g.departmentId && g.departmentId.toLowerCase().includes(term)) ||
+          (g.batchYear && String(g.batchYear).includes(term))
+      );
+    }
+
+    logAnalyticsEvent('group_search', { queryLength: searchQuery.length, categoryFilter });
+
+    return items.slice(0, boundedSize);
+  } catch (err) {
+    console.error('Error searching groups:', err);
+    return [];
+  }
+};
+
+/**
+ * Creates a new Campus Group.
+ * Any authenticated student can create a group and becomes creator/admin.
+ * Automatically generates a unique invite pass code (CT-XXXXXX).
  */
 export const createGroup = async (
   payload: Partial<CampusGroup>,
   currentUser: FirebaseUser,
   userProfile?: User | null
 ): Promise<CampusGroup> => {
-  if (!currentUser || userProfile?.role !== 'admin') {
-    throw new Error('Group creation is restricted to campus administrators.');
+  if (!currentUser) {
+    throw new Error('Authentication is required to create a campus group.');
   }
 
   if (!payload.name || payload.name.trim().length === 0) {
     throw new Error('Group name is required.');
   }
 
-  const slug = (payload.slug || payload.name.toLowerCase().replace(/[^a-z0-9]/g, '-')).slice(0, 80);
-  const groupId = payload.id || slug;
+  const cleanName = payload.name.trim().slice(0, 80);
+  const slug = (payload.slug || cleanName.toLowerCase().replace(/[^a-z0-9]/g, '-')).slice(0, 80);
+  const groupId = payload.id || `grp_${Date.now()}_${slug.slice(0, 30)}`;
   const groupRef = doc(db, 'groups', groupId);
+  const memberRef = doc(db, 'groups', groupId, 'members', currentUser.uid);
+  const userMembershipRef = doc(db, 'users', currentUser.uid, 'groupMemberships', groupId);
 
   const newGroup: CampusGroup = {
     id: groupId,
-    name: payload.name.trim().slice(0, 80),
+    name: cleanName,
     slug,
     description: (payload.description || '').trim().slice(0, 500),
     type: payload.type || 'community',
     visibility: payload.visibility || 'public',
+    category: payload.category || 'Clubs',
+    ...(payload.rules ? { rules: payload.rules.trim().slice(0, 1000) } : {}),
     ...(payload.departmentId ? { departmentId: payload.departmentId } : {}),
     ...(payload.batchYear ? { batchYear: payload.batchYear } : {}),
     ...(payload.iconUrl ? { iconUrl: payload.iconUrl } : {}),
-    memberCount: 0,
+    memberCount: 1,
     active: true,
     createdBy: currentUser.uid,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
+    inviteEnabled: true,
+  };
+
+  const initialMember: GroupMember = {
+    uid: currentUser.uid,
+    role: 'admin',
+    joinedAt: serverTimestamp(),
+    ...(userProfile?.displayName ? { displayName: userProfile.displayName } : {}),
+    ...(userProfile?.photoURL ? { photoURL: userProfile.photoURL } : {}),
+  };
+
+  const userLookupData: UserGroupMembership = {
+    groupId,
+    joinedAt: serverTimestamp(),
   };
 
   await runTransaction(db, async (transaction) => {
     const snap = await transaction.get(groupRef);
     if (snap.exists()) {
-      throw new Error(`Group with ID or slug '${groupId}' already exists.`);
+      throw new Error(`Group with ID '${groupId}' already exists.`);
     }
     transaction.set(groupRef, newGroup);
+    transaction.set(memberRef, initialMember);
+    transaction.set(userMembershipRef, userLookupData);
   });
 
-  logAnalyticsEvent('group_created', { groupType: newGroup.type });
+  // Generate initial unique invite pass code (CT-XXXXXX)
+  try {
+    const inviteCode = await createInviteCodeForGroup(groupId, currentUser.uid);
+    newGroup.inviteCodePlaintext = inviteCode;
+    newGroup.inviteCodeHash = inviteCode;
+  } catch (err) {
+    console.warn(`Initial invite code generation notice for group ${groupId}:`, err);
+  }
+
+  logAnalyticsEvent('group_created', { groupType: newGroup.type, visibility: newGroup.visibility });
 
   return {
     ...newGroup,
@@ -135,7 +255,7 @@ export const createGroup = async (
 };
 
 /**
- * Admin-only: Updates an existing group document.
+ * Updates an existing group document (owner/admin only).
  */
 export const updateGroup = async (
   groupId: string,
@@ -143,8 +263,8 @@ export const updateGroup = async (
   currentUser: FirebaseUser,
   userProfile?: User | null
 ): Promise<void> => {
-  if (!currentUser || userProfile?.role !== 'admin') {
-    throw new Error('Group mutation is restricted to campus administrators.');
+  if (!currentUser) {
+    throw new Error('Authentication required.');
   }
 
   const groupRef = doc(db, 'groups', groupId);
@@ -152,6 +272,11 @@ export const updateGroup = async (
     const snap = await transaction.get(groupRef);
     if (!snap.exists()) {
       throw new Error(`Group '${groupId}' not found.`);
+    }
+
+    const groupData = snap.data() as CampusGroup;
+    if (groupData.createdBy !== currentUser.uid && userProfile?.role !== 'admin') {
+      throw new Error('Only group creators or campus admins can modify group settings.');
     }
 
     const cleanedUpdates = {
@@ -167,7 +292,7 @@ export const updateGroup = async (
 };
 
 /**
- * Admin-only: Deactivates a group (soft deletion).
+ * Deactivates a group (soft deletion).
  */
 export const deactivateGroup = async (
   groupId: string,
@@ -178,9 +303,8 @@ export const deactivateGroup = async (
 };
 
 /**
- * Atomically joins a group.
- * Canonical membership document: groups/{groupId}/members/{uid}
- * Denormalized user lookup index: users/{uid}/groupMemberships/{groupId}
+ * Atomically joins a public group.
+ * Enforces 10,000 max capacity check.
  */
 export const joinGroup = async (
   groupId: string,
@@ -206,6 +330,16 @@ export const joinGroup = async (
     if (!groupData.active) {
       throw new Error('Cannot join an inactive group.');
     }
+
+    if (groupData.visibility === 'private') {
+      throw new Error('This group is private. Please join using an invite pass code.');
+    }
+
+    const currentCount = groupData.memberCount || 0;
+    if (currentCount >= MAX_GROUP_CAPACITY) {
+      throw new Error('Group has reached its maximum capacity of 10,000 members.');
+    }
+
     groupType = groupData.type;
 
     const memberSnap = await transaction.get(memberRef);
@@ -235,7 +369,7 @@ export const joinGroup = async (
     });
   });
 
-  logAnalyticsEvent('group_joined', { groupType });
+  logAnalyticsEvent('group_joined', { groupType, groupId });
 };
 
 /**
@@ -275,7 +409,7 @@ export const leaveGroup = async (groupId: string, uid: string): Promise<void> =>
     transaction.delete(userMembershipRef);
   });
 
-  logAnalyticsEvent('group_left', { groupType });
+  logAnalyticsEvent('group_left', { groupType, groupId });
 };
 
 /**
@@ -346,18 +480,18 @@ export const seedStandardCampusGroups = async (
   currentUser: FirebaseUser,
   userProfile?: User | null
 ): Promise<void> => {
-  if (!currentUser || userProfile?.role !== 'admin') return;
+  if (!currentUser) return;
 
   const defaultGroups: Partial<CampusGroup>[] = [
-    { id: 'all-campus', name: 'All Campus Students', slug: 'all-campus', type: 'campus', description: 'Campus-wide official group for all students.' },
-    { id: 'cse', name: 'Computer Science & Engineering', slug: 'cse', type: 'department', departmentId: 'cse', description: 'Official CSE department group.' },
-    { id: 'ece', name: 'Electronics & Communication', slug: 'ece', type: 'department', departmentId: 'ece', description: 'Official ECE department group.' },
-    { id: 'it', name: 'Information Technology', slug: 'it', type: 'department', departmentId: 'it', description: 'Official IT department group.' },
-    { id: 'aiml', name: 'AI & Machine Learning', slug: 'aiml', type: 'department', departmentId: 'aiml', description: 'Official AIML department group.' },
-    { id: 'batch-2026', name: 'Batch 2026', slug: 'batch-2026', type: 'batch', batchYear: 2026, description: 'Students graduating in 2026.' },
-    { id: 'batch-2027', name: 'Batch 2027', slug: 'batch-2027', type: 'batch', batchYear: 2027, description: 'Students graduating in 2027.' },
-    { id: 'batch-2028', name: 'Batch 2028', slug: 'batch-2028', type: 'batch', batchYear: 2028, description: 'Students graduating in 2028.' },
-    { id: 'batch-2029', name: 'Batch 2029', slug: 'batch-2029', type: 'batch', batchYear: 2029, description: 'Students graduating in 2029.' },
+    { id: 'all-campus', name: 'All Campus Students', slug: 'all-campus', type: 'campus', category: 'Campus Life', description: 'Campus-wide official group for all students.' },
+    { id: 'cse', name: 'Computer Science & Engineering', slug: 'cse', type: 'department', category: 'Department', departmentId: 'cse', description: 'Official CSE department group.' },
+    { id: 'ece', name: 'Electronics & Communication', slug: 'ece', type: 'department', category: 'Department', departmentId: 'ece', description: 'Official ECE department group.' },
+    { id: 'it', name: 'Information Technology', slug: 'it', type: 'department', category: 'Department', departmentId: 'it', description: 'Official IT department group.' },
+    { id: 'aiml', name: 'AI & Machine Learning', slug: 'aiml', type: 'department', category: 'Department', departmentId: 'aiml', description: 'Official AIML department group.' },
+    { id: 'batch-2026', name: 'Batch 2026', slug: 'batch-2026', type: 'batch', category: 'Batch', batchYear: 2026, description: 'Students graduating in 2026.' },
+    { id: 'batch-2027', name: 'Batch 2027', slug: 'batch-2027', type: 'batch', category: 'Batch', batchYear: 2027, description: 'Students graduating in 2027.' },
+    { id: 'batch-2028', name: 'Batch 2028', slug: 'batch-2028', type: 'batch', category: 'Batch', batchYear: 2028, description: 'Students graduating in 2028.' },
+    { id: 'batch-2029', name: 'Batch 2029', slug: 'batch-2029', type: 'batch', category: 'Batch', batchYear: 2029, description: 'Students graduating in 2029.' },
   ];
 
   for (const g of defaultGroups) {

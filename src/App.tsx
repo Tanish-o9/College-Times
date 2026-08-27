@@ -76,6 +76,7 @@ export const App: React.FC = () => {
                 <Route path="/chat/:channelId" element={<ChatRoom />} />
                 <Route path="/channels" element={<ChannelList />} />
                 <Route path="/groups" element={<GroupsPage />} />
+                <Route path="/groups/join" element={<GroupsPage />} />
                 <Route path="/groups/:groupId" element={<GroupDetailPage />} />
                 <Route path="/alerts" element={<AlertCenter />} />
                 <Route path="/incidents/:incidentId" element={<IncidentDetail />} />

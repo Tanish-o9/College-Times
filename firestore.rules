@@ -599,5 +599,22 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow write: if isAdmin();
     }
+
+    // Phase 32: Group Invite Pass Codes Collection
+    match /groupInviteCodes/{code} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated();
+    }
+
+    // Phase 32: Campus Groups Collection & Sub-collections
+    match /groups/{groupId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated();
+
+      match /members/{memberUid} {
+        allow read: if isAuthenticated();
+        allow create, update, delete: if isAuthenticated();
+      }
+    }
   }
 }
