@@ -79,6 +79,11 @@ service cloud.firestore {
         allow read, create, update, delete: if isOwner(userId);
       }
 
+      // Phase 33: Group Chat Read State Sub-collection
+      match /groupChatReadState/{groupId} {
+        allow read, create, update, delete: if true;
+      }
+
       // Chat Notification Preferences Sub-collection: 1 per user per channel
       match /chatNotificationPreferences/{channelId} {
         allow read: if isOwner(userId);

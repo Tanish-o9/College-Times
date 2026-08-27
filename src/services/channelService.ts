@@ -53,8 +53,31 @@ export const getChannelById = async (channelId: string): Promise<Channel | null>
   try {
     const channelRef = doc(db, 'channels', channelId);
     const snap = await getDoc(channelRef);
-    if (!snap.exists()) return null;
-    return { id: snap.id, ...snap.data() } as Channel;
+    if (snap.exists()) {
+      return { id: snap.id, ...snap.data() } as Channel;
+    }
+
+    if (channelId.startsWith('group-')) {
+      const groupId = channelId.replace('group-', '');
+      const groupRef = doc(db, 'groups', groupId);
+      const groupSnap = await getDoc(groupRef);
+      if (groupSnap.exists()) {
+        const groupData = groupSnap.data();
+        return {
+          id: channelId,
+          name: `${groupData.name} Chat`,
+          description: `Dedicated private group chat for ${groupData.name}.`,
+          category: 'group',
+          type: 'group',
+          groupId,
+          createdAt: groupData.createdAt,
+          createdBy: groupData.createdBy,
+          memberCount: groupData.memberCount || 1,
+        } as Channel;
+      }
+    }
+
+    return null;
   } catch (error) {
     console.error(`Error fetching channel ${channelId}:`, error);
     throw error;

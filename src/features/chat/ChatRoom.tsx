@@ -343,17 +343,41 @@ export const ChatRoom: React.FC = () => {
       }
 
       // Step 3: Send Chat Message
-      await sendMessage(
-        channelId, 
-        text, 
-        currentUser, 
-        userProfile, 
-        imageUrl, 
-        replyToMessageId, 
-        replyToSnippet,
-        mentionedUids,
-        fileAttachment
-      );
+      if (channelId.startsWith('group-') || channel?.type === 'group') {
+        const { sendGroupChatMessage, uploadGroupChatMedia } = await import('../../services/groupChatService');
+        let groupImageUrl = imageUrl;
+        if (imageFile) {
+          toast.loading('Uploading media...', { id: 'upload-media' });
+          const groupId = channelId.replace('group-', '');
+          groupImageUrl = await uploadGroupChatMedia(groupId, imageFile, currentUser);
+          toast.success('Media uploaded!', { id: 'upload-media' });
+        }
+        await sendGroupChatMessage(
+          channelId,
+          text,
+          currentUser,
+          userProfile,
+          {
+            imageUrl: groupImageUrl,
+            replyToMessageId,
+            replyToSnippet,
+            mentionedUids,
+            replyToAuthorId: replyingToMessage?.senderId,
+          }
+        );
+      } else {
+        await sendMessage(
+          channelId, 
+          text, 
+          currentUser, 
+          userProfile, 
+          imageUrl, 
+          replyToMessageId, 
+          replyToSnippet,
+          mentionedUids,
+          fileAttachment
+        );
+      }
 
       setReplyingToMessage(null);
       scrollToBottom('smooth');
@@ -436,6 +460,20 @@ export const ChatRoom: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          {(channelId?.startsWith('group-') || channel?.groupId) && (
+            <button
+              onClick={() => {
+                const targetGroupId = channel?.groupId || channelId?.replace('group-', '');
+                navigate(`/groups/${targetGroupId}`);
+              }}
+              className="p-2 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 rounded-xl border border-sky-500/30 transition-all text-xs font-bold flex items-center gap-1.5"
+              title="View Group Info & Details"
+            >
+              <Users className="w-4 h-4" />
+              <span className="hidden sm:inline">View Group</span>
+            </button>
+          )}
+
           {channel?.memberCount !== undefined && (
             <div className="hidden sm:flex items-center gap-1 text-xs text-slate-400 font-mono bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-full">
               <Users className="w-3.5 h-3.5 text-sky-400" />

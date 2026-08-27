@@ -1,7 +1,7 @@
 import type { Timestamp, FieldValue, QueryDocumentSnapshot } from 'firebase/firestore';
 
-export type ChannelCategory = 'general' | 'academic' | 'events' | 'clubs';
-export type ChannelType = 'public' | 'announcement';
+export type ChannelCategory = 'general' | 'academic' | 'events' | 'clubs' | 'group';
+export type ChannelType = 'public' | 'announcement' | 'group';
 
 export interface Channel {
   id?: string;
@@ -9,6 +9,7 @@ export interface Channel {
   description: string;
   category: ChannelCategory;
   type: ChannelType;
+  groupId?: string;
   createdAt: Timestamp | FieldValue | any;
   createdBy: string;
   memberCount: number;
@@ -17,6 +18,14 @@ export interface Channel {
   lastMessageId?: string;
   isArchived?: boolean;
   topic?: string;
+}
+
+export interface GroupChatReadState {
+  groupId: string;
+  lastReadMessageId: string;
+  lastReadAt: Timestamp | FieldValue | any;
+  isMuted?: boolean;
+  updatedAt: Timestamp | FieldValue | any;
 }
 
 export interface ChannelReadState {
