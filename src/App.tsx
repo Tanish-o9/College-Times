@@ -24,6 +24,10 @@ import { GroupDetailPage } from './features/groups/GroupDetailPage';
 import { DirectMessageList } from './features/directMessages/DirectMessageList';
 import { DirectMessageRoom } from './features/directMessages/DirectMessageRoom';
 
+import { GroupMembersPage } from './features/groups/GroupMembersPage';
+import { GroupSettingsPage } from './features/groups/GroupSettingsPage';
+import { GroupModerationPage } from './features/groups/GroupModerationPage';
+
 import { BreakingAlertBanner } from './features/alerts/BreakingAlertBanner';
 import { AlertCenter } from './features/alerts/AlertCenter';
 import { ActiveIncidentStrip } from './features/incidents/ActiveIncidentStrip';
@@ -78,6 +82,9 @@ export const App: React.FC = () => {
                 <Route path="/groups" element={<GroupsPage />} />
                 <Route path="/groups/join" element={<GroupsPage />} />
                 <Route path="/groups/:groupId" element={<GroupDetailPage />} />
+                <Route path="/groups/:groupId/members" element={<GroupMembersPage />} />
+                <Route path="/groups/:groupId/settings" element={<GroupSettingsPage />} />
+                <Route path="/groups/:groupId/moderation" element={<GroupModerationPage />} />
                 <Route path="/alerts" element={<AlertCenter />} />
                 <Route path="/incidents/:incidentId" element={<IncidentDetail />} />
                 <Route path="/my-reports" element={<MyIncidentReports />} />

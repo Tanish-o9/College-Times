@@ -634,6 +634,26 @@ service cloud.firestore {
           allow read, create, update, delete: if isAuthenticated();
         }
       }
+
+      // Phase 35: Group Join Requests Sub-collection
+      match /joinRequests/{uid} {
+        allow read, create, update, delete: if isAuthenticated();
+      }
+
+      // Phase 35: Group Announcements Sub-collection
+      match /announcements/{announcementId} {
+        allow read, create, update, delete: if isAuthenticated();
+      }
+
+      // Phase 35: Group Member Reports Sub-collection
+      match /memberReports/{reportId} {
+        allow read, create, update, delete: if isAuthenticated();
+      }
+
+      // Phase 35: Group Audit Logs Sub-collection
+      match /auditLogs/{logId} {
+        allow read, create, update, delete: if isAuthenticated();
+      }
     }
   }
 }
