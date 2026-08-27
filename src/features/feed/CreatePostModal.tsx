@@ -216,25 +216,13 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
         title: title.trim(),
         content: content.trim(),
         category,
-        ...(imageUrl.trim() ? { imageUrl: imageUrl.trim() } : {}),
+        ...(uploadedImages.length > 0 ? { images: uploadedImages, imageUrl: uploadedImages[0].downloadUrl } : imageUrl.trim() ? { imageUrl: imageUrl.trim() } : {}),
         audience: { type: audienceType },
         priority,
         notifyAudience,
       };
 
       const newPost = await createPost(payload, currentUser, userProfile);
-
-      // If uploadedImages exist, attach to post doc
-      if (uploadedImages.length > 0 && newPost.id) {
-        const { doc, updateDoc } = await import('firebase/firestore');
-        const { db } = await import('../../lib/firebase');
-        await updateDoc(doc(db, 'posts', newPost.id), {
-          images: uploadedImages,
-          imageUrl: uploadedImages[0].downloadUrl,
-        });
-        newPost.images = uploadedImages;
-        newPost.imageUrl = uploadedImages[0].downloadUrl;
-      }
 
       toast.success('Posted to campus feed!', { id: 'post-upload-status' });
       onPostCreated(newPost);

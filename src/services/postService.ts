@@ -29,6 +29,7 @@ export interface CreatePostPayload {
   content: string;
   category: 'Mishap' | 'Event' | 'General' | 'LostFound';
   imageUrl?: string;
+  images?: { storagePath: string; downloadUrl: string }[];
   audience?: PostAudience;
   priority?: PostPriority;
   notifyAudience?: boolean;
@@ -111,7 +112,7 @@ export const createPost = async (
       title: payload.title.trim(),
       content: payload.content.trim(),
       category: payload.category,
-      ...(payload.imageUrl?.trim() ? { imageUrl: payload.imageUrl.trim() } : {}),
+      ...(payload.images && payload.images.length > 0 ? { images: payload.images, imageUrl: payload.images[0].downloadUrl } : payload.imageUrl?.trim() ? { imageUrl: payload.imageUrl.trim() } : {}),
       authorId: currentUser.uid,
       authorName,
       timestamp: serverTimestamp(),
