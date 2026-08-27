@@ -53,25 +53,38 @@ export const DEFAULT_CAMPUS_NOTIFICATION_PREFERENCES: CampusNotificationPreferen
   reactionsEnabled: false,
 };
 
+export interface PostImageItem {
+  storagePath: string;
+  downloadUrl: string;
+  width?: number;
+  height?: number;
+}
+
 export interface Post {
   id?: string;
   title: string;
   content: string;
   authorId: string;
   authorName: string;
+  authorAvatar?: string;
   category: 'Mishap' | 'Event' | 'General' | 'LostFound';
   timestamp: any;
   likeCount: number;
   commentCount: number;
   imageUrl?: string;
+  images?: PostImageItem[];
   postType: 'news' | 'lost' | 'found';
-  status: 'resolved' | 'active';
+  status: 'resolved' | 'active' | 'deleted' | 'hidden';
   reportCount: number;
   contactInfo?: string;
+  location?: string;
+  eventId?: string;
+  incidentId?: string;
   isOfficial?: boolean;
   audience?: PostAudience;
   priority?: PostPriority;
   notificationPolicy?: NotificationPolicy;
+  savedCount?: number;
 }
 
 export interface Comment {

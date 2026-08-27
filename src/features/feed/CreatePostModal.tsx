@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useOverlayBackHandler } from '../../hooks/useOverlayBackHandler';
 import { createPost, type CreatePostPayload } from '../../services/postService';
-import { uploadPostImage } from '../../services/storageService';
 import type { Post, AudienceType, PostPriority } from '../../types';
 import toast from 'react-hot-toast';
 import { 
@@ -47,8 +46,9 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   const [content, setContent] = useState('');
   const [category, setCategory] = useState<CategoryOption>('General');
   const [imageUrl, setImageUrl] = useState('');
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [filePreviews, setFilePreviews] = useState<string[]>([]);
+  const [uploadProgresses, setUploadProgresses] = useState<number[]>([]);
 
   const [submitting, setSubmitting] = useState(false);
   const [uploadStep, setUploadStep] = useState<'idle' | 'uploading_image' | 'publishing' | 'done'>('idle');
@@ -68,8 +68,9 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       setContent('');
       setCategory('General');
       setImageUrl('');
-      setSelectedFile(null);
-      setImagePreview(null);
+      setSelectedFiles([]);
+      setFilePreviews([]);
+      setUploadProgresses([]);
       setAudienceType('campus');
       setPriority('normal');
       setNotifyAudience(false);
@@ -84,7 +85,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     title.trim().length > 0 || 
     content.trim().length > 0 || 
     imageUrl.trim().length > 0 ||
-    selectedFile !== null;
+    selectedFiles.length > 0;
 
   // Handle request to close modal
   const handleAttemptClose = () => {
@@ -120,30 +121,40 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, hasUnsavedChanges, showConfirmClose, submitting]);
 
-  // File selection handler with 10MB guard
+  // File selection handler with 5-image limit and 10MB guard
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (!files || files.length === 0) return;
 
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error('File size exceeds 10MB limit. Please select a smaller photo.', { id: 'file-size-error' });
+    if (selectedFiles.length + files.length > 5) {
+      toast.error('Maximum of 5 images allowed per post.', { id: 'max-files-error' });
       return;
     }
 
-    setSelectedFile(file);
-    const previewUrl = URL.createObjectURL(file);
-    setImagePreview(previewUrl);
+    const invalid = files.find((f) => f.size > 10 * 1024 * 1024);
+    if (invalid) {
+      toast.error(`File '${invalid.name}' exceeds 10MB limit.`, { id: 'file-size-error' });
+      return;
+    }
+
+    const newFiles = [...selectedFiles, ...files].slice(0, 5);
+    setSelectedFiles(newFiles);
+
+    const previews = newFiles.map((f) => URL.createObjectURL(f));
+    setFilePreviews(previews);
+    setUploadProgresses(newFiles.map(() => 0));
   };
 
-  const removeSelectedFile = () => {
-    setSelectedFile(null);
-    if (imagePreview) {
-      URL.revokeObjectURL(imagePreview);
-      setImagePreview(null);
+  const removeFileAt = (idx: number) => {
+    const nextFiles = selectedFiles.filter((_, i) => i !== idx);
+    setSelectedFiles(nextFiles);
+
+    if (filePreviews[idx]) {
+      URL.revokeObjectURL(filePreviews[idx]);
     }
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+    const nextPreviews = filePreviews.filter((_, i) => i !== idx);
+    setFilePreviews(nextPreviews);
+    setUploadProgresses(nextFiles.map(() => 0));
   };
 
   // Auto-grow textarea height
@@ -167,20 +178,34 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   const titleUsagePercent = (title.length / TITLE_MAX) * 100;
   const contentUsagePercent = (content.length / CONTENT_MAX) * 100;
 
-  // Submit Handler: Two-stage image upload then post creation
+  // Submit Handler: Multi-stage image upload then post creation
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isFormValid || !currentUser) return;
 
     setSubmitting(true);
-    let finalImageUrl = imageUrl.trim();
 
     try {
-      // Stage 1: Upload Image if File Selected
-      if (selectedFile) {
+      let uploadedImages: { storagePath: string; downloadUrl: string }[] = [];
+
+      // Stage 1: Upload Selected Images
+      if (selectedFiles.length > 0) {
         setUploadStep('uploading_image');
-        toast.loading('Compressing & uploading image...', { id: 'post-upload-status' });
-        finalImageUrl = await uploadPostImage(selectedFile, currentUser.uid);
+        toast.loading(`Uploading ${selectedFiles.length} image(s)...`, { id: 'post-upload-status' });
+
+        const { uploadPostImages } = await import('../../services/postMediaService');
+        uploadedImages = await uploadPostImages(
+          selectedFiles,
+          `post_${Date.now()}`,
+          currentUser.uid,
+          (fileIdx, pct) => {
+            setUploadProgresses((prev) => {
+              const copy = [...prev];
+              copy[fileIdx] = pct;
+              return copy;
+            });
+          }
+        );
       }
 
       // Stage 2: Create Post in Firestore
@@ -191,13 +216,26 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
         title: title.trim(),
         content: content.trim(),
         category,
-        ...(finalImageUrl ? { imageUrl: finalImageUrl } : {}),
+        ...(imageUrl.trim() ? { imageUrl: imageUrl.trim() } : {}),
         audience: { type: audienceType },
         priority,
         notifyAudience,
       };
 
       const newPost = await createPost(payload, currentUser, userProfile);
+
+      // If uploadedImages exist, attach to post doc
+      if (uploadedImages.length > 0 && newPost.id) {
+        const { doc, updateDoc } = await import('firebase/firestore');
+        const { db } = await import('../../lib/firebase');
+        await updateDoc(doc(db, 'posts', newPost.id), {
+          images: uploadedImages,
+          imageUrl: uploadedImages[0].downloadUrl,
+        });
+        newPost.images = uploadedImages;
+        newPost.imageUrl = uploadedImages[0].downloadUrl;
+      }
+
       toast.success('Posted to campus feed!', { id: 'post-upload-status' });
       onPostCreated(newPost);
       onClose();
@@ -420,40 +458,50 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
             />
           </div>
 
-          {/* Image Picker Dropzone / Thumbnail Preview */}
+          {/* Image Picker Dropzone / Thumbnail Preview Grid */}
           <div>
             <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Post Photo <span className="text-slate-500 font-normal">(Optional, max 10MB)</span>
+              Post Photos <span className="text-slate-500 font-normal">(Optional, max 5 photos, 10MB limit)</span>
             </label>
 
-            {imagePreview ? (
-              <div className="relative rounded-2xl overflow-hidden border border-slate-800 max-h-48 group">
-                <img src={imagePreview} alt="Selected preview" className="w-full h-full object-cover" />
-                <button
-                  type="button"
-                  onClick={removeSelectedFile}
-                  className="absolute top-2 right-2 p-2 bg-slate-950/80 hover:bg-rose-500 text-white rounded-xl transition-colors shadow-lg"
-                  title="Remove Image"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+            {filePreviews.length > 0 && (
+              <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-3">
+                {filePreviews.map((url, idx) => (
+                  <div key={idx} className="relative aspect-square rounded-xl overflow-hidden border border-slate-800 group bg-slate-950">
+                    <img src={url} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => removeFileAt(idx)}
+                      className="absolute top-1 right-1 p-1 bg-slate-950/80 hover:bg-rose-500 text-white rounded-lg transition-colors"
+                      title="Remove Photo"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                    {uploadProgresses[idx] > 0 && uploadProgresses[idx] < 100 && (
+                      <div className="absolute inset-x-0 bottom-0 bg-sky-500/80 h-1" style={{ width: `${uploadProgresses[idx]}%` }} />
+                    )}
+                  </div>
+                ))}
               </div>
-            ) : (
+            )}
+
+            {filePreviews.length < 5 && (
               <div className="space-y-2">
                 <input
                   ref={fileInputRef}
                   type="file"
                   accept="image/*"
+                  multiple
                   onChange={handleFileSelect}
                   className="hidden"
                   id="image-picker-input"
                 />
                 <label
                   htmlFor="image-picker-input"
-                  className="w-full p-4 border-2 border-dashed border-slate-800 hover:border-sky-500/50 bg-slate-950/40 rounded-2xl flex items-center justify-center gap-2 text-xs text-slate-400 hover:text-slate-200 cursor-pointer transition-all"
+                  className="w-full p-3.5 border-2 border-dashed border-slate-800 hover:border-sky-500/50 bg-slate-950/40 rounded-2xl flex items-center justify-center gap-2 text-xs text-slate-400 hover:text-slate-200 cursor-pointer transition-all"
                 >
                   <Upload className="w-4 h-4 text-sky-400" />
-                  <span>Choose Photo to Upload (Auto-Compressed)</span>
+                  <span>Choose Photos ({filePreviews.length}/5 selected)</span>
                 </label>
 
                 <div className="relative flex items-center">

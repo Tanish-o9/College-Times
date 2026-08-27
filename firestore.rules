@@ -135,8 +135,8 @@ service cloud.firestore {
         allow read, create, update, delete: if isOwner(userId);
       }
 
-      // User Incident Acknowledgements Sub-collection: Private to user
-      match /incidentAcknowledgements/{incidentId} {
+      // User Saved Posts Sub-collection: Private to user
+      match /savedPosts/{postId} {
         allow read, create, update, delete: if isOwner(userId);
       }
     }
@@ -232,11 +232,11 @@ service cloud.firestore {
         && (!('priority' in request.resource.data) || request.resource.data.priority != 'emergency' || isAdmin())
         && (!('contactInfo' in request.resource.data) || (request.resource.data.contactInfo is string && request.resource.data.contactInfo.size() <= 20));
 
-      // Update: admin bypass, user counter increments, or author status resolve
+      // Update: admin bypass, user counter increments, or author status/images resolve
       allow update: if isAuthenticated() && (
         isAdmin() ||
         request.resource.data.diff(resource.data).affectedKeys().hasAny(['likeCount', 'commentCount', 'reportCount']) ||
-        (resource.data.authorId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']))
+        (resource.data.authorId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'images', 'imageUrl']))
       );
 
       // Delete: post author or admin only

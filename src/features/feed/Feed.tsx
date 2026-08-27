@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 
 import { useSearchParams } from 'react-router-dom';
-import { doc, getDoc } from 'firebase/firestore';
+import { collection, query, orderBy, limit, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 
 type CategoryFilter = 'All' | 'General' | 'Event' | 'Mishap' | 'LostFound';
@@ -40,11 +40,37 @@ export const Feed: React.FC = () => {
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [pendingRecentPosts, setPendingRecentPosts] = useState<Post[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<CategoryFilter>('All');
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
 
   // Phase 11 & 26: Intersection Observer Sentinel Hook
   const [sentinelRef, isSentinelVisible] = useIsVisible<HTMLDivElement>({ threshold: 0.5 });
+
+  // Bounded Realtime Listener for Recent Posts (limit: 5)
+  useEffect(() => {
+    const postsRef = collection(db, 'posts');
+    const q = query(postsRef, orderBy('timestamp', 'desc'), limit(5));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const recent = snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as Post) }));
+      const activeIds = new Set(posts.map((p) => p.id));
+      const newUnseen = recent.filter((r) => r.id && !activeIds.has(r.id));
+      setPendingRecentPosts(newUnseen);
+    });
+
+    return () => unsubscribe();
+  }, [posts]);
+
+  const mergeNewPosts = () => {
+    if (pendingRecentPosts.length === 0) return;
+    setPosts((prev) => {
+      const existingIds = new Set(prev.map((p) => p.id));
+      const filtered = pendingRecentPosts.filter((p) => p.id && !existingIds.has(p.id));
+      return [...filtered, ...prev];
+    });
+    setPendingRecentPosts([]);
+  };
 
   // Handle deep-linked target postId navigation
   useEffect(() => {
@@ -205,6 +231,19 @@ export const Feed: React.FC = () => {
           <RefreshCw className={`w-3.5 h-3.5 ${loadingInitial ? 'animate-spin text-sky-400' : ''}`} />
         </button>
       </div>
+
+      {/* Floating New Posts Available Pill */}
+      {pendingRecentPosts.length > 0 && (
+        <div className="absolute top-14 inset-x-0 z-40 flex justify-center pointer-events-none">
+          <button
+            onClick={mergeNewPosts}
+            className="pointer-events-auto px-4 py-2 bg-sky-500 text-slate-950 font-bold text-xs rounded-full shadow-2xl flex items-center gap-2 border border-sky-300 animate-bounce hover:bg-sky-400 transition-all"
+          >
+            <Sparkles className="w-4 h-4 fill-slate-950 text-slate-950" />
+            <span>{pendingRecentPosts.length} New Campus Post{pendingRecentPosts.length > 1 ? 's' : ''} Available — Click to View</span>
+          </button>
+        </div>
+      )}
 
       {/* Snap-Scroll Container */}
       <div className="flex-1 overflow-y-auto snap-y snap-mandatory scroll-smooth w-full">
