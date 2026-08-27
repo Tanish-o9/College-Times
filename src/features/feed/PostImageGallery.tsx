@@ -10,8 +10,15 @@ interface PostImageGalleryProps {
 export const PostImageGallery: React.FC<PostImageGalleryProps> = ({ images = [], imageUrl }) => {
   const [activeModalImage, setActiveModalImage] = useState<string | null>(null);
 
-  // Normalise legacy imageUrl into gallery array if images prop is missing
-  const gallery = images.length > 0 ? images : imageUrl ? [{ downloadUrl: imageUrl, storagePath: '' }] : [];
+  // Normalise legacy imageUrl into gallery array if images prop is missing or contains strings
+  let gallery: PostImageItem[] = [];
+  if (Array.isArray(images) && images.length > 0) {
+    gallery = images.map((img: any) => 
+      typeof img === 'string' ? { downloadUrl: img, storagePath: '' } : img
+    );
+  } else if (imageUrl) {
+    gallery = [{ downloadUrl: imageUrl, storagePath: '' }];
+  }
 
   if (gallery.length === 0) return null;
 
