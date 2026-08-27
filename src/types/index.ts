@@ -11,3 +11,4 @@ export * from './poll';
 export * from './lostFound';
 export * from './marketplace';
 export * from './opportunity';
+export * from './directMessage';

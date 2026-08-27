@@ -21,6 +21,9 @@ import { ChatNotificationSettings } from './features/chat/ChatNotificationSettin
 import { GroupsPage } from './features/groups/GroupsPage';
 import { GroupDetailPage } from './features/groups/GroupDetailPage';
 
+import { DirectMessageList } from './features/directMessages/DirectMessageList';
+import { DirectMessageRoom } from './features/directMessages/DirectMessageRoom';
+
 import { BreakingAlertBanner } from './features/alerts/BreakingAlertBanner';
 import { AlertCenter } from './features/alerts/AlertCenter';
 import { ActiveIncidentStrip } from './features/incidents/ActiveIncidentStrip';
@@ -68,6 +71,8 @@ export const App: React.FC = () => {
                 <Route path="/events" element={<EventsList />} />
                 <Route path="/events/:eventId" element={<EventDetail />} />
                 <Route path="/leaderboard" element={<Leaderboard />} />
+                <Route path="/messages" element={<DirectMessageList />} />
+                <Route path="/messages/:conversationId" element={<DirectMessageRoom />} />
                 <Route path="/chat/:channelId" element={<ChatRoom />} />
                 <Route path="/channels" element={<ChannelList />} />
                 <Route path="/groups" element={<GroupsPage />} />
