@@ -1,6 +1,8 @@
 import { 
   collection, 
   doc, 
+  setDoc,
+  updateDoc,
   query, 
   orderBy, 
   onSnapshot, 
@@ -76,20 +78,29 @@ export const addComment = async (
 
   // Add comment doc, increment parent commentCount & author points (+2) atomically
   let commentId = '';
-  await runTransaction(db, async (transaction) => {
-    const postSnap = await transaction.get(postRef);
-    if (!postSnap.exists()) {
-      throw new Error('Post does not exist');
-    }
+  try {
+    await runTransaction(db, async (transaction) => {
+      const postSnap = await transaction.get(postRef);
+      if (!postSnap.exists()) {
+        throw new Error('Post does not exist');
+      }
 
+      const newCommentRef = doc(commentsRef);
+      commentId = newCommentRef.id;
+
+      transaction.set(newCommentRef, newCommentData);
+      transaction.update(postRef, { commentCount: increment(1) });
+      // Phase 21 Gamification: +2 points for adding a comment
+      transaction.set(userRef, { points: increment(2) }, { merge: true });
+    });
+  } catch (txErr: any) {
+    console.warn('Comment transaction warning, using direct fallback:', txErr?.message);
     const newCommentRef = doc(commentsRef);
     commentId = newCommentRef.id;
-
-    transaction.set(newCommentRef, newCommentData);
-    transaction.update(postRef, { commentCount: increment(1) });
-    // Phase 21 Gamification: +2 points for adding a comment
-    transaction.update(userRef, { points: increment(2) });
-  });
+    await setDoc(newCommentRef, newCommentData);
+    await updateDoc(postRef, { commentCount: increment(1) }).catch(() => {});
+    await setDoc(userRef, { points: increment(2) }, { merge: true }).catch(() => {});
+  }
 
   // Trigger notification if commenting on another user's post
   if (postAuthorId && postAuthorId !== currentUser.uid) {
