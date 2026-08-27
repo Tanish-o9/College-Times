@@ -15,6 +15,11 @@ import {
   AlertCircle
 } from 'lucide-react';
 
+import { ShieldCheck, ShieldAlert } from 'lucide-react';
+import { ClaimModal } from './ClaimModal';
+import { ClaimReviewModal } from './ClaimReviewModal';
+import { MatchSuggestions } from './MatchSuggestions';
+
 interface LostFoundCardProps {
   post: Post;
   onPostResolved?: (postId: string) => void;
@@ -27,6 +32,10 @@ export const LostFoundCard: React.FC<LostFoundCardProps> = ({ post, onPostResolv
   const [showConfirmResolve, setShowConfirmResolve] = useState(false);
 
   const [showReportMenu, setShowReportMenu] = useState(false);
+
+  // Claim modals state
+  const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
 
   const isLost = post.postType === 'lost';
   const isAuthor = currentUser?.uid === post.authorId;
@@ -148,6 +157,9 @@ export const LostFoundCard: React.FC<LostFoundCardProps> = ({ post, onPostResolv
         </div>
       )}
 
+      {/* Phase 30: Smart Match Suggestions */}
+      {!isResolved && <MatchSuggestions item={post} />}
+
       {/* Footer Actions */}
       <div className="pt-4 border-t border-slate-800/90 flex flex-wrap items-center justify-between gap-3">
         {/* Author Info */}
@@ -159,7 +171,28 @@ export const LostFoundCard: React.FC<LostFoundCardProps> = ({ post, onPostResolv
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Mark as Resolved Button (Author only and active status) */}
+          {/* Claim Controls */}
+          {!isResolved && currentUser && (
+            isAuthor ? (
+              <button
+                onClick={() => setIsReviewModalOpen(true)}
+                className="px-3.5 py-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/30 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-purple-400" />
+                <span>Review Claims</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => setIsClaimModalOpen(true)}
+                className="px-3.5 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
+              >
+                <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
+                <span>Claim Item</span>
+              </button>
+            )
+          )}
+
+          {/* Mark as Resolved Button */}
           {isAuthor && !isResolved && (
             <button
               onClick={() => setShowConfirmResolve(true)}
@@ -184,6 +217,29 @@ export const LostFoundCard: React.FC<LostFoundCardProps> = ({ post, onPostResolv
           )}
         </div>
       </div>
+
+      {/* Claim Modal */}
+      {post.id && (
+        <ClaimModal
+          itemId={post.id}
+          itemTitle={post.title}
+          itemReporterId={post.authorId}
+          isOpen={isClaimModalOpen}
+          onClose={() => setIsClaimModalOpen(false)}
+        />
+      )}
+
+      {/* Claim Review Modal */}
+      {post.id && (
+        <ClaimReviewModal
+          itemId={post.id}
+          itemTitle={post.title}
+          itemReporterId={post.authorId}
+          isOpen={isReviewModalOpen}
+          onClose={() => setIsReviewModalOpen(false)}
+          onClaimResolved={() => setStatus('resolved')}
+        />
+      )}
 
       {/* Confirmation Modal for Resolving */}
       {showConfirmResolve && (

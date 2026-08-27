@@ -288,6 +288,25 @@ service cloud.firestore {
         allow delete: if isAdmin();
         allow update: if false;
       }
+
+      // Phase 30: Lost & Found Claims Sub-collection
+      match /claims/{claimantId} {
+        allow read: if isAuthenticated() && (
+          claimantId == request.auth.uid ||
+          resource.data.itemReporterId == request.auth.uid ||
+          isAdmin()
+        );
+        allow create, update: if isAuthenticated() && claimantId == request.auth.uid;
+        allow delete: if isAdmin();
+      }
+
+      // Phase 30: Private Verification Details Sub-collection
+      match /privateVerification/{docId} {
+        allow read, write: if isAuthenticated() && (
+          resource.data.reporterId == request.auth.uid ||
+          isAdmin()
+        );
+      }
     }
 
     // Campus Events Collection
