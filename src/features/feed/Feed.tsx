@@ -1,13 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import type { Post } from '../../types';
+import type { FeedMode, UserFeedPreferences } from '../../types/feed';
 import { getPostsPage } from '../../services/postService';
+import { rankPosts } from '../../services/feedRankingService';
+import { getUserFeedPreferences } from '../../services/feedPreferenceService';
 import type { QueryDocumentSnapshot } from 'firebase/firestore';
 import { PostCard } from './PostCard';
 import { CreatePostModal } from './CreatePostModal';
+import { TrendingPosts } from './TrendingPosts';
+import { FeedPreferencesModal } from './FeedPreferencesModal';
 import { FAB } from '../../components/FAB';
 import { useIsVisible } from '../../hooks/useIsVisible';
 import { Skeleton } from '../../components/Skeleton';
+import { useAuth } from '../../hooks/useAuth';
 import { 
   Sparkles, 
   RefreshCw, 
@@ -18,7 +24,10 @@ import {
   Calendar,
   AlertTriangle,
   Search,
-  CheckCircle2
+  CheckCircle2,
+  Flame,
+  Sliders,
+  Star
 } from 'lucide-react';
 
 import { useSearchParams } from 'react-router-dom';
@@ -30,6 +39,7 @@ type CategoryFilter = 'All' | 'General' | 'Event' | 'Mishap' | 'LostFound';
 const PAGE_SIZE = 10;
 
 export const Feed: React.FC = () => {
+  const { currentUser } = useAuth();
   const [searchParams] = useSearchParams();
   const targetPostId = searchParams.get('postId');
 
@@ -40,12 +50,31 @@ export const Feed: React.FC = () => {
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [feedMode, setFeedMode] = useState<FeedMode>('latest');
+  const [userPrefs, setUserPrefs] = useState<UserFeedPreferences | null>(null);
+  const [isPrefModalOpen, setIsPrefModalOpen] = useState<boolean>(false);
+
   const [pendingRecentPosts, setPendingRecentPosts] = useState<Post[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<CategoryFilter>('All');
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
 
   // Phase 11 & 26: Intersection Observer Sentinel Hook
   const [sentinelRef, isSentinelVisible] = useIsVisible<HTMLDivElement>({ threshold: 0.5 });
+
+  // Load user feed preferences
+  const loadUserPrefs = async () => {
+    if (!currentUser) return;
+    try {
+      const prefs = await getUserFeedPreferences(currentUser.uid);
+      setUserPrefs(prefs);
+    } catch (err) {
+      console.error('Failed to load user feed preferences:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadUserPrefs();
+  }, [currentUser]);
 
   // Bounded Realtime Listener for Recent Posts (limit: 5)
   useEffect(() => {
@@ -122,16 +151,29 @@ export const Feed: React.FC = () => {
     };
   }, [targetPostId, loadingInitial]);
 
-  // Initial / Category reset fetch
-  const fetchInitialPosts = async (cat: CategoryFilter = selectedCategory) => {
+  // Initial / Mode reset fetch
+  const fetchInitialPosts = async (mode: FeedMode = feedMode, cat: CategoryFilter = selectedCategory) => {
     setLoadingInitial(true);
     setError(null);
     setLastDoc(null);
     setHasMore(true);
 
     try {
-      const result = await getPostsPage(PAGE_SIZE, cat, null);
-      setPosts(result.posts);
+      let targetCategory = cat;
+      if (mode === 'events') targetCategory = 'Event';
+      if (mode === 'lost_found') targetCategory = 'LostFound';
+
+      const result = await getPostsPage(PAGE_SIZE, targetCategory, null);
+      let fetched = result.posts;
+
+      // Apply mode specific transformations
+      if (mode === 'important') {
+        fetched = fetched.filter((p) => p.isImportant || p.isOfficial);
+      } else if (mode === 'personalized' || mode === 'trending') {
+        fetched = rankPosts(fetched, userPrefs || undefined);
+      }
+
+      setPosts(fetched);
       setLastDoc(result.lastDoc);
       if (result.posts.length < PAGE_SIZE) {
         setHasMore(false);
@@ -150,13 +192,22 @@ export const Feed: React.FC = () => {
 
     setLoadingMore(true);
     try {
-      const result = await getPostsPage(PAGE_SIZE, selectedCategory, lastDoc);
-      
-      // Duplicate guard using document ID
+      let targetCategory = selectedCategory;
+      if (feedMode === 'events') targetCategory = 'Event';
+      if (feedMode === 'lost_found') targetCategory = 'LostFound';
+
+      const result = await getPostsPage(PAGE_SIZE, targetCategory, lastDoc);
+      let nextBatch = result.posts;
+
+      if (feedMode === 'important') {
+        nextBatch = nextBatch.filter((p) => p.isImportant || p.isOfficial);
+      }
+
       setPosts((prevPosts) => {
         const existingIds = new Set(prevPosts.map((p) => p.id));
-        const newPosts = result.posts.filter((p) => p.id && !existingIds.has(p.id));
-        return [...prevPosts, ...newPosts];
+        const newPosts = nextBatch.filter((p) => p.id && !existingIds.has(p.id));
+        const combined = [...prevPosts, ...newPosts];
+        return feedMode === 'personalized' ? rankPosts(combined, userPrefs || undefined) : combined;
       });
 
       setLastDoc(result.lastDoc);
@@ -171,8 +222,8 @@ export const Feed: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchInitialPosts(selectedCategory);
-  }, [selectedCategory]);
+    fetchInitialPosts(feedMode, selectedCategory);
+  }, [feedMode, selectedCategory]);
 
   // Infinite Scroll Trigger on Sentinel Intersection
   useEffect(() => {
@@ -181,14 +232,23 @@ export const Feed: React.FC = () => {
     }
   }, [isSentinelVisible, hasMore, loadingMore, loadingInitial]);
 
-  const handleCategorySelect = (cat: CategoryFilter) => {
-    if (selectedCategory === cat) return;
-    setSelectedCategory(cat);
+  const handleModeSelect = (mode: FeedMode) => {
+    if (feedMode === mode) return;
+    setFeedMode(mode);
   };
 
   const handlePostCreated = (newPost: Post) => {
     setPosts((prev) => [newPost, ...prev]);
   };
+
+  const feedModes: { mode: FeedMode; label: string; icon: React.ReactNode }[] = [
+    { mode: 'latest', label: 'Latest', icon: <Sparkles className="w-3 h-3" /> },
+    { mode: 'personalized', label: 'For You', icon: <Star className="w-3 h-3 text-amber-400" /> },
+    { mode: 'trending', label: 'Trending', icon: <Flame className="w-3 h-3 text-amber-500" /> },
+    { mode: 'events', label: 'Events', icon: <Calendar className="w-3 h-3 text-purple-400" /> },
+    { mode: 'lost_found', label: 'Lost & Found', icon: <Search className="w-3 h-3 text-amber-400" /> },
+    { mode: 'important', label: 'Important', icon: <AlertTriangle className="w-3 h-3 text-rose-400" /> },
+  ];
 
   const categories: { label: CategoryFilter; icon?: React.ReactNode }[] = [
     { label: 'All', icon: <Filter className="w-3 h-3" /> },
@@ -200,36 +260,72 @@ export const Feed: React.FC = () => {
 
   return (
     <div className="relative w-full h-[calc(100vh-4.5rem)] flex flex-col overflow-hidden">
-      {/* Category Filter Bar */}
-      <div className="sticky top-0 z-30 bg-slate-950/90 backdrop-blur-md border-b border-slate-800/80 px-4 py-2.5 flex items-center justify-between gap-3 shrink-0">
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-          {categories.map((cat) => {
-            const isSelected = selectedCategory === cat.label;
-            return (
-              <button
-                key={cat.label}
-                onClick={() => handleCategorySelect(cat.label)}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-all flex items-center gap-1.5 shrink-0 ${
-                  isSelected
-                    ? 'bg-sky-500 text-white border-sky-400 shadow-md shadow-sky-500/20'
-                    : 'bg-slate-900/80 text-slate-400 border-slate-800 hover:border-slate-700 hover:text-slate-200'
-                }`}
-              >
-                {cat.icon}
-                <span>{cat.label}</span>
-              </button>
-            );
-          })}
+      {/* Feed Mode Selector & Category Bar */}
+      <div className="sticky top-0 z-30 bg-slate-950/90 backdrop-blur-md border-b border-slate-800/80 px-4 py-2.5 space-y-2 shrink-0">
+        {/* Mode Tabs Row */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+            {feedModes.map((item) => {
+              const isSelected = feedMode === item.mode;
+              return (
+                <button
+                  key={item.mode}
+                  onClick={() => handleModeSelect(item.mode)}
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-bold border transition-all flex items-center gap-1.5 shrink-0 ${
+                    isSelected
+                      ? 'bg-sky-500 text-slate-950 border-sky-400 shadow-md shadow-sky-500/20'
+                      : 'bg-slate-900/80 text-slate-400 border-slate-800 hover:border-slate-700 hover:text-slate-200'
+                  }`}
+                >
+                  {item.icon}
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={() => setIsPrefModalOpen(true)}
+              className="p-2 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-sky-400 rounded-xl border border-slate-800 transition-all text-xs flex items-center gap-1"
+              title="Feed Preferences"
+            >
+              <Sliders className="w-3.5 h-3.5" />
+            </button>
+
+            <button
+              onClick={() => fetchInitialPosts(feedMode, selectedCategory)}
+              disabled={loadingInitial}
+              className="p-2 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl border border-slate-800 transition-all text-xs flex items-center gap-1"
+              title="Refresh Feed"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loadingInitial ? 'animate-spin text-sky-400' : ''}`} />
+            </button>
+          </div>
         </div>
 
-        <button
-          onClick={() => fetchInitialPosts(selectedCategory)}
-          disabled={loadingInitial}
-          className="p-2 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl border border-slate-800 transition-all text-xs flex items-center gap-1 shrink-0"
-          title="Refresh Feed"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${loadingInitial ? 'animate-spin text-sky-400' : ''}`} />
-        </button>
+        {/* Category Sub-Filters Row (Shown in Latest & Personalized modes) */}
+        {(feedMode === 'latest' || feedMode === 'personalized') && (
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-1 text-[11px]">
+            {categories.map((cat) => {
+              const isSelected = selectedCategory === cat.label;
+              return (
+                <button
+                  key={cat.label}
+                  onClick={() => setSelectedCategory(cat.label)}
+                  className={`px-3 py-1 rounded-lg font-semibold transition-all flex items-center gap-1 shrink-0 ${
+                    isSelected
+                      ? 'bg-slate-800 text-sky-400 border border-sky-500/30'
+                      : 'text-slate-500 hover:text-slate-300'
+                  }`}
+                >
+                  {cat.icon}
+                  <span>{cat.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Floating New Posts Available Pill */}
@@ -247,6 +343,20 @@ export const Feed: React.FC = () => {
 
       {/* Snap-Scroll Container */}
       <div className="flex-1 overflow-y-auto snap-y snap-mandatory scroll-smooth w-full">
+        {/* Trending Posts Carousel (Shown when in Trending or Personalized modes) */}
+        {(feedMode === 'trending' || feedMode === 'personalized') && (
+          <div className="p-4 border-b border-slate-800/80 bg-slate-950/40">
+            <TrendingPosts
+              onSelectPost={(postId) => {
+                const elem = document.getElementById(`post-${postId}`);
+                if (elem) {
+                  elem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+              }}
+            />
+          </div>
+        )}
+
         {/* Error State */}
         {error && (
           <div className="h-full flex items-center justify-center p-4">
@@ -254,7 +364,7 @@ export const Feed: React.FC = () => {
               <AlertCircle className="w-8 h-8 text-rose-400 mx-auto" />
               <p className="font-semibold">{error}</p>
               <button
-                onClick={() => fetchInitialPosts(selectedCategory)}
+                onClick={() => fetchInitialPosts(feedMode, selectedCategory)}
                 className="px-4 py-2 bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 rounded-xl text-xs font-semibold"
               >
                 Retry Fetching
@@ -302,9 +412,9 @@ export const Feed: React.FC = () => {
                 <Inbox className="w-8 h-8" />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-white">No {selectedCategory !== 'All' ? selectedCategory : ''} Posts</h2>
+                <h2 className="text-xl font-bold text-white">No {feedMode} Posts</h2>
                 <p className="text-slate-400 text-xs mt-1">
-                  Be the first to publish a post in this category!
+                  Be the first to publish a post in this mode!
                 </p>
               </div>
               <button
@@ -358,6 +468,16 @@ export const Feed: React.FC = () => {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onPostCreated={handlePostCreated}
+      />
+
+      {/* Feed Preferences Customization Modal */}
+      <FeedPreferencesModal
+        isOpen={isPrefModalOpen}
+        onClose={() => setIsPrefModalOpen(false)}
+        onPreferencesUpdated={() => {
+          loadUserPrefs();
+          fetchInitialPosts(feedMode, selectedCategory);
+        }}
       />
     </div>
   );

@@ -6,3 +6,4 @@ export * from './incident';
 export * from './incidentReport';
 export * from './broadcast';
 export * from './notification';
+export * from './feed';

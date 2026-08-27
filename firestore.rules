@@ -102,6 +102,11 @@ service cloud.firestore {
         allow read, create, update, delete: if isOwner(userId);
       }
 
+      // User Feed Preferences Sub-collection: Private to user owner
+      match /feedPreferences/{settingId} {
+        allow read, create, update, delete: if isOwner(userId);
+      }
+
       // User Group Memberships Index: 1 per group per user
       match /groupMemberships/{groupId} {
         allow read: if isOwner(userId);
@@ -232,11 +237,11 @@ service cloud.firestore {
         && (!('priority' in request.resource.data) || request.resource.data.priority != 'emergency' || isAdmin())
         && (!('contactInfo' in request.resource.data) || (request.resource.data.contactInfo is string && request.resource.data.contactInfo.size() <= 20));
 
-      // Update: admin bypass, user counter increments, or author status/images resolve
+      // Update: admin bypass, user counter increments, or author status/title/content/images resolve
       allow update: if isAuthenticated() && (
         isAdmin() ||
         request.resource.data.diff(resource.data).affectedKeys().hasAny(['likeCount', 'commentCount', 'reportCount']) ||
-        (resource.data.authorId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'images', 'imageUrl']))
+        (resource.data.authorId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'images', 'imageUrl', 'title', 'content', 'category', 'isEdited', 'editedAt']))
       );
 
       // Delete: post author or admin only

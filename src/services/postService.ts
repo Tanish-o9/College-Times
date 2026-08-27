@@ -409,5 +409,54 @@ export const deletePost = async (postId: string): Promise<void> => {
   }
 };
 
+/**
+ * Phase 27: Author-only post content/title editing.
+ * Preserves immutable metadata (authorId, timestamp, likeCount, etc.).
+ */
+export const editPost = async (
+  postId: string,
+  userId: string,
+  updates: { title?: string; content?: string; category?: 'Mishap' | 'Event' | 'General' | 'LostFound' }
+): Promise<void> => {
+  if (!postId || !userId) throw new Error('Post ID and User ID are required.');
+
+  const postRef = doc(db, 'posts', postId);
+
+  await runTransaction(db, async (transaction) => {
+    const postSnap = await transaction.get(postRef);
+    if (!postSnap.exists()) throw new Error('Post not found.');
+
+    const data = postSnap.data() as Post;
+    if (data.authorId !== userId) {
+      throw new Error('Unauthorized to edit this post.');
+    }
+
+    const payload: Partial<Post> = {
+      ...(updates.title?.trim() ? { title: updates.title.trim().slice(0, 80) } : {}),
+      ...(updates.content?.trim() ? { content: updates.content.trim().slice(0, 500) } : {}),
+      ...(updates.category ? { category: updates.category } : {}),
+      isEdited: true,
+      editedAt: serverTimestamp(),
+    };
+
+    transaction.update(postRef, payload);
+  });
+
+  logAnalyticsEvent('post_edited', { postId });
+};
+
+/**
+ * Phase 27: Toggles important classification for a post (admin only).
+ */
+export const togglePostImportant = async (
+  postId: string,
+  isImportant: boolean
+): Promise<void> => {
+  if (!postId) return;
+  const postRef = doc(db, 'posts', postId);
+  await updateDoc(postRef, { isImportant });
+  logAnalyticsEvent('post_important_toggled', { postId, isImportant });
+};
+
 
 

@@ -81,6 +81,12 @@ export interface Post {
   eventId?: string;
   incidentId?: string;
   isOfficial?: boolean;
+  isImportant?: boolean;
+  trendingScore?: number;
+  savesCount?: number;
+  sharesCount?: number;
+  isEdited?: boolean;
+  editedAt?: any;
   audience?: PostAudience;
   priority?: PostPriority;
   notificationPolicy?: NotificationPolicy;
