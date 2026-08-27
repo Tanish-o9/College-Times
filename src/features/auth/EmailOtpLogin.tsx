@@ -68,9 +68,15 @@ export const EmailOtpLogin: React.FC<EmailOtpLoginProps> = ({ onSuccess, onSwitc
 
     setLoading(true);
     try {
-      await verifyEmailOtp(email, otpCode);
-      if (onSuccess) onSuccess();
-      else navigate('/');
+      const resUser = await verifyEmailOtp(email, otpCode);
+      if (resUser) {
+        if (onSuccess) {
+          onSuccess();
+        } else {
+          navigate('/', { replace: true });
+          window.location.href = '/';
+        }
+      }
     } catch (err) {
       // Error handled in service toast
     } finally {

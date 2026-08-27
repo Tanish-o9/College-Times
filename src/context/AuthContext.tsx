@@ -56,6 +56,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const handleSignOut = async () => {
+    localStorage.removeItem('college_times_dev_session');
     await signOutUser();
     setCurrentUser(null);
     setUserProfile(null);
@@ -78,8 +79,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           await ensureUserDocument(user);
           await fetchProfile(user.uid);
         } else {
-          setCurrentUser(null);
-          setUserProfile(null);
+          // Check local stored session fallback for email OTP dev mode
+          const storedDevUser = localStorage.getItem('college_times_dev_session');
+          if (storedDevUser) {
+            try {
+              const devUserData = JSON.parse(storedDevUser);
+              setCurrentUser(devUserData as any);
+              setUserProfile({
+                uid: devUserData.uid,
+                displayName: devUserData.displayName || 'Student',
+                email: devUserData.email,
+                role: 'student',
+                points: 10,
+                joinedChannelIds: ['general', 'admin-announcements'],
+                createdAt: new Date() as any,
+                lastLoginAt: new Date() as any,
+              });
+            } catch (pErr) {
+              setCurrentUser(null);
+              setUserProfile(null);
+            }
+          } else {
+            setCurrentUser(null);
+            setUserProfile(null);
+          }
         }
       } catch (err) {
         console.error('Error in auth state listener:', err);

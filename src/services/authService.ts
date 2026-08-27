@@ -310,27 +310,35 @@ export const verifyEmailOtp = async (email: string, otp: string): Promise<User> 
     console.warn('Cloud Function verify error or un-deployed, checking dev fallback:', error?.message);
     const devOtp = sessionStorage.getItem(`dev_email_otp_${cleanEmail}`);
     if (devOtp && devOtp === cleanOtp) {
-      // Authenticate natively with Firebase Auth SDK so onAuthStateChanged detects logged-in user
-      const userCredential = await signInAnonymously(auth);
       const studentName = cleanEmail.split('@')[0].toUpperCase();
-      
+      let loggedUser: any = null;
+
       try {
-        await updateProfile(userCredential.user, {
-          displayName: studentName
-        });
-      } catch (pErr) {
-        // Ignore profile update warning if any
+        const userCredential = await signInAnonymously(auth);
+        loggedUser = userCredential.user;
+        try {
+          await updateProfile(userCredential.user, { displayName: studentName });
+        } catch (pErr) {}
+      } catch (anonErr) {
+        // Fallback for local dev if anonymous auth is disabled on firebase console
+        loggedUser = {
+          uid: `student_${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
+          email: cleanEmail,
+          displayName: studentName,
+          emailVerified: true,
+        };
+        localStorage.setItem('college_times_dev_session', JSON.stringify(loggedUser));
       }
 
       await ensureUserDocument({
-        ...userCredential.user,
+        ...loggedUser,
         email: cleanEmail,
         displayName: studentName,
       } as any);
 
       logAnalyticsEvent('auth_otp_verified', { provider: 'email_otp', mode: 'dev' });
       toast.success('College email verification successful! 🎉', { id: 'email-otp-success-dev' });
-      return userCredential.user;
+      return loggedUser;
     }
 
     const msg = error.message || 'Verification failed. Please check the code and try again.';
