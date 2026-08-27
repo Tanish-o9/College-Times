@@ -12,7 +12,7 @@ export const validateCollegeDomain = (email: string): boolean => {
   const domain = normalized.split('@')[1];
   if (!domain) return false;
 
-  const envDomains = process.env.ALLOWED_COLLEGE_EMAIL_DOMAINS;
+  const envDomains = process.env.ALLOWED_COLLEGE_EMAIL_DOMAINS || process.env.ALLOWED_EMAIL_DOMAINS;
   let allowedDomains = ['akgec.ac.in', 'student.akgec.ac.in', 'gmail.com'];
 
   if (envDomains) {
