@@ -54,7 +54,23 @@ export interface GroupInviteCodeDoc {
   createdBy: string;
 }
 
-// Phase 34: Group Instant Experience Data Models
+// Phase 34 & 36A: Permanent Group Instant / Moments Experience Data Models
+export interface GroupInstantMedia {
+  id?: string;
+  mediaId: string;
+  instantId: string;
+  groupId: string;
+  ownerId: string;
+  storagePath: string;
+  downloadUrl: string;
+  mimeType: string;
+  width?: number;
+  height?: number;
+  fileSize: number;
+  order: number;
+  createdAt: Timestamp | FieldValue | any;
+}
+
 export interface GroupInstant {
   id: string;
   groupId: string;
@@ -62,10 +78,11 @@ export interface GroupInstant {
   senderName: string;
   senderAvatar?: string;
   type: 'text' | 'image' | 'video';
-  media: string[]; // Up to 5 image URLs
+  media: string[]; // Legacy fallback image URLs
+  mediaCount?: number; // Total scalable media items in subcollection
   caption?: string;
   createdAt: Timestamp | FieldValue | any;
-  expiresAt: Timestamp | FieldValue | any; // Default 24 hours
+  expiresAt?: Timestamp | FieldValue | any; // Optional for backward compatibility
   status: 'active' | 'expired' | 'deleted' | 'hidden';
   reactionCounts?: Record<string, number>;
   replyCount?: number;

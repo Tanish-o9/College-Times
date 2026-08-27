@@ -36,11 +36,6 @@ export const CreateGroupInstantModal: React.FC<CreateGroupInstantModalProps> = (
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
 
-    if (selectedFiles.length + files.length > 5) {
-      toast.error('Maximum 5 photos allowed per Instant.');
-      return;
-    }
-
     const validFiles: File[] = [];
     const newPreviews: string[] = [];
 
@@ -79,7 +74,7 @@ export const CreateGroupInstantModal: React.FC<CreateGroupInstantModalProps> = (
     setSubmitting(true);
     try {
       await createGroupInstant(groupId, caption, selectedFiles, currentUser, userProfile);
-      toast.success('Instant shared to group!');
+      toast.success('Permanent Group Moment shared!');
       setCaption('');
       setSelectedFiles([]);
       setPreviews([]);
@@ -102,7 +97,7 @@ export const CreateGroupInstantModal: React.FC<CreateGroupInstantModalProps> = (
               <Sparkles className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-white">Share Group Instant</h2>
+              <h2 className="text-sm font-bold text-white">Share Group Moment</h2>
               <p className="text-[10px] text-slate-400 truncate">Sharing moment with {groupName}</p>
             </div>
           </div>
@@ -120,8 +115,8 @@ export const CreateGroupInstantModal: React.FC<CreateGroupInstantModalProps> = (
           {/* Image Upload Area */}
           <div className="space-y-2">
             <label className="text-xs font-semibold text-slate-300 flex items-center justify-between">
-              <span>Photos (Max 5)</span>
-              <span className="text-[10px] text-slate-500 font-mono">{selectedFiles.length}/5 selected</span>
+              <span>Photos (Unlimited)</span>
+              <span className="text-[10px] text-purple-400 font-mono font-bold">{selectedFiles.length} selected</span>
             </label>
 
             <input
@@ -134,7 +129,7 @@ export const CreateGroupInstantModal: React.FC<CreateGroupInstantModalProps> = (
             />
 
             {previews.length > 0 ? (
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-3 gap-2 max-h-56 overflow-y-auto p-1">
                 {previews.map((url, idx) => (
                   <div key={idx} className="relative aspect-square rounded-2xl overflow-hidden border border-slate-800 group">
                     <img src={url} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover" />
@@ -148,16 +143,14 @@ export const CreateGroupInstantModal: React.FC<CreateGroupInstantModalProps> = (
                     </button>
                   </div>
                 ))}
-                {previews.length < 5 && (
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="aspect-square rounded-2xl border border-dashed border-slate-700 hover:border-purple-500/50 bg-slate-950/40 hover:bg-purple-500/5 text-slate-400 hover:text-purple-300 flex flex-col items-center justify-center gap-1 transition-all"
-                  >
-                    <ImageIcon className="w-5 h-5" />
-                    <span className="text-[10px] font-semibold">+ Add</span>
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="aspect-square rounded-2xl border border-dashed border-slate-700 hover:border-purple-500/50 bg-slate-950/40 hover:bg-purple-500/5 text-slate-400 hover:text-purple-300 flex flex-col items-center justify-center gap-1 transition-all"
+                >
+                  <ImageIcon className="w-5 h-5" />
+                  <span className="text-[10px] font-semibold">+ Add More</span>
+                </button>
               </div>
             ) : (
               <button
@@ -168,8 +161,8 @@ export const CreateGroupInstantModal: React.FC<CreateGroupInstantModalProps> = (
                 <div className="w-10 h-10 rounded-2xl bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center">
                   <ImageIcon className="w-5 h-5" />
                 </div>
-                <span className="text-xs font-semibold">Tap to select up to 5 photos</span>
-                <span className="text-[10px] text-slate-500">JPG, PNG, WEBP, GIF up to 10MB</span>
+                <span className="text-xs font-semibold">Tap to select photos</span>
+                <span className="text-[10px] text-slate-500">JPG, PNG, WEBP, GIF up to 10MB each</span>
               </button>
             )}
           </div>
@@ -179,20 +172,20 @@ export const CreateGroupInstantModal: React.FC<CreateGroupInstantModalProps> = (
             <label className="text-xs font-semibold text-slate-300">Caption (Optional)</label>
             <textarea
               value={caption}
-              onChange={(e) => setCaption(e.target.value.slice(0, 300))}
+              onChange={(e) => setCaption(e.target.value.slice(0, 500))}
               placeholder="Add a moment caption or note for group members..."
               rows={3}
               className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500/50 resize-none"
             />
             <div className="flex justify-end text-[10px] text-slate-500 font-mono">
-              {caption.length}/300
+              {caption.length}/500
             </div>
           </div>
 
-          {/* Expiration Note */}
+          {/* Permanent Moment Note */}
           <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-2xl text-[11px] text-purple-300 flex items-center gap-2">
             <Sparkles className="w-4 h-4 shrink-0 text-purple-400" />
-            <span>Group Instants expire automatically after 24 hours.</span>
+            <span>Permanent Group Moment — Visible to group members indefinitely.</span>
           </div>
 
           {/* Submit Button */}
@@ -204,12 +197,12 @@ export const CreateGroupInstantModal: React.FC<CreateGroupInstantModalProps> = (
             {submitting ? (
               <>
                 <RefreshCw className="w-4 h-4 animate-spin" />
-                <span>Sharing Instant...</span>
+                <span>Sharing Moment...</span>
               </>
             ) : (
               <>
                 <Send className="w-4 h-4" />
-                <span>Post Instant to Group</span>
+                <span>Post Permanent Moment to Group</span>
               </>
             )}
           </button>

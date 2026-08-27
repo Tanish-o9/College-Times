@@ -626,9 +626,13 @@ service cloud.firestore {
         allow create, update, delete: if isAuthenticated();
       }
 
-      // Phase 34: Group Instants Sub-collection
+      // Phase 34 & 36A: Group Instants / Permanent Moments Sub-collection
       match /instants/{instantId} {
         allow read, create, update, delete: if isAuthenticated();
+
+        match /media/{mediaId} {
+          allow read, create, update, delete: if isAuthenticated();
+        }
 
         match /reports/{reporterId} {
           allow read, create, update, delete: if isAuthenticated();

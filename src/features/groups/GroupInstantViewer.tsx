@@ -2,9 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useOverlayBackHandler } from '../../hooks/useOverlayBackHandler';
-import { reactToGroupInstant, reportGroupInstant, deleteGroupInstant } from '../../services/groupInstantService';
-import type { GroupInstant } from '../../types/group';
-import { X, MessageSquare, Flag, Trash2, Heart, ThumbsUp, Flame, Smile, AlertCircle } from 'lucide-react';
+import {
+  reactToGroupInstant,
+  reportGroupInstant,
+  deleteGroupInstant,
+  getGroupInstantMedia,
+} from '../../services/groupInstantService';
+import type { GroupInstant, GroupInstantMedia } from '../../types/group';
+import { X, MessageSquare, Flag, Trash2, Heart, ThumbsUp, Flame, Smile, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface GroupInstantViewerProps {
@@ -35,43 +40,46 @@ export const GroupInstantViewer: React.FC<GroupInstantViewerProps> = ({
 
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
-  const [progress, setProgress] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
+  const [subcollectionMedia, setSubcollectionMedia] = useState<GroupInstantMedia[]>([]);
 
   useOverlayBackHandler(isOpen, onClose);
 
   useEffect(() => {
     setCurrentIndex(initialIndex);
     setCurrentMediaIndex(0);
-    setProgress(0);
   }, [initialIndex, isOpen]);
 
   const currentInstant = instants[currentIndex];
 
-  // Auto-advance progress bar timer (5 seconds per slide)
+  // Fetch subcollection media items when instant changes
   useEffect(() => {
-    if (!isOpen || isPaused || !currentInstant) return;
+    if (!isOpen || !currentInstant || !groupId) return;
 
-    const interval = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 100) {
-          handleNext();
-          return 0;
+    getGroupInstantMedia(groupId, currentInstant.id, 50)
+      .then((mediaDocs) => {
+        if (mediaDocs && mediaDocs.length > 0) {
+          setSubcollectionMedia(mediaDocs);
+        } else {
+          setSubcollectionMedia([]);
         }
-        return prev + 2;
-      });
-    }, 100);
-
-    return () => clearInterval(interval);
-  }, [isOpen, isPaused, currentIndex, currentMediaIndex, instants.length]);
+      })
+      .catch(() => setSubcollectionMedia([]));
+  }, [isOpen, groupId, currentInstant?.id]);
 
   if (!isOpen || !currentInstant) return null;
 
-  const mediaList = currentInstant.media && currentInstant.media.length > 0 ? currentInstant.media : [];
+  // Resolve media URLs array (subcollection takes priority, fallback to parent media array)
+  const mediaUrls: string[] =
+    subcollectionMedia.length > 0
+      ? subcollectionMedia.map((m) => m.downloadUrl)
+      : currentInstant.media && currentInstant.media.length > 0
+      ? currentInstant.media
+      : [];
+
+  const totalPhotosCount = currentInstant.mediaCount || mediaUrls.length;
 
   const handleNext = () => {
-    setProgress(0);
-    if (mediaList.length > 0 && currentMediaIndex < mediaList.length - 1) {
+    if (mediaUrls.length > 0 && currentMediaIndex < mediaUrls.length - 1) {
       setCurrentMediaIndex((prev) => prev + 1);
     } else if (currentIndex < instants.length - 1) {
       setCurrentIndex((prev) => prev + 1);
@@ -82,7 +90,6 @@ export const GroupInstantViewer: React.FC<GroupInstantViewerProps> = ({
   };
 
   const handlePrev = () => {
-    setProgress(0);
     if (currentMediaIndex > 0) {
       setCurrentMediaIndex((prev) => prev - 1);
     } else if (currentIndex > 0) {
@@ -109,7 +116,7 @@ export const GroupInstantViewer: React.FC<GroupInstantViewerProps> = ({
   const handleDelete = async () => {
     if (!currentUser) return;
     try {
-      await deleteGroupInstant(groupId, currentInstant.id, currentUser.uid);
+      await deleteGroupInstant(groupId, currentInstant.id, currentUser, userProfile);
       toast.success('Instant removed.');
       onClose();
     } catch (err: any) {
@@ -120,7 +127,7 @@ export const GroupInstantViewer: React.FC<GroupInstantViewerProps> = ({
   const handleReport = async () => {
     if (!currentUser) return;
     try {
-      await reportGroupInstant(groupId, currentInstant.id, 'Inappropriate content', currentUser.uid);
+      await reportGroupInstant(groupId, currentInstant.id, 'Inappropriate content', currentUser);
       toast.success('Report submitted.');
     } catch (err: any) {
       toast.error('Failed to submit report.');
@@ -133,41 +140,19 @@ export const GroupInstantViewer: React.FC<GroupInstantViewerProps> = ({
       <div className="absolute inset-0 bg-gradient-to-b from-slate-900/90 via-slate-950 to-slate-950 pointer-events-none" />
 
       {/* Main Container */}
-      <div
-        className="relative w-full max-w-md h-full max-h-[92vh] sm:rounded-3xl overflow-hidden bg-slate-900 border border-slate-800 flex flex-col shadow-2xl"
-        onMouseDown={() => setIsPaused(true)}
-        onMouseUp={() => setIsPaused(false)}
-        onTouchStart={() => setIsPaused(true)}
-        onTouchEnd={() => setIsPaused(false)}
-      >
-        {/* Top Progress Segmented Bar */}
+      <div className="relative w-full max-w-md h-full max-h-[92vh] sm:rounded-3xl overflow-hidden bg-slate-900 border border-slate-800 flex flex-col shadow-2xl">
+        {/* Top Header Bar */}
         <div className="absolute top-0 left-0 right-0 z-30 p-3 bg-gradient-to-b from-slate-950/90 to-transparent space-y-2">
-          <div className="flex gap-1.5 w-full">
-            {mediaList.length > 0 ? (
-              mediaList.map((_, idx) => (
-                <div key={idx} className="h-1 flex-1 bg-slate-800/80 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-white transition-all duration-100 ease-linear"
-                    style={{
-                      width:
-                        idx < currentMediaIndex
-                          ? '100%'
-                          : idx === currentMediaIndex
-                          ? `${progress}%`
-                          : '0%',
-                    }}
-                  />
-                </div>
-              ))
-            ) : (
-              <div className="h-1 flex-1 bg-slate-800/80 rounded-full overflow-hidden">
-                <div className="h-full bg-white" style={{ width: `${progress}%` }} />
-              </div>
-            )}
+          {/* Top Status Counter */}
+          <div className="flex items-center justify-between text-[11px] text-slate-300 font-mono font-bold px-1">
+            <span>
+              {mediaUrls.length > 0 ? `Photo ${currentMediaIndex + 1} of ${totalPhotosCount}` : 'Text Moment'}
+            </span>
+            <span>Moment {currentIndex + 1} of {instants.length}</span>
           </div>
 
           {/* Author Header */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between pt-1">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-full bg-purple-500/20 border border-purple-500/30 text-purple-300 font-bold text-xs flex items-center justify-center overflow-hidden shrink-0">
                 {currentInstant.senderAvatar ? (
@@ -178,7 +163,7 @@ export const GroupInstantViewer: React.FC<GroupInstantViewerProps> = ({
               </div>
               <div>
                 <span className="text-xs font-bold text-white block">{currentInstant.senderName}</span>
-                <span className="text-[10px] text-slate-400 font-mono">24h Group Moment</span>
+                <span className="text-[10px] text-purple-400 font-mono font-bold">Permanent Group Moment</span>
               </div>
             </div>
 
@@ -201,10 +186,10 @@ export const GroupInstantViewer: React.FC<GroupInstantViewerProps> = ({
 
         {/* Media / Content Viewport */}
         <div className="relative flex-1 bg-slate-950 flex items-center justify-center overflow-hidden">
-          {mediaList.length > 0 ? (
+          {mediaUrls.length > 0 ? (
             <img
-              src={mediaList[currentMediaIndex]}
-              alt="Instant moment"
+              src={mediaUrls[currentMediaIndex]}
+              alt="Group moment"
               className="w-full h-full object-contain"
             />
           ) : (
@@ -213,16 +198,29 @@ export const GroupInstantViewer: React.FC<GroupInstantViewerProps> = ({
             </div>
           )}
 
-          {/* Touch Navigation Overlay */}
-          <div className="absolute inset-0 flex z-20">
-            <button onClick={handlePrev} className="w-1/3 h-full cursor-pointer focus:outline-none" aria-label="Previous slide" />
-            <button onClick={handleNext} className="w-2/3 h-full cursor-pointer focus:outline-none" aria-label="Next slide" />
-          </div>
+          {/* Navigation Controls */}
+          {currentMediaIndex > 0 || currentIndex > 0 ? (
+            <button
+              onClick={handlePrev}
+              className="absolute left-2 top-1/2 -translate-y-1/2 z-30 p-2 bg-slate-950/60 hover:bg-slate-900 border border-slate-800 text-white rounded-full transition-colors"
+              title="Previous"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+          ) : null}
+
+          <button
+            onClick={handleNext}
+            className="absolute right-2 top-1/2 -translate-y-1/2 z-30 p-2 bg-slate-950/60 hover:bg-slate-900 border border-slate-800 text-white rounded-full transition-colors"
+            title="Next"
+          >
+            <ChevronRight className="w-5 h-5" />
+          </button>
         </div>
 
         {/* Bottom Caption & Interactions */}
         <div className="z-30 p-4 bg-slate-900 border-t border-slate-800 space-y-3">
-          {mediaList.length > 0 && currentInstant.caption && (
+          {mediaUrls.length > 0 && currentInstant.caption && (
             <p className="text-xs text-slate-200 leading-relaxed max-h-16 overflow-y-auto">
               {currentInstant.caption}
             </p>

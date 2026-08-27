@@ -58,7 +58,7 @@ export const GroupInstantCarousel: React.FC<GroupInstantCarouselProps> = ({
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-1.5 text-xs font-bold text-slate-300">
           <Sparkles className="w-4 h-4 text-purple-400" />
-          <span>Group Instants (24h)</span>
+          <span>Group Moments (Permanent)</span>
         </div>
 
         {hasNewInstantsPill && (
@@ -67,7 +67,7 @@ export const GroupInstantCarousel: React.FC<GroupInstantCarouselProps> = ({
             className="px-2.5 py-1 bg-purple-500 text-white font-bold text-[10px] rounded-full animate-bounce shadow-lg flex items-center gap-1"
           >
             <Sparkles className="w-3 h-3" />
-            <span>New Instants</span>
+            <span>New Moments</span>
           </button>
         )}
       </div>
@@ -83,7 +83,7 @@ export const GroupInstantCarousel: React.FC<GroupInstantCarouselProps> = ({
               <Plus className="w-6 h-6" />
             </div>
             <span className="text-[10px] font-bold text-slate-400 group-hover:text-purple-300">
-              + Instant
+              + Moment
             </span>
           </button>
         )}
@@ -97,7 +97,7 @@ export const GroupInstantCarousel: React.FC<GroupInstantCarouselProps> = ({
           </div>
         ) : instants.length === 0 ? (
           <div className="text-[11px] text-slate-500 italic py-3">
-            No active group instants in the last 24h.
+            No group moments posted yet. Be the first to share a moment!
           </div>
         ) : (
           instants.map((instant, idx) => (

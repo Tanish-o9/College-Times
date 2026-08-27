@@ -9,20 +9,26 @@ import {
   where,
   orderBy,
   limit,
+  getDocs,
   onSnapshot,
   serverTimestamp,
-  Timestamp,
   increment,
 } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { db, storage, logAnalyticsEvent } from '../lib/firebase';
 import type { User } from '../types/models';
-import type { GroupInstant, GroupInstantReadState } from '../types/group';
+import type { GroupInstant, GroupInstantMedia } from '../types/group';
 import { isUserGroupChatMember } from './groupChatService';
 
 const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
-const INSTANT_EXPIRATION_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+export interface UploadedInstantMedia {
+  downloadUrl: string;
+  storagePath: string;
+  fileSize: number;
+  mimeType: string;
+}
 
 /**
  * Uploads a single media item for a group instant.
@@ -32,7 +38,7 @@ export const uploadInstantMediaFile = async (
   instantId: string,
   file: File,
   currentUser: FirebaseUser
-): Promise<string> => {
+): Promise<UploadedInstantMedia> => {
   if (file.size > 10 * 1024 * 1024) {
     throw new Error(`File '${file.name}' exceeds 10MB size limit.`);
   }
@@ -54,7 +60,7 @@ export const uploadInstantMediaFile = async (
     });
   };
 
-  return new Promise<string>((resolve) => {
+  return new Promise<UploadedInstantMedia>((resolve) => {
     let isDone = false;
     const timeoutTimer = setTimeout(async () => {
       if (!isDone) {
@@ -62,9 +68,9 @@ export const uploadInstantMediaFile = async (
         console.warn(`Storage upload timed out for instant media ${file.name}, using local Data URL fallback.`);
         try {
           const dataUrl = await readFileAsDataUrl(file);
-          resolve(dataUrl);
+          resolve({ downloadUrl: dataUrl, storagePath, fileSize: file.size, mimeType: file.type });
         } catch {
-          resolve('');
+          resolve({ downloadUrl: '', storagePath, fileSize: file.size, mimeType: file.type });
         }
       }
     }, 6000);
@@ -81,9 +87,9 @@ export const uploadInstantMediaFile = async (
           clearTimeout(timeoutTimer);
           try {
             const dataUrl = await readFileAsDataUrl(file);
-            resolve(dataUrl);
+            resolve({ downloadUrl: dataUrl, storagePath, fileSize: file.size, mimeType: file.type });
           } catch {
-            resolve('');
+            resolve({ downloadUrl: '', storagePath, fileSize: file.size, mimeType: file.type });
           }
         }
       },
@@ -93,10 +99,10 @@ export const uploadInstantMediaFile = async (
           clearTimeout(timeoutTimer);
           try {
             const url = await getDownloadURL(uploadTask.snapshot.ref);
-            resolve(url);
+            resolve({ downloadUrl: url, storagePath, fileSize: file.size, mimeType: file.type });
           } catch {
             const dataUrl = await readFileAsDataUrl(file);
-            resolve(dataUrl);
+            resolve({ downloadUrl: dataUrl, storagePath, fileSize: file.size, mimeType: file.type });
           }
         }
       }
@@ -105,7 +111,7 @@ export const uploadInstantMediaFile = async (
 };
 
 /**
- * Creates a new Group Instant moment with up to 5 photos and an optional caption.
+ * Creates a permanent Group Instant moment with unlimited photos (stored in subcollection).
  */
 export const createGroupInstant = async (
   groupId: string,
@@ -123,51 +129,87 @@ export const createGroupInstant = async (
     throw new Error('Access denied: You must be a member of this campus group to post Instants.');
   }
 
-  if (files.length > 5) {
-    throw new Error('Maximum 5 photos allowed per Instant.');
-  }
-
   const instantsRef = collection(db, 'groups', groupId, 'instants');
   const tempInstantId = `inst_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
-  // Upload images
-  const mediaUrls: string[] = [];
-  for (const file of files) {
-    const url = await uploadInstantMediaFile(groupId, tempInstantId, file, currentUser);
-    if (url) mediaUrls.push(url);
+  // Upload images concurrently in batches of 4
+  const uploadedMedia: UploadedInstantMedia[] = [];
+  const BATCH_SIZE = 4;
+  for (let i = 0; i < files.length; i += BATCH_SIZE) {
+    const batch = files.slice(i, i + BATCH_SIZE);
+    const batchResults = await Promise.all(
+      batch.map((file) => uploadInstantMediaFile(groupId, tempInstantId, file, currentUser))
+    );
+    batchResults.forEach((res) => {
+      if (res.downloadUrl) uploadedMedia.push(res);
+    });
   }
-
-  const nowMs = Date.now();
-  const expiresAtDate = new Date(nowMs + INSTANT_EXPIRATION_MS);
 
   const instantData: Omit<GroupInstant, 'id'> = {
     groupId,
     senderId: currentUser.uid,
     senderName: userProfile?.displayName || currentUser.displayName || 'Campus Student',
     ...(userProfile?.photoURL ? { senderAvatar: userProfile.photoURL } : {}),
-    type: mediaUrls.length > 0 ? 'image' : 'text',
-    media: mediaUrls,
-    ...(caption.trim() ? { caption: caption.trim().slice(0, 300) } : {}),
+    type: uploadedMedia.length > 0 ? 'image' : 'text',
+    media: uploadedMedia.map((m) => m.downloadUrl).slice(0, 5), // Legacy fallback array
+    mediaCount: uploadedMedia.length,
+    ...(caption.trim() ? { caption: caption.trim().slice(0, 500) } : {}),
     createdAt: serverTimestamp(),
-    expiresAt: Timestamp.fromDate(expiresAtDate),
     status: 'active',
     reactionCounts: {},
     replyCount: 0,
   };
 
   const newDoc = await addDoc(instantsRef, instantData);
-  logAnalyticsEvent('instant_created', { groupId, mediaCount: mediaUrls.length });
+
+  // Write scalable subcollection media docs
+  const mediaSubRef = collection(db, 'groups', groupId, 'instants', newDoc.id, 'media');
+  for (let i = 0; i < uploadedMedia.length; i++) {
+    const m = uploadedMedia[i];
+    const mediaId = `m_${i}_${Date.now()}`;
+    const mediaDocRef = doc(mediaSubRef, mediaId);
+    await setDoc(mediaDocRef, {
+      mediaId,
+      instantId: newDoc.id,
+      groupId,
+      ownerId: currentUser.uid,
+      storagePath: m.storagePath,
+      downloadUrl: m.downloadUrl,
+      mimeType: m.mimeType,
+      fileSize: m.fileSize,
+      order: i,
+      createdAt: serverTimestamp(),
+    });
+  }
+
+  logAnalyticsEvent('instant_created', { groupId, mediaCount: uploadedMedia.length });
 
   return {
     id: newDoc.id,
     ...instantData,
     createdAt: new Date(),
-    expiresAt: expiresAtDate,
   } as GroupInstant;
 };
 
 /**
- * Attaches a real-time listener for active non-expired Instants in a group (max limitCount).
+ * Fetches media items from an Instant's media subcollection.
+ */
+export const getGroupInstantMedia = async (
+  groupId: string,
+  instantId: string,
+  limitCount: number = 50
+): Promise<GroupInstantMedia[]> => {
+  if (!groupId || !instantId) return [];
+
+  const mediaRef = collection(db, 'groups', groupId, 'instants', instantId, 'media');
+  const q = query(mediaRef, orderBy('order', 'asc'), limit(limitCount));
+  const snap = await getDocs(q);
+
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() })) as GroupInstantMedia[];
+};
+
+/**
+ * Attaches a real-time listener for active permanent Instants in a group (max limitCount).
  */
 export const subscribeToActiveGroupInstants = (
   groupId: string,
@@ -187,21 +229,12 @@ export const subscribeToActiveGroupInstants = (
   return onSnapshot(
     q,
     (snapshot) => {
-      const now = Date.now();
-      const activeInstants = snapshot.docs
-        .map((docSnap) => ({
-          id: docSnap.id,
-          ...docSnap.data(),
-        })) as GroupInstant[];
+      const activeInstants = snapshot.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...docSnap.data(),
+      })) as GroupInstant[];
 
-      // Filter out expired items on client side as fallback
-      const freshInstants = activeInstants.filter((inst) => {
-        if (!inst.expiresAt) return true;
-        const expiryMs = inst.expiresAt.toMillis ? inst.expiresAt.toMillis() : new Date(inst.expiresAt).getTime();
-        return expiryMs > now;
-      });
-
-      onUpdate(freshInstants);
+      onUpdate(activeInstants);
     },
     (err) => {
       console.error('Error listening to group instants:', err);
@@ -220,85 +253,88 @@ export const reactToGroupInstant = async (
 ): Promise<void> => {
   if (!groupId || !instantId || !emoji || !uid) return;
 
-  const isMember = await isUserGroupChatMember(groupId, uid);
-  if (!isMember) {
-    throw new Error('You must be a group member to react.');
-  }
-
   const instantRef = doc(db, 'groups', groupId, 'instants', instantId);
+  const safeEmojiField = `reactionCounts.${emoji}`;
+
   await updateDoc(instantRef, {
-    [`reactionCounts.${emoji}`]: increment(1),
-  }).catch(() => {});
+    [safeEmojiField]: increment(1),
+  });
 
   logAnalyticsEvent('instant_reacted', { groupId, instantId, emoji });
 };
 
 /**
- * Submits a moderation report for an Instant.
- */
-export const reportGroupInstant = async (
-  groupId: string,
-  instantId: string,
-  reason: string,
-  uid: string
-): Promise<void> => {
-  if (!groupId || !instantId || !uid) return;
-
-  const reportRef = doc(db, 'groups', groupId, 'instants', instantId, 'reports', uid);
-  await setDoc(reportRef, {
-    reporterId: uid,
-    reason: reason.trim().slice(0, 300),
-    createdAt: serverTimestamp(),
-  });
-
-  logAnalyticsEvent('instant_reported', { groupId, instantId });
-};
-
-/**
- * Soft deletes / hides an Instant (Owner or Admin only).
+ * Soft deletes a Group Instant (Author or Admin/Owner only).
  */
 export const deleteGroupInstant = async (
   groupId: string,
   instantId: string,
-  uid: string
+  user: FirebaseUser,
+  userProfile?: User | null
 ): Promise<void> => {
-  if (!groupId || !instantId || !uid) return;
+  if (!groupId || !instantId || !user) return;
 
   const instantRef = doc(db, 'groups', groupId, 'instants', instantId);
   const snap = await getDoc(instantRef);
 
   if (!snap.exists()) return;
-  const data = snap.data() as GroupInstant;
 
-  if (data.senderId !== uid) {
-    throw new Error('Only the author or group admin can delete this Instant.');
+  const data = snap.data();
+  const isAuthor = data.senderId === user.uid;
+  const isAdmin = userProfile?.role === 'admin';
+
+  if (!isAuthor && !isAdmin) {
+    throw new Error('Access denied: You can only delete your own Instants.');
   }
 
   await updateDoc(instantRef, {
     status: 'deleted',
-    deletedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
   });
 
   logAnalyticsEvent('instant_deleted', { groupId, instantId });
 };
 
 /**
- * Persists user's last seen instant state for unread indicators.
+ * Reports an inappropriate Group Instant.
  */
-export const markGroupInstantsSeen = async (
+export const reportGroupInstant = async (
   groupId: string,
-  uid: string,
+  instantId: string,
+  reason: string,
+  reporter: FirebaseUser
+): Promise<void> => {
+  if (!groupId || !instantId || !reporter) return;
+
+  const reportsRef = collection(db, 'groups', groupId, 'instants', instantId, 'reports');
+  await setDoc(doc(reportsRef, reporter.uid), {
+    reporterId: reporter.uid,
+    reason: reason || 'Inappropriate content',
+    createdAt: serverTimestamp(),
+  });
+
+  logAnalyticsEvent('instant_reported', { groupId, instantId, reason });
+};
+
+/**
+ * Marks Group Instants as read for the current user.
+ */
+export const markGroupInstantsAsRead = async (
+  groupId: string,
+  userId: string,
   lastInstantId: string
 ): Promise<void> => {
-  if (!groupId || !uid || !lastInstantId) return;
+  if (!groupId || !userId) return;
 
-  const stateRef = doc(db, 'users', uid, 'groupInstantState', groupId);
-  const data: GroupInstantReadState = {
-    groupId,
-    lastSeenInstantAt: serverTimestamp(),
-    lastSeenInstantId: lastInstantId,
-    updatedAt: serverTimestamp(),
-  };
-
-  await setDoc(stateRef, data, { merge: true }).catch(() => {});
+  const readStateRef = doc(db, 'users', userId, 'groupInstantReadStates', groupId);
+  await setDoc(
+    readStateRef,
+    {
+      groupId,
+      lastSeenInstantId: lastInstantId,
+      lastSeenInstantAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
 };
