@@ -459,3 +459,45 @@ export const getGroupModerationReports = async (
 
   return snap.docs.map((d) => ({ id: d.id, ...d.data() })) as GroupMemberReport[];
 };
+
+/**
+ * Deactivates a campus group (Owner/Admin only). Enters read-only state.
+ */
+export const deactivateGroup = async (
+  groupId: string,
+  adminUser: FirebaseUser,
+  adminProfile?: User | null
+): Promise<void> => {
+  if (!groupId || !adminUser) return;
+
+  const groupRef = doc(db, 'groups', groupId);
+  await updateDoc(groupRef, {
+    active: false,
+    updatedAt: serverTimestamp(),
+  });
+
+  const actorName = adminProfile?.displayName || adminUser.displayName || 'Admin';
+  logGroupActivity(groupId, 'group_archived', adminUser.uid, actorName, `Deactivated campus group ${groupId}`);
+  logAnalyticsEvent('group_deactivated', { groupId });
+};
+
+/**
+ * Reactivates a deactivated campus group (Owner/Admin only).
+ */
+export const reactivateGroup = async (
+  groupId: string,
+  adminUser: FirebaseUser,
+  adminProfile?: User | null
+): Promise<void> => {
+  if (!groupId || !adminUser) return;
+
+  const groupRef = doc(db, 'groups', groupId);
+  await updateDoc(groupRef, {
+    active: true,
+    updatedAt: serverTimestamp(),
+  });
+
+  const actorName = adminProfile?.displayName || adminUser.displayName || 'Admin';
+  logGroupActivity(groupId, 'group_unarchived', adminUser.uid, actorName, `Reactivated campus group ${groupId}`);
+  logAnalyticsEvent('group_reactivated', { groupId });
+};

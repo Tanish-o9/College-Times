@@ -179,7 +179,8 @@ export interface GroupAuditLog {
     | 'group_settings_changed'
     | 'invite_regenerated'
     | 'ownership_transferred'
-    | 'group_archived';
+    | 'group_archived'
+    | 'group_unarchived';
   actorId: string;
   actorName: string;
   details: string;

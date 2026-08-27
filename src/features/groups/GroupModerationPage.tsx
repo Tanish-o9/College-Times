@@ -6,21 +6,27 @@ import {
   getGroupModerationReports,
   getGroupAuditLogs,
   unbanMemberFromGroup,
+  getGroupJoinRequests,
+  approveJoinRequest,
+  rejectJoinRequest,
 } from '../../services/groupManagementService';
 import { canModerateContent } from '../../services/groupPermissionService';
-import type { CampusGroup, GroupRole, GroupMemberReport, GroupAuditLog } from '../../types/group';
+import type { CampusGroup, GroupRole, GroupMemberReport, GroupAuditLog, GroupJoinRequest } from '../../types/group';
 import {
   ArrowLeft,
   ShieldAlert,
   FileText,
   Ban,
   RefreshCw,
+  UserCheck,
+  Check,
+  X,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 
-type Tab = 'reports' | 'banned' | 'logs';
+type Tab = 'reports' | 'requests' | 'banned' | 'logs';
 
 export const GroupModerationPage: React.FC = () => {
   const { groupId } = useParams<{ groupId: string }>();
@@ -33,6 +39,7 @@ export const GroupModerationPage: React.FC = () => {
 
   // Moderation state
   const [reports, setReports] = useState<GroupMemberReport[]>([]);
+  const [joinRequests, setJoinRequests] = useState<GroupJoinRequest[]>([]);
   const [bannedMembers, setBannedMembers] = useState<{ uid: string; reason?: string }[]>([]);
   const [logs, setLogs] = useState<GroupAuditLog[]>([]);
   const [loadingData, setLoadingData] = useState<boolean>(false);
@@ -60,11 +67,13 @@ export const GroupModerationPage: React.FC = () => {
       if (activeTab === 'reports') {
         const rList = await getGroupModerationReports(groupId, 50);
         setReports(rList);
+      } else if (activeTab === 'requests') {
+        const reqList = await getGroupJoinRequests(groupId, 50);
+        setJoinRequests(reqList);
       } else if (activeTab === 'banned') {
-        const membersRef = collection(db, 'groups', groupId, 'members');
-        const q = query(membersRef, where('status', '==', 'banned'));
-        const snap = await getDocs(q);
-        const bList = snap.docs.map((d) => ({ uid: d.id, reason: d.data().banReason }));
+        const membersRef = collection(db, 'groups', groupId, 'bannedMembers');
+        const snap = await getDocs(membersRef);
+        const bList = snap.docs.map((d) => ({ uid: d.id, reason: d.data().reason }));
         setBannedMembers(bList);
       } else if (activeTab === 'logs') {
         const lList = await getGroupAuditLogs(groupId, 50);
@@ -84,6 +93,28 @@ export const GroupModerationPage: React.FC = () => {
   useEffect(() => {
     if (groupId) loadTabData();
   }, [groupId, activeTab]);
+
+  const handleApproveJoin = async (targetUid: string) => {
+    if (!groupId || !currentUser) return;
+    try {
+      await approveJoinRequest(groupId, targetUid, currentUser, userProfile);
+      toast.success('Join request approved.');
+      setJoinRequests((prev) => prev.filter((r) => r.userId !== targetUid));
+    } catch (err: any) {
+      toast.error('Failed to approve join request.');
+    }
+  };
+
+  const handleRejectJoin = async (targetUid: string) => {
+    if (!groupId || !currentUser) return;
+    try {
+      await rejectJoinRequest(groupId, targetUid, currentUser);
+      toast.success('Join request rejected.');
+      setJoinRequests((prev) => prev.filter((r) => r.userId !== targetUid));
+    } catch (err: any) {
+      toast.error('Failed to reject join request.');
+    }
+  };
 
   const handleUnban = async (targetUid: string) => {
     if (!groupId || !currentUser) return;
@@ -128,22 +159,34 @@ export const GroupModerationPage: React.FC = () => {
         ) : (
           <div className="space-y-6">
             {/* Tabs */}
-            <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
+            <div className="flex items-center gap-2 border-b border-slate-800 pb-2 overflow-x-auto scrollbar-none">
               <button
                 onClick={() => setActiveTab('reports')}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
                   activeTab === 'reports'
                     ? 'bg-purple-500/10 text-purple-400 border border-purple-500/30'
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
                 <ShieldAlert className="w-4 h-4" />
-                <span>Member Reports ({reports.length})</span>
+                <span>Reports ({reports.length})</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('requests')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+                  activeTab === 'requests'
+                    ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <UserCheck className="w-4 h-4" />
+                <span>Join Requests ({joinRequests.length})</span>
               </button>
 
               <button
                 onClick={() => setActiveTab('banned')}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
                   activeTab === 'banned'
                     ? 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
                     : 'text-slate-400 hover:text-white'
@@ -155,7 +198,7 @@ export const GroupModerationPage: React.FC = () => {
 
               <button
                 onClick={() => setActiveTab('logs')}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
                   activeTab === 'logs'
                     ? 'bg-sky-500/10 text-sky-400 border border-sky-500/30'
                     : 'text-slate-400 hover:text-white'
@@ -187,6 +230,39 @@ export const GroupModerationPage: React.FC = () => {
                       </div>
                       <p className="text-xs text-slate-300">Target User UID: {report.targetUserId}</p>
                       {report.description && <p className="text-xs text-slate-400 bg-slate-950 p-3 rounded-xl">{report.description}</p>}
+                    </div>
+                  ))}
+                </div>
+              )
+            ) : activeTab === 'requests' ? (
+              joinRequests.length === 0 ? (
+                <div className="p-8 bg-slate-900/40 border border-slate-800 rounded-3xl text-center text-xs text-slate-400">
+                  No pending join requests for this group.
+                </div>
+              ) : (
+                <div className="bg-slate-900 border border-slate-800 rounded-3xl divide-y divide-slate-800/60 overflow-hidden">
+                  {joinRequests.map((req) => (
+                    <div key={req.userId} className="p-4 flex items-center justify-between gap-4">
+                      <div>
+                        <span className="text-xs font-bold text-white block">{req.userName}</span>
+                        <span className="text-[10px] text-slate-400 font-mono">UID: {req.userId}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleApproveJoin(req.userId)}
+                          className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs rounded-xl flex items-center gap-1"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Approve</span>
+                        </button>
+                        <button
+                          onClick={() => handleRejectJoin(req.userId)}
+                          className="px-3 py-1.5 bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-300 text-xs font-semibold rounded-xl flex items-center gap-1"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                          <span>Reject</span>
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
