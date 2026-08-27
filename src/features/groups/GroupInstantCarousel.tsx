@@ -4,7 +4,7 @@ import { subscribeToActiveGroupInstants } from '../../services/groupInstantServi
 import type { GroupInstant } from '../../types/group';
 import { CreateGroupInstantModal } from './CreateGroupInstantModal';
 import { GroupInstantViewer } from './GroupInstantViewer';
-import { Plus, Sparkles, RefreshCw } from 'lucide-react';
+import { Plus, Sparkles } from 'lucide-react';
 
 interface GroupInstantCarouselProps {
   groupId: string;
@@ -17,7 +17,6 @@ export const GroupInstantCarousel: React.FC<GroupInstantCarouselProps> = ({
   groupName,
   isMember,
 }) => {
-  const { currentUser } = useAuth();
 
   const [instants, setInstants] = useState<GroupInstant[]>([]);
   const [loading, setLoading] = useState<boolean>(true);

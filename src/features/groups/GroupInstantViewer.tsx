@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useOverlayBackHandler } from '../../hooks/useOverlayBackHandler';
 import { reactToGroupInstant, reportGroupInstant, deleteGroupInstant } from '../../services/groupInstantService';
 import type { GroupInstant } from '../../types/group';
-import { X, ChevronLeft, ChevronRight, MessageSquare, Flag, Trash2, Heart, ThumbsUp, Flame, Smile, AlertCircle } from 'lucide-react';
+import { X, MessageSquare, Flag, Trash2, Heart, ThumbsUp, Flame, Smile, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface GroupInstantViewerProps {
@@ -37,7 +37,6 @@ export const GroupInstantViewer: React.FC<GroupInstantViewerProps> = ({
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
   const [progress, setProgress] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
-  const [replyText, setReplyText] = useState('');
 
   useOverlayBackHandler(isOpen, onClose);
 
