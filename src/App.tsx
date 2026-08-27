@@ -48,6 +48,8 @@ import { SystemHealthPage } from './features/admin/SystemHealthPage';
 import { ProfilePage } from './features/profile/ProfilePage';
 import { ConnectionsPage } from './features/profile/ConnectionsPage';
 import { CampusHome } from './features/home/CampusHome';
+import { MarketplacePage } from './features/marketplace/MarketplacePage';
+import { ListingDetailPage } from './features/marketplace/ListingDetailPage';
 
 // Code-split heavy AdminPortal route
 const AdminPage = lazy(() => import('./features/admin/AdminPage').then(module => ({ default: module.AdminPage })));
@@ -81,6 +83,8 @@ export const App: React.FC = () => {
                 <Route path="/" element={<CampusHome />} />
                 <Route path="/feed" element={<FeedPage />} />
                 <Route path="/search" element={<SearchPage />} />
+                <Route path="/marketplace" element={<MarketplacePage />} />
+                <Route path="/marketplace/:listingId" element={<ListingDetailPage />} />
                 <Route path="/lost-found" element={<LostFoundPage />} />
                 <Route path="/events" element={<EventsList />} />
                 <Route path="/events/:eventId" element={<EventDetail />} />

@@ -640,6 +640,16 @@ service cloud.firestore {
       }
     }
 
+    // Phase 48: Marketplace Listings & Offers Collections
+    match /marketplaceListings/{listingId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated();
+    }
+
+    match /marketplaceOffers/{offerId} {
+      allow read, create, update, delete: if isAuthenticated();
+    }
+
     // Feature Flags Collection (Admin write only, Authenticated read)
     match /featureFlags/{flagId} {
       allow read: if isAuthenticated();

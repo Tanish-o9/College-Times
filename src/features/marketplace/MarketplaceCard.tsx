@@ -45,7 +45,7 @@ export const MarketplaceCard: React.FC<MarketplaceCardProps> = ({ listing, onLis
     if (!listing.id || !currentUser) return;
     let mounted = true;
 
-    hasUserInterest(listing.id, currentUser.uid).then((val) => {
+    hasUserInterest().then((val: boolean) => {
       if (mounted) setIsInterested(val);
     });
 
@@ -59,7 +59,7 @@ export const MarketplaceCard: React.FC<MarketplaceCardProps> = ({ listing, onLis
     setTogglingInterest(true);
 
     try {
-      const active = await toggleListingInterest(listing.id, listing.sellerId, currentUser);
+      const active = await toggleListingInterest(listing.id, currentUser.uid, isInterested);
       setIsInterested(active);
       setInterestCount((prev) => (active ? prev + 1 : Math.max(0, prev - 1)));
       toast.success(active ? 'Saved to interested items!' : 'Removed interest.');

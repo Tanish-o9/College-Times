@@ -1,64 +1,72 @@
+import type { Timestamp, FieldValue } from 'firebase/firestore';
+
+export type ListingStatus = 'active' | 'reserved' | 'sold' | 'expired' | 'hidden' | 'deleted';
+
 export type MarketplaceCategory =
+  | 'Electronics'
   | 'Books'
   | 'Notes'
-  | 'Electronics'
-  | 'Laptops'
-  | 'Phones'
-  | 'Accessories'
   | 'Furniture'
   | 'Cycles'
-  | 'Sports Equipment'
+  | 'Bikes'
   | 'Clothing'
-  | 'Bags'
-  | 'Study Material'
   | 'Hostel Items'
-  | 'Instruments'
+  | 'Study Material'
+  | 'Accessories'
+  | 'Services'
   | 'Other';
 
-export type ProductCondition = 'new' | 'like_new' | 'good' | 'fair' | 'used';
-export type ListingStatus = 'active' | 'reserved' | 'sold' | 'expired' | 'hidden' | 'deleted';
-export type OfferStatus = 'pending' | 'accepted' | 'rejected' | 'cancelled' | 'expired';
+export type ProductCondition = 'Brand New' | 'Like New' | 'Good' | 'Fair' | 'Poor';
 
-export interface MarketplaceListing {
+export interface MarketplaceListing3 {
   id: string;
   title: string;
   description: string;
-  category: MarketplaceCategory;
   price: number;
-  currency: string;
-  negotiable: boolean;
+  category: MarketplaceCategory;
   condition: ProductCondition;
   images: string[];
   sellerId: string;
   sellerName: string;
+  sellerUsername?: string;
   sellerAvatar?: string;
-  status: ListingStatus;
   locationArea?: string;
-  groupId?: string;
-  eventId?: string;
-  viewCount?: number;
-  saveCount?: number;
+  negotiable: boolean;
+  status: ListingStatus;
+  reservedForUid?: string;
+  viewCount: number;
+  saveCount: number;
   interestCount?: number;
-  moderationStatus?: 'approved' | 'flagged' | 'hidden';
-  createdAt: any;
-  updatedAt?: any;
+  createdAt: Timestamp | FieldValue | any;
+  updatedAt?: Timestamp | FieldValue | any;
 }
+
+export type MarketplaceListing = MarketplaceListing3;
+
+export type OfferStatus = 'pending' | 'accepted' | 'rejected' | 'withdrawn' | 'expired';
 
 export interface MarketplaceOffer {
   id: string;
   listingId: string;
-  sellerId: string;
+  listingTitle?: string;
   buyerId: string;
-  buyerName: string;
+  buyerName?: string;
+  buyerAvatar?: string;
+  sellerId: string;
   amount: number;
-  message?: string;
   status: OfferStatus;
-  createdAt: any;
-  updatedAt?: any;
+  createdAt: Timestamp | FieldValue | any;
+  updatedAt?: Timestamp | FieldValue | any;
 }
 
-export interface MarketplaceInterest {
-  userId: string;
-  userName: string;
-  createdAt: any;
+export interface SellerReview {
+  id: string;
+  sellerUid: string;
+  reviewerUid: string;
+  reviewerName?: string;
+  reviewerAvatar?: string;
+  listingId: string;
+  rating: number; // 1 to 5
+  reviewText: string;
+  createdAt: Timestamp | FieldValue | any;
 }

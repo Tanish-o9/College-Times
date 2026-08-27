@@ -1,219 +1,179 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import type { MarketplaceListing, MarketplaceCategory, ListingStatus } from '../../types/marketplace';
-import { getMarketplaceListings } from '../../services/marketplaceService';
-import { MarketplaceCard } from './MarketplaceCard';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { MarketplaceDiscovery } from './MarketplaceDiscovery';
 import { CreateListingModal } from './CreateListingModal';
-import { useAuth } from '../../hooks/useAuth';
-import { 
-  ShoppingBag, 
-  Search, 
-  Plus, 
-  RefreshCw, 
-  PackageCheck,
-  AlertCircle
+import type { MarketplaceListing3, MarketplaceCategory } from '../../types/marketplace';
+import {
+  ShoppingBag,
+  Plus,
+  Search,
+  ArrowLeft,
+  RefreshCw,
 } from 'lucide-react';
+import { collection, query, limit, getDocs } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 
-type StatusFilter = 'All' | 'For Sale' | 'Reserved' | 'Sold' | 'My Listings';
-
-const CATEGORIES: ('All' | MarketplaceCategory)[] = [
-  'All', 'Books', 'Notes', 'Electronics', 'Laptops', 'Phones',
-  'Accessories', 'Furniture', 'Cycles', 'Sports Equipment',
-  'Hostel Items', 'Study Material', 'Other'
+const categories: (MarketplaceCategory | 'All')[] = [
+  'All',
+  'Electronics',
+  'Books',
+  'Notes',
+  'Furniture',
+  'Cycles',
+  'Bikes',
+  'Clothing',
+  'Hostel Items',
+  'Study Material',
+  'Accessories',
+  'Services',
+  'Other',
 ];
 
 export const MarketplacePage: React.FC = () => {
-  const { currentUser } = useAuth();
-  const [listings, setListings] = useState<MarketplaceListing[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
 
-  // Filters & Search
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [debouncedSearch, setDebouncedSearch] = useState<string>('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('For Sale');
-  const [selectedCategory, setSelectedCategory] = useState<'All' | MarketplaceCategory>('All');
-  const [isFormOpen, setIsFormOpen] = useState<boolean>(false);
+  const [selectedCategory, setSelectedCategory] = useState<MarketplaceCategory | 'All'>('All');
+  const [listings, setListings] = useState<MarketplaceListing3[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  // Debounce search query by 300ms
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedSearch(searchQuery.trim().toLowerCase());
-    }, 300);
-    return () => clearTimeout(handler);
-  }, [searchQuery]);
-
-  const fetchListings = async () => {
+  const loadListings = async () => {
     setLoading(true);
-    setError(null);
     try {
-      const data = await getMarketplaceListings(
-        {
-          sellerId: statusFilter === 'My Listings' ? currentUser?.uid : undefined,
-        },
-        30
-      );
-      setListings(data);
-    } catch (err: any) {
+      const colRef = collection(db, 'marketplaceListings');
+      const snap = await getDocs(query(colRef, limit(30)));
+      const items: MarketplaceListing3[] = [];
+      snap.docs.forEach((d) => items.push({ id: d.id, ...d.data() } as MarketplaceListing3));
+      setListings(items);
+    } catch (err) {
       console.error('Failed to load marketplace listings:', err);
-      setError(err.message || 'Failed to load marketplace listings.');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchListings();
-  }, [statusFilter, currentUser]);
+    loadListings();
+  }, []);
 
-  const handleListingCreated = (newListing: MarketplaceListing) => {
-    setListings((prev) => [newListing, ...prev]);
-  };
-
-  const handleListingUpdated = (listingId: string, status: string) => {
-    setListings((prev) =>
-      prev.map((l) => (l.id === listingId ? { ...l, status: status as ListingStatus } : l))
-    );
-  };
-
-  // Client-side filtering over fetched array
-  const filteredListings = useMemo(() => {
-    return listings.filter((l) => {
-      // Status Filter
-      const itemStatus = l.status || 'active';
-      if (statusFilter === 'For Sale' && itemStatus !== 'active') return false;
-      if (statusFilter === 'Reserved' && itemStatus !== 'reserved') return false;
-      if (statusFilter === 'Sold' && itemStatus !== 'sold') return false;
-      if (statusFilter === 'My Listings' && currentUser && l.sellerId !== currentUser.uid) return false;
-
-      // Category Filter
-      if (selectedCategory !== 'All' && l.category !== selectedCategory) return false;
-
-      // Debounced Search Match
-      if (debouncedSearch) {
-        const titleMatch = l.title.toLowerCase().includes(debouncedSearch);
-        const descMatch = l.description.toLowerCase().includes(debouncedSearch);
-        if (!titleMatch && !descMatch) return false;
-      }
-
-      return true;
-    });
-  }, [listings, statusFilter, selectedCategory, debouncedSearch, currentUser]);
+  const filteredListings = listings.filter((l) => {
+    const matchesCat = selectedCategory === 'All' || l.category === selectedCategory;
+    const matchesSearch =
+      !searchQuery.trim() ||
+      l.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      l.description.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesCat && matchesSearch;
+  });
 
   return (
-    <div className="max-w-4xl mx-auto py-6 px-4 space-y-6">
-      {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/60 border border-slate-800 rounded-3xl p-6 shadow-xl relative overflow-hidden">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
-              <ShoppingBag className="w-5 h-5" />
-            </span>
-            <h1 className="text-2xl font-black text-white tracking-tight">Campus Marketplace 2.0</h1>
+    <div className="min-h-screen bg-slate-950 text-white flex flex-col">
+      {/* Header */}
+      <header className="sticky top-0 z-30 bg-slate-950/90 backdrop-blur-xl border-b border-slate-800 px-4 py-3.5 sm:px-6 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <button onClick={() => navigate('/')} className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-900">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div>
+            <h1 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+              <ShoppingBag className="w-5 h-5 text-amber-400" />
+              <span>Campus Marketplace 3.0</span>
+            </h1>
+            <p className="text-[11px] text-slate-400 font-mono">Buy & Sell within AKGEC Community</p>
           </div>
-          <p className="text-xs text-slate-400">
-            Buy & sell books, electronics, cycles, and study materials safely with campus peers.
-          </p>
         </div>
 
         <button
-          onClick={() => setIsFormOpen(true)}
-          className="px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white rounded-2xl text-xs font-bold shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition-all shrink-0"
+          onClick={() => setCreateModalOpen(true)}
+          className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-md"
         >
           <Plus className="w-4 h-4" />
-          <span>List Item for Sale</span>
+          <span>Sell Item</span>
         </button>
-      </div>
+      </header>
 
-      {/* Search Bar & Status Tabs */}
-      <div className="space-y-3">
-        <div className="relative">
-          <Search className="w-4 h-4 text-slate-500 absolute left-4 top-3.5" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search books, laptops, cycles, hostel items..."
-            className="w-full bg-slate-900 border border-slate-800 rounded-2xl pl-11 pr-4 py-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-          />
-        </div>
+      {/* Main Container */}
+      <main className="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 space-y-6">
+        {/* Discovery Component */}
+        <MarketplaceDiscovery />
 
-        {/* Status Filter Tabs */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
-          {(['For Sale', 'Reserved', 'Sold', 'My Listings', 'All'] as StatusFilter[]).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setStatusFilter(tab)}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border shrink-0 ${
-                statusFilter === tab
-                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-md'
-                  : 'bg-slate-900/80 text-slate-400 border-slate-800 hover:border-slate-700'
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
-        </div>
-
-        {/* Category Pill Bar */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
-          {CATEGORIES.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setSelectedCategory(cat)}
-              className={`px-3 py-1.5 rounded-xl text-[11px] font-semibold transition-all border shrink-0 ${
-                selectedCategory === cat
-                  ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
-                  : 'bg-slate-950 text-slate-500 border-slate-800 hover:border-slate-700'
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Main Grid */}
-      {loading ? (
-        <div className="py-16 flex items-center justify-center gap-2 text-slate-400 text-xs">
-          <RefreshCw className="w-5 h-5 animate-spin text-emerald-400" />
-          <span>Loading campus listings...</span>
-        </div>
-      ) : error ? (
-        <div className="p-6 bg-slate-900 border border-slate-800 rounded-3xl text-center space-y-2">
-          <AlertCircle className="w-8 h-8 text-rose-400 mx-auto" />
-          <p className="text-xs text-rose-300 font-semibold">{error}</p>
-        </div>
-      ) : filteredListings.length === 0 ? (
-        <div className="p-12 bg-slate-900/60 border border-slate-800 rounded-3xl text-center space-y-3">
-          <PackageCheck className="w-10 h-10 text-slate-600 mx-auto" />
-          <h3 className="text-sm font-bold text-slate-300">No Listings Found</h3>
-          <p className="text-xs text-slate-500 max-w-sm mx-auto">
-            No marketplace items match your selected filters. Be the first to list an item!
-          </p>
-          <button
-            onClick={() => setIsFormOpen(true)}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-emerald-400 rounded-xl text-xs font-semibold"
-          >
-            Create New Listing
-          </button>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {filteredListings.map((listing) => (
-            <MarketplaceCard
-              key={listing.id}
-              listing={listing}
-              onListingUpdated={handleListingUpdated}
+        {/* Search Bar & Category Pills */}
+        <div className="space-y-4">
+          <div className="relative">
+            <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search marketplace items, textbooks, cycles..."
+              className="w-full bg-slate-900 border border-slate-800 rounded-2xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/50"
             />
-          ))}
-        </div>
-      )}
+          </div>
 
-      {/* Create Listing Modal */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setSelectedCategory(cat)}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                  selectedCategory === cat
+                    ? 'bg-amber-500 text-slate-950 shadow-md'
+                    : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Listings Grid */}
+        {loading ? (
+          <div className="p-12 bg-slate-900/40 border border-slate-800 rounded-3xl flex items-center justify-center gap-3 text-slate-400 text-xs">
+            <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
+            <span>Loading marketplace listings...</span>
+          </div>
+        ) : filteredListings.length === 0 ? (
+          <div className="p-12 bg-slate-900/40 border border-slate-800 rounded-3xl text-center text-xs text-slate-400 italic">
+            No listings found in this category. Be the first to post!
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredListings.map((item) => (
+              <div
+                key={item.id}
+                onClick={() => navigate(`/marketplace/${item.id}`)}
+                className="p-4 bg-slate-900 border border-slate-800 rounded-3xl cursor-pointer hover:border-slate-700 transition-all space-y-3 shadow-xl"
+              >
+                {item.images && item.images.length > 0 ? (
+                  <img src={item.images[0]} alt={item.title} className="w-full h-40 rounded-2xl object-cover" />
+                ) : (
+                  <div className="w-full h-40 rounded-2xl bg-slate-950 flex items-center justify-center text-slate-700">
+                    <ShoppingBag className="w-12 h-12" />
+                  </div>
+                )}
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="px-2 py-0.5 rounded text-[9px] font-mono font-bold uppercase bg-slate-800 text-amber-400">
+                      {item.category}
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-mono">{item.condition}</span>
+                  </div>
+
+                  <h3 className="text-sm font-bold text-white truncate">{item.title}</h3>
+                  <p className="text-sm font-mono font-bold text-amber-400">₹{item.price}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </main>
+
       <CreateListingModal
-        isOpen={isFormOpen}
-        onClose={() => setIsFormOpen(false)}
-        onListingCreated={handleListingCreated}
+        isOpen={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        onCreated={loadListings}
       />
     </div>
   );

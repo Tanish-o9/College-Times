@@ -17,8 +17,8 @@ service firebase.storage {
       allow read, write: if true;
     }
 
-    // User Uploaded Chat Media Path: chatMedia/{channelId}/{userId}/{filename}
-    match /chatMedia/{channelId}/{userId}/{filename} {
+    // Phase 48: Marketplace Media Path: marketplaceMedia/{listingId}/{userId}/{filename}
+    match /marketplaceMedia/{listingId}/{userId}/{filename} {
       allow read, write: if true;
     }
 

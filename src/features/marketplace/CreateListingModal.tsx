@@ -1,54 +1,54 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
-import { createListing, checkProhibitedKeywords } from '../../services/marketplaceService';
-import type { MarketplaceCategory, ProductCondition, MarketplaceListing } from '../../types/marketplace';
+import type { MarketplaceCategory } from '../../types/marketplace';
+import { ShoppingBag, X, Upload, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { ShoppingBag, RefreshCw, X, Plus } from 'lucide-react';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '../../lib/firebase';
 
 interface CreateListingModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onListingCreated?: (listing: MarketplaceListing) => void;
+  onCreated?: () => void;
 }
 
-const CATEGORIES: MarketplaceCategory[] = [
-  'Books', 'Notes', 'Electronics', 'Laptops', 'Phones',
-  'Accessories', 'Furniture', 'Cycles', 'Sports Equipment',
-  'Clothing', 'Bags', 'Study Material', 'Hostel Items', 'Instruments', 'Other'
-];
-
-const CONDITIONS: { label: string; value: ProductCondition }[] = [
-  { label: 'Brand New', value: 'new' },
-  { label: 'Like New', value: 'like_new' },
-  { label: 'Good', value: 'good' },
-  { label: 'Fair', value: 'fair' },
-  { label: 'Used', value: 'used' },
+const categories: MarketplaceCategory[] = [
+  'Electronics',
+  'Books',
+  'Notes',
+  'Furniture',
+  'Cycles',
+  'Bikes',
+  'Clothing',
+  'Hostel Items',
+  'Study Material',
+  'Accessories',
+  'Services',
+  'Other',
 ];
 
 export const CreateListingModal: React.FC<CreateListingModalProps> = ({
   isOpen,
   onClose,
-  onListingCreated,
+  onCreated,
 }) => {
-  const { currentUser } = useAuth();
-  const [title, setTitle] = useState<string>('');
-  const [description, setDescription] = useState<string>('');
-  const [category, setCategory] = useState<MarketplaceCategory>('Books');
-  const [price, setPrice] = useState<string>('');
-  const [negotiable, setNegotiable] = useState<boolean>(true);
-  const [condition, setCondition] = useState<ProductCondition>('good');
-  const [imageUrl, setImageUrl] = useState<string>('');
-  const [locationArea, setLocationArea] = useState<string>('Academic Block');
-  const [submitting, setSubmitting] = useState<boolean>(false);
+  const { currentUser, userProfile } = useAuth();
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [price, setPrice] = useState('');
+  const [category, setCategory] = useState<MarketplaceCategory>('Electronics');
+  const [condition, setCondition] = useState<'Brand New' | 'Like New' | 'Good' | 'Fair' | 'Poor'>('Like New');
+  const [locationArea, setLocationArea] = useState('');
+  const [negotiable, _setNegotiable] = useState(true);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentUser) {
-      toast.error('You must be logged in to create a listing.');
-      return;
-    }
+    if (!currentUser || !title.trim() || !price || submitting) return;
 
     const numPrice = parseFloat(price);
     if (isNaN(numPrice) || numPrice < 0) {
@@ -56,169 +56,171 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({
       return;
     }
 
-    const prohibitedTerm = checkProhibitedKeywords(title, description);
-    if (prohibitedTerm) {
-      toast.error(`Listing contains prohibited term ("${prohibitedTerm}").`);
-      return;
-    }
-
     setSubmitting(true);
     try {
-      const listing = await createListing(
-        {
-          title,
-          description,
-          category,
-          price: numPrice,
-          negotiable,
-          condition,
-          images: imageUrl.trim() ? [imageUrl.trim()] : [],
-          locationArea,
-        },
-        currentUser
-      );
-      toast.success('Marketplace listing published! 🎉');
-      if (onListingCreated) onListingCreated(listing);
+      const listingId = `list_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      let imageUrls: string[] = [];
+
+      if (selectedFile) {
+        const fileRef = ref(
+          storage,
+          `marketplaceMedia/${listingId}/${currentUser.uid}/${Date.now()}_${selectedFile.name}`
+        );
+        await uploadBytes(fileRef, selectedFile);
+        const url = await getDownloadURL(fileRef);
+        imageUrls.push(url);
+      }
+
+      const listingRef = doc(db, 'marketplaceListings', listingId);
+      await setDoc(listingRef, {
+        id: listingId,
+        title: title.trim(),
+        description: description.trim(),
+        price: numPrice,
+        category,
+        condition,
+        images: imageUrls,
+        sellerId: currentUser.uid,
+        sellerName: userProfile?.displayName || 'Campus Student',
+        sellerUsername: (userProfile as any)?.username || '',
+        sellerAvatar: userProfile?.photoURL || '',
+        locationArea: locationArea.trim(),
+        negotiable,
+        status: 'active',
+        viewCount: 0,
+        saveCount: 0,
+        createdAt: serverTimestamp(),
+      });
+
+      toast.success('Listing published successfully!');
+      if (onCreated) onCreated();
       onClose();
     } catch (err: any) {
-      toast.error(err.message || 'Failed to create listing.');
+      toast.error(err.message || 'Failed to publish listing.');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 z-10 shadow-2xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+    <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full p-6 space-y-6 shadow-2xl">
+        <div className="flex items-center justify-between">
           <h3 className="text-base font-bold text-white flex items-center gap-2">
-            <ShoppingBag className="w-5 h-5 text-emerald-400" />
+            <ShoppingBag className="w-5 h-5 text-amber-400" />
             <span>Create Campus Listing</span>
           </h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-white">
+          <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-white rounded-xl">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-300">Listing Title *</label>
+        <form onSubmit={handleSubmit} className="space-y-4 max-h-[75vh] overflow-y-auto pr-1 scrollbar-none">
+          <div>
+            <label className="text-xs font-semibold text-slate-300 block mb-1">Title *</label>
             <input
               type="text"
+              required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Engineering Mathematics Textbook (3rd Ed)"
-              required
-              className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-semibold"
+              placeholder="e.g. Engineering Physics Textbook 2nd Ed"
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/50"
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-300">Category *</label>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-slate-300 block mb-1">Price (₹) *</label>
+              <input
+                type="number"
+                required
+                min="0"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                placeholder="e.g. 450"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/50"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-slate-300 block mb-1">Category *</label>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value as MarketplaceCategory)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-3 text-xs text-white focus:outline-none focus:border-emerald-500"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500/50"
               >
-                {CATEGORIES.map((cat) => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-300">Condition *</label>
-              <select
-                value={condition}
-                onChange={(e) => setCondition(e.target.value as ProductCondition)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-3 text-xs text-white focus:outline-none focus:border-emerald-500"
-              >
-                {CONDITIONS.map((c) => (
-                  <option key={c.value} value={c.value}>{c.label}</option>
+                {categories.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
                 ))}
               </select>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-300">Price (₹) *</label>
-              <input
-                type="number"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                placeholder="e.g. 500"
-                min="0"
-                required
-                className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-mono font-bold"
-              />
-            </div>
-
-            <div className="space-y-1 flex flex-col justify-end">
-              <label className="flex items-center gap-2 px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-2xl cursor-pointer text-xs font-semibold text-slate-300">
-                <input
-                  type="checkbox"
-                  checked={negotiable}
-                  onChange={(e) => setNegotiable(e.target.checked)}
-                  className="rounded text-emerald-500 focus:ring-0"
-                />
-                <span>Price Negotiable</span>
-              </label>
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-300">Description *</label>
+          <div>
+            <label className="text-xs font-semibold text-slate-300 block mb-1">Description</label>
             <textarea
+              rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Describe condition, edition, accessories included..."
-              rows={3}
-              required
-              className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+              placeholder="Provide details about condition, usage, reason for selling..."
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/50"
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-300">Product Image URL (Optional)</label>
-              <input
-                type="url"
-                value={imageUrl}
-                onChange={(e) => setImageUrl(e.target.value)}
-                placeholder="https://..."
-                className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-              />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-slate-300 block mb-1">Condition</label>
+              <select
+                value={condition}
+                onChange={(e) => setCondition(e.target.value as any)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500/50"
+              >
+                <option value="Brand New">Brand New</option>
+                <option value="Like New">Like New</option>
+                <option value="Good">Good</option>
+                <option value="Fair">Fair</option>
+                <option value="Poor">Poor</option>
+              </select>
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-300">Pickup Area</label>
+            <div>
+              <label className="text-xs font-semibold text-slate-300 block mb-1">Location Area</label>
               <input
                 type="text"
                 value={locationArea}
                 onChange={(e) => setLocationArea(e.target.value)}
-                placeholder="e.g. Block C / Girls Hostel"
-                className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                placeholder="e.g. Hostel 3 / CS Block"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/50"
               />
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-800">
+          <div>
+            <label className="text-xs font-semibold text-slate-300 block mb-1">Listing Image</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+              className="w-full text-xs text-slate-400 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-slate-800 file:text-amber-400 hover:file:bg-slate-700"
+            />
+          </div>
+
+          <div className="flex items-center gap-2 pt-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold"
+              className="flex-1 py-2.5 bg-slate-800 text-slate-300 font-bold text-xs rounded-xl"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-white font-bold text-xs rounded-xl shadow-lg flex items-center gap-1.5"
+              className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5"
             >
-              {submitting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+              {submitting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
               <span>Publish Listing</span>
             </button>
           </div>

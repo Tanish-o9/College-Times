@@ -23,7 +23,7 @@ export const OfferModal: React.FC<OfferModalProps> = ({
   onClose,
   onOfferSubmitted,
 }) => {
-  const { currentUser } = useAuth();
+  const { currentUser, userProfile } = useAuth();
   const [amount, setAmount] = useState<string>(listingPrice ? String(listingPrice) : '');
   const [message, setMessage] = useState<string>('');
   const [submitting, setSubmitting] = useState<boolean>(false);
@@ -45,7 +45,15 @@ export const OfferModal: React.FC<OfferModalProps> = ({
 
     setSubmitting(true);
     try {
-      await makeOffer(listingId, sellerId, numAmount, message, currentUser);
+      await makeOffer(
+        listingId,
+        'Marketplace Item',
+        currentUser.uid,
+        userProfile?.displayName || 'Campus Buyer',
+        userProfile?.photoURL || '',
+        sellerId,
+        numAmount
+      );
       toast.success('Price offer submitted to seller!');
       if (onOfferSubmitted) onOfferSubmitted();
       onClose();

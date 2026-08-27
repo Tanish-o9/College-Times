@@ -34,7 +34,7 @@ export const OfferListModal: React.FC<OfferListModalProps> = ({
     const loadOffers = async () => {
       setLoading(true);
       try {
-        const list = await getListingOffers(listingId, sellerId, currentUser);
+        const list = await getListingOffers(listingId, 20);
         if (mounted) setOffers(list);
       } catch (err) {
         toast.error('Failed to load offers.');
@@ -51,11 +51,11 @@ export const OfferListModal: React.FC<OfferListModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleReview = async (offerId: string, buyerId: string, status: 'accepted' | 'rejected') => {
+  const handleReview = async (offerId: string, _buyerId: string, status: 'accepted' | 'rejected') => {
     if (!currentUser) return;
     setReviewingId(offerId);
     try {
-      await reviewOffer(listingId, offerId, status, currentUser, buyerId);
+      await reviewOffer(offerId, status, currentUser.uid);
       toast.success(status === 'accepted' ? 'Offer Accepted! Listing marked reserved.' : 'Offer Rejected.');
       setOffers((prev) =>
         prev.map((o) => (o.id === offerId ? { ...o, status } : o))
@@ -117,12 +117,6 @@ export const OfferListModal: React.FC<OfferListModalProps> = ({
                     </span>
                   </div>
                 </div>
-
-                {offer.message && (
-                  <p className="text-xs text-slate-300">
-                    <span className="text-slate-500 font-semibold">Message:</span> {offer.message}
-                  </p>
-                )}
 
                 {offer.status === 'pending' && (
                   <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800/80">
