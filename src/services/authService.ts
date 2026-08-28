@@ -244,7 +244,7 @@ export const signOutUser = async (): Promise<void> => {
 /**
  * Requests a 6-digit verification code sent to the student's college email.
  */
-export const requestEmailOtp = async (email: string): Promise<void> => {
+export const requestEmailOtp = async (_email: string): Promise<void> => {
   // Direct account creation bypass - no-op
   return;
   /*
@@ -297,7 +297,7 @@ export const requestEmailOtp = async (email: string): Promise<void> => {
  * Verifies the 6-digit email OTP without signing in.
  * Used for pre-signup email ownership checks.
  */
-export const verifyOtpOnly = async (email: string, otp: string): Promise<boolean> => {
+export const verifyOtpOnly = async (_email: string, _otp: string): Promise<boolean> => {
   // Direct verification bypass - always return true
   return true;
   /*
