@@ -4,7 +4,7 @@ import type { DirectConversation } from '../../types/directMessage';
 import { useAuth } from '../../hooks/useAuth';
 import { getOrCreateConversation } from '../../services/directMessageService';
 import { NewDirectMessageModal } from './NewDirectMessageModal';
-import { collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import toast from 'react-hot-toast';
 import { 
@@ -36,16 +36,31 @@ export const DirectMessageList: React.FC = () => {
     const q = query(
       convsRef,
       where('participantIds', 'array-contains', currentUser.uid),
-      orderBy('updatedAt', 'desc'),
-      limit(30)
+      limit(50)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const list = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as DirectConversation[];
+      const list = snapshot.docs.map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          ...data,
+          updatedAt: data.updatedAt || data.createdAt || null
+        } as DirectConversation;
+      });
+
+      // Sort in-memory to avoid index requirement
+      list.sort((a, b) => {
+        const tA = a.updatedAt?.toMillis ? a.updatedAt.toMillis() : (a.updatedAt ? new Date(a.updatedAt).getTime() : 0);
+        const tB = b.updatedAt?.toMillis ? b.updatedAt.toMillis() : (b.updatedAt ? new Date(b.updatedAt).getTime() : 0);
+        return tB - tA;
+      });
+
       setConversations(list);
       setLoading(false);
     }, (err) => {
       console.error('Error listening to conversations:', err);
+      toast.error('Failed to load chats.');
       setLoading(false);
     });
 
