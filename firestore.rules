@@ -99,10 +99,17 @@ service cloud.firestore {
         allow read, create, update, delete: if isOwner(userId);
       }
 
-      // Phase 41 & 46: User Notifications Sub-collection
+      // Phase 41, 46 & 50: User Notifications Sub-collection
       match /notifications/{notificationId} {
         allow read: if isOwner(userId);
-        allow create, update, delete: if isAuthenticated();
+        allow create: if isAuthenticated();
+        allow update: if isOwner(userId) && (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read', 'readAt']));
+        allow delete: if isOwner(userId);
+      }
+
+      // Phase 50: User FCM Tokens Sub-collection
+      match /fcmTokens/{tokenId} {
+        allow read, create, update, delete: if isOwner(userId);
       }
 
       // Phase 47: User Home Preferences Sub-collection

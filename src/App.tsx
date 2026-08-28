@@ -43,7 +43,7 @@ import { MyIncidentReports } from './features/incidents/MyIncidentReports';
 import { IncidentReportDetail } from './features/incidents/IncidentReportDetail';
 
 import { NotificationsPage } from './features/notifications/NotificationsPage';
-import { NotificationSettings } from './features/settings/NotificationSettings';
+import { NotificationPreferences } from './features/notifications/NotificationPreferences';
 import { SystemHealthPage } from './features/admin/SystemHealthPage';
 import { ProfilePage } from './features/profile/ProfilePage';
 import { ConnectionsPage } from './features/profile/ConnectionsPage';
@@ -110,7 +110,7 @@ export const App: React.FC = () => {
                 <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="/saved-messages" element={<SavedMessagesPage />} />
                 <Route path="/chat/settings" element={<ChatNotificationSettings />} />
-                <Route path="/settings/notifications" element={<NotificationSettings />} />
+                <Route path="/settings/notifications" element={<NotificationPreferences />} />
                 <Route path="/profile/:username" element={<ProfilePage />} />
                 <Route path="/connections" element={<ConnectionsPage />} />
                 <Route path="/privacy" element={<PrivacyPage />} />
