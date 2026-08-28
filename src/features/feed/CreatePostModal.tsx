@@ -23,7 +23,7 @@ import {
 interface CreatePostModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onPostCreated: (post: Post) => void;
+  onPostCreated: (post: Post & { _replaceOptimisticId?: string; _removeOptimisticId?: string }) => void;
 }
 
 type CategoryOption = 'General' | 'Event' | 'Mishap' | 'LostFound';
@@ -191,53 +191,69 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     e.preventDefault();
     if (!isFormValid || !currentUser) return;
 
+    // Guard: reject data URIs or oversized imageUrl
+    const safeImageUrl = imageUrl.trim();
+    if (safeImageUrl.startsWith('data:')) {
+      toast.error('Cannot upload base64 image URLs. Please use the file picker.', { id: 'post-upload-status' });
+      return;
+    }
+    if (safeImageUrl.length > 2048) {
+      toast.error('Image URL is too long (max 2048 chars).', { id: 'post-upload-status' });
+      return;
+    }
+
     setSubmitting(true);
+
+    // --- OPTIMISTIC POST: show instantly in feed while uploading/writing ---
+    const optimisticId = `optimistic_${Date.now()}`;
+    const optimisticPost = {
+      id: optimisticId,
+      title: title.trim(),
+      content: content.trim(),
+      category,
+      authorId: currentUser.uid,
+      authorName: userProfile?.displayName || currentUser.displayName || 'Campus Student',
+      authorAvatar: userProfile?.photoURL || currentUser.photoURL || undefined,
+      timestamp: new Date(),
+      likeCount: 0,
+      commentCount: 0,
+      reportCount: 0,
+      status: 'active' as const,
+      postType: 'news' as const,
+      // Show local preview for selected files
+      imageUrl: selectedFiles.length > 0 ? URL.createObjectURL(selectedFiles[0]) : safeImageUrl || undefined,
+      audience: { type: audienceType },
+      priority,
+    };
+
+    // Inject optimistic post and close modal immediately
+    onPostCreated(optimisticPost as any);
+    onClose();
+
+    toast.loading(selectedFiles.length > 0 ? 'Uploading & publishing...' : 'Publishing...', { id: 'post-upload-status' });
 
     try {
       let uploadedImages: { storagePath: string; downloadUrl: string }[] = [];
 
-      // Stage 1: Upload Selected Images
+      // Stage 1: Upload images (in background after modal closed)
       if (selectedFiles.length > 0) {
-        setUploadStep('uploading_image');
-        toast.loading(`Uploading ${selectedFiles.length} image(s)...`, { id: 'post-upload-status' });
-
         const { uploadPostImages } = await import('../../services/postMediaService');
         uploadedImages = await uploadPostImages(
           selectedFiles,
           `post_${Date.now()}`,
           currentUser.uid,
-          (fileIdx, pct) => {
-            setUploadProgresses((prev) => {
-              const copy = [...prev];
-              copy[fileIdx] = pct;
-              return copy;
-            });
-          }
+          () => {}
         );
       }
 
-      // Stage 2: Create Post in Firestore
-      setUploadStep('publishing');
-      toast.loading('Publishing campus post...', { id: 'post-upload-status' });
-
-      // Guard: reject data URIs or oversized imageUrl that would exceed Firestore 1MB field limit
-      const safeImageUrl = imageUrl.trim();
-      if (safeImageUrl.startsWith('data:')) {
-        toast.error('Cannot upload base64 image URLs. Please use the file picker to attach images.', { id: 'post-upload-status' });
-        setSubmitting(false);
-        return;
-      }
-      if (safeImageUrl.length > 2048) {
-        toast.error('Image URL is too long (max 2048 chars). Use the file picker instead.', { id: 'post-upload-status' });
-        setSubmitting(false);
-        return;
-      }
-
+      // Stage 2: Write to Firestore
       const payload: CreatePostPayload = {
         title: title.trim(),
         content: content.trim(),
         category,
-        ...(uploadedImages.length > 0 ? { images: uploadedImages, imageUrl: uploadedImages[0].downloadUrl } : safeImageUrl ? { imageUrl: safeImageUrl } : {}),
+        ...(uploadedImages.length > 0
+          ? { images: uploadedImages, imageUrl: uploadedImages[0].downloadUrl }
+          : safeImageUrl ? { imageUrl: safeImageUrl } : {}),
         audience: { type: audienceType },
         priority,
         notifyAudience,
@@ -246,11 +262,13 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
 
       const newPost = await createPost(payload, currentUser, userProfile);
 
-      toast.success('Posted to campus feed!', { id: 'post-upload-status' });
-      onPostCreated(newPost);
-      onClose();
+      // Replace optimistic post with real post in feed
+      onPostCreated({ ...newPost, _replaceOptimisticId: optimisticId } as any);
+      toast.success('Posted to campus feed! 🎉', { id: 'post-upload-status' });
     } catch (err: any) {
-      toast.error(err.message || 'Failed to publish post. Your draft was preserved.', { id: 'post-upload-status' });
+      // Remove the optimistic post on failure
+      onPostCreated({ _removeOptimisticId: optimisticId } as any);
+      toast.error(err.message || 'Failed to publish post.', { id: 'post-upload-status' });
     } finally {
       setSubmitting(false);
       setUploadStep('idle');

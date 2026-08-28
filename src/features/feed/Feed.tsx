@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import type { Post } from '../../types';
 import type { FeedMode, UserFeedPreferences } from '../../types/feed';
@@ -61,6 +61,9 @@ export const Feed: React.FC = () => {
   // Phase 11 & 26: Intersection Observer Sentinel Hook
   const [sentinelRef, isSentinelVisible] = useIsVisible<HTMLDivElement>({ threshold: 0.5 });
 
+  // Ref to the scroll container for programmatic scroll-to-top
+  const feedScrollRef = useRef<HTMLDivElement>(null);
+
   // Load user feed preferences
   const loadUserPrefs = async () => {
     if (!currentUser) return;
@@ -99,6 +102,9 @@ export const Feed: React.FC = () => {
       return [...filtered, ...prev];
     });
     setPendingRecentPosts([]);
+    requestAnimationFrame(() => {
+      feedScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    });
   };
 
   // Handle deep-linked target postId navigation
@@ -267,9 +273,26 @@ export const Feed: React.FC = () => {
     setFeedMode(mode);
   };
 
-  const handlePostCreated = (newPost: Post) => {
+  const handlePostCreated = useCallback((newPost: Post & { _replaceOptimisticId?: string; _removeOptimisticId?: string }) => {
+    if (newPost._removeOptimisticId) {
+      // Remove failed optimistic post
+      setPosts((prev) => prev.filter((p) => p.id !== newPost._removeOptimisticId));
+      return;
+    }
+    if (newPost._replaceOptimisticId) {
+      // Replace temp post with confirmed real post
+      setPosts((prev) =>
+        prev.map((p) => (p.id === newPost._replaceOptimisticId ? { ...newPost, _replaceOptimisticId: undefined } : p))
+      );
+      return;
+    }
+    // New optimistic post — prepend to top and scroll there
     setPosts((prev) => [newPost, ...prev]);
-  };
+    setPendingRecentPosts([]);
+    requestAnimationFrame(() => {
+      feedScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  }, []);
 
   const feedModes: { mode: FeedMode; label: string; icon: React.ReactNode }[] = [
     { mode: 'personalized', label: 'For You', icon: <Star className="w-3 h-3 text-amber-400" /> },
@@ -370,8 +393,11 @@ export const Feed: React.FC = () => {
         </div>
       )}
 
-      {/* Snap-Scroll Container */}
-      <div className="flex-1 overflow-y-auto snap-y snap-mandatory scroll-smooth w-full p-3 sm:p-4">
+      {/* Scroll Container — normal scroll, no snap so it doesn't fight scrolling */}
+      <div
+        ref={feedScrollRef}
+        className="flex-1 overflow-y-auto scroll-smooth w-full p-3 sm:p-4"
+      >
         {/* Phase 32: Campus 24-Hour Stories Bar */}
         <StoryBar />
         {/* Trending Posts Carousel (Shown when in Trending or Personalized modes) */}
@@ -410,9 +436,9 @@ export const Feed: React.FC = () => {
             {[1, 2].map((i) => (
               <div
                 key={i}
-                className="snap-start h-[calc(100vh-4.5rem)] shrink-0 flex items-center justify-center p-4 sm:p-6"
+                className="mb-4 flex items-center justify-center"
               >
-                <div className="w-full max-w-xl h-full max-h-[82vh] bg-slate-900/50 border border-slate-800/60 rounded-3xl p-8 space-y-6 flex flex-col justify-between">
+                <div className="w-full max-w-xl bg-slate-900/50 border border-slate-800/60 rounded-3xl p-8 space-y-6 flex flex-col justify-between">
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <Skeleton variant="button" className="w-28" />
@@ -437,7 +463,7 @@ export const Feed: React.FC = () => {
 
         {/* Empty State */}
         {!loadingInitial && !error && posts.length === 0 && (
-          <div className="snap-start h-full flex items-center justify-center p-4">
+          <div className="h-full flex items-center justify-center p-4">
             <div className="bg-slate-900/60 border border-slate-800 rounded-3xl p-10 text-center max-w-md w-full shadow-2xl space-y-4">
               <div className="w-16 h-16 rounded-2xl bg-sky-500/10 border border-sky-500/20 text-sky-400 flex items-center justify-center mx-auto">
                 <Inbox className="w-8 h-8" />
@@ -465,14 +491,14 @@ export const Feed: React.FC = () => {
             {posts.map((post) => (
               <div
                 key={post.id}
-                className="snap-start h-[calc(100vh-4.5rem)] shrink-0 flex items-center justify-center p-3 sm:p-6"
+                className="mb-4 flex items-center justify-center"
               >
                 <PostCard post={post} />
               </div>
             ))}
 
             {/* Pagination Loading & Caught Up Footer */}
-            <div ref={sentinelRef} className="snap-start py-8 flex flex-col items-center justify-center space-y-2">
+            <div ref={sentinelRef} className="py-8 flex flex-col items-center justify-center space-y-2">
               {loadingMore && (
                 <div className="flex items-center gap-2 px-4 py-2 bg-slate-900 border border-slate-800 rounded-full text-xs font-medium text-sky-400 shadow-xl">
                   <RefreshCw className="w-4 h-4 animate-spin" />

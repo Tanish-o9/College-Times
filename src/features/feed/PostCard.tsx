@@ -21,7 +21,8 @@ import {
   Share2,
   Bookmark,
   Flag,
-  Shield
+  Shield,
+  RefreshCw,
 } from 'lucide-react';
 
 interface PostCardProps {
@@ -196,9 +197,26 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
 
   const badgeStyle = getCategoryBadge(post.category);
 
+  const isOptimistic = post.id?.startsWith('optimistic_');
+
   return (
     <>
-      <article id={post.id ? `post-${post.id}` : undefined} className="w-full max-w-xl bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl flex flex-col justify-between relative overflow-hidden group transition-all duration-300">
+      <article
+        id={post.id ? `post-${post.id}` : undefined}
+        className={`w-full max-w-xl bg-slate-900/80 backdrop-blur-xl border rounded-3xl p-6 sm:p-8 shadow-2xl flex flex-col justify-between relative overflow-hidden group transition-all duration-300 ${
+          isOptimistic ? 'border-sky-500/40 ring-1 ring-sky-500/20' : 'border-slate-800'
+        }`}
+      >
+        {/* Optimistic shimmer overlay */}
+        {isOptimistic && (
+          <div className="absolute inset-0 z-20 pointer-events-none rounded-3xl overflow-hidden">
+            <div className="absolute inset-0 bg-sky-500/5 animate-pulse" />
+            <div className="absolute top-3 right-3 flex items-center gap-1.5 bg-slate-950/80 border border-sky-500/30 rounded-full px-2.5 py-1 text-[10px] font-bold text-sky-400">
+              <RefreshCw className="w-3 h-3 animate-spin" />
+              Publishing…
+            </div>
+          </div>
+        )}
         <div className="absolute top-0 right-0 w-64 h-64 bg-sky-500/5 rounded-full blur-3xl -z-10 pointer-events-none" />
 
         {/* Card Header */}
