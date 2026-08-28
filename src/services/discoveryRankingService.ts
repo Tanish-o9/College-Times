@@ -46,7 +46,12 @@ export function rankPeople(
   interactionCounts: Record<string, number> = {}
 ): RecommendedPerson[] {
   return candidates
-    .filter((c) => c.uid !== currentUser.uid)
+    .filter((c) => {
+      if (c.uid === currentUser.uid) return false;
+      if (!c.username || c.username.trim() === '' || c.username.startsWith('student_')) return false;
+      if (!c.displayName || c.displayName === 'Student' || c.displayName === 'Campus Student') return false;
+      return true;
+    })
     .map((c) => {
       let score = 0;
       let explanation = 'Popular on campus';
