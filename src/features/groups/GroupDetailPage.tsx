@@ -288,7 +288,7 @@ export const GroupDetailPage: React.FC = () => {
               </div>
 
               <p className="text-xs text-slate-300 leading-relaxed bg-slate-950/60 p-4 rounded-2xl border border-slate-800/80">
-                {group.description || 'Official campus community group for AKGEC Times.'}
+                {group.description || 'Official campus community group for College Times.'}
               </p>
 
               <div className="flex flex-wrap items-center gap-6 pt-2 text-xs font-mono text-slate-400">

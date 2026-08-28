@@ -79,7 +79,7 @@ export const MarketplacePage: React.FC = () => {
               <ShoppingBag className="w-5 h-5 text-amber-400" />
               <span>Campus Marketplace 3.0</span>
             </h1>
-            <p className="text-[11px] text-slate-400 font-mono">Buy & Sell within AKGEC Community</p>
+            <p className="text-[11px] text-slate-400 font-mono">Buy & Sell within College Community</p>
           </div>
         </div>
 

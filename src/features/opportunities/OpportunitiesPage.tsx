@@ -106,7 +106,7 @@ export const OpportunitiesPage: React.FC = () => {
             <h1 className="text-2xl font-black text-white tracking-tight">Campus Opportunity Hub</h1>
           </div>
           <p className="text-xs text-slate-400">
-            Placements, internships, hackathons, scholarships, and research drives for AKGEC students.
+            Placements, internships, hackathons, scholarships, and research drives for college students.
           </p>
         </div>
 

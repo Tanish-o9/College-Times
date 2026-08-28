@@ -14,7 +14,7 @@ export const PrivacyPage: React.FC = () => {
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white">Privacy Policy</h1>
         </div>
         <p className="text-slate-400 text-sm">
-          Last updated: August 27, 2026 • Plain-language policy for College Times / AKGEC Times users.
+          Last updated: August 27, 2026 • Plain-language policy for College Times users.
         </p>
       </div>
 
@@ -27,7 +27,7 @@ export const PrivacyPage: React.FC = () => {
             <h2>Student Project Notice</h2>
           </div>
           <p>
-            College Times (AKGEC Times) is an educational student project created for campus communication and community engagement. It is <strong>not a commercial service</strong>.
+            College Times is an educational student project created for campus communication and community engagement. It is <strong>not a commercial service</strong>.
           </p>
         </section>
 

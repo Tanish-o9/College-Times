@@ -270,7 +270,7 @@ export const AdminDashboard: React.FC = () => {
             <span className="p-2 rounded-xl bg-purple-500/20 border border-purple-500/30 text-purple-300">
               <Shield className="w-5 h-5" />
             </span>
-            <h1 className="text-2xl font-black text-white tracking-tight">AKGEC Admin Portal</h1>
+            <h1 className="text-2xl font-black text-white tracking-tight">College Admin Portal</h1>
           </div>
           <p className="text-xs text-slate-400">
             Moderate flagged feed & chat content, publish announcements, and manage campus access.

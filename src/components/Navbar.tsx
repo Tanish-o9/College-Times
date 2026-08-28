@@ -8,6 +8,7 @@ import { SearchSuggestions } from '../features/search/SearchSuggestions';
 import { NotificationTray } from './NotificationTray';
 import { BugReportModal } from './BugReportModal';
 import {
+  Compass,
   Newspaper,
   LogIn,
   User as UserIcon,
@@ -146,11 +147,11 @@ export const Navbar: React.FC = () => {
         {/* Brand Logo */}
         <NavLink to="/" className="flex items-center gap-2 group shrink-0">
           <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-sky-500/20 group-hover:scale-105 transition-transform duration-200">
-            <Newspaper className="w-5 h-5 text-white" />
+            <Compass className="w-5 h-5 text-white animate-[spin_10s_linear_infinite]" />
           </div>
           <div>
             <span className="text-lg font-bold bg-gradient-to-r from-white via-slate-100 to-sky-400 bg-clip-text text-transparent">
-              AKGEC TIMES
+              COLLEGE TIMES
             </span>
             <span className="hidden sm:inline-block ml-2 text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
               Campus Feed
