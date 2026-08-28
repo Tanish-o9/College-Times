@@ -53,14 +53,17 @@ export const followUser = async (
     const existingSnap = await tx.get(followingRef);
     if (existingSnap.exists()) return;
 
+    // Do all reads first
+    const curSnap = await tx.get(currentUserRef);
+    const targetSnap = await tx.get(targetUserRef);
+
+    // Do all writes after
     tx.set(followingRef, { uid: targetUid, createdAt: serverTimestamp() });
     tx.set(followerRef, { uid: currentUid, createdAt: serverTimestamp() });
 
-    const curSnap = await tx.get(currentUserRef);
     const curFollowingCount = curSnap.exists() ? curSnap.data()?.followingCount || 0 : 0;
     tx.set(currentUserRef, { followingCount: curFollowingCount + 1 }, { merge: true });
 
-    const targetSnap = await tx.get(targetUserRef);
     const targetFollowersCount = targetSnap.exists() ? targetSnap.data()?.followersCount || 0 : 0;
     tx.set(targetUserRef, { followersCount: targetFollowersCount + 1 }, { merge: true });
   });
@@ -87,14 +90,17 @@ export const unfollowUser = async (currentUid: string, targetUid: string): Promi
     const existingSnap = await tx.get(followingRef);
     if (!existingSnap.exists()) return;
 
+    // Do all reads first
+    const curSnap = await tx.get(currentUserRef);
+    const targetSnap = await tx.get(targetUserRef);
+
+    // Do all writes after
     tx.delete(followingRef);
     tx.delete(followerRef);
 
-    const curSnap = await tx.get(currentUserRef);
     const curFollowingCount = curSnap.exists() ? Math.max(0, (curSnap.data()?.followingCount || 1) - 1) : 0;
     tx.set(currentUserRef, { followingCount: curFollowingCount }, { merge: true });
 
-    const targetSnap = await tx.get(targetUserRef);
     const targetFollowersCount = targetSnap.exists() ? Math.max(0, (targetSnap.data()?.followersCount || 1) - 1) : 0;
     tx.set(targetUserRef, { followersCount: targetFollowersCount }, { merge: true });
   });
@@ -189,14 +195,17 @@ export const acceptFollowRequest = async (
       throw new Error('Follow request does not exist or has already been processed.');
     }
 
+    // Do all reads first
+    const reqSnap = await tx.get(requesterUserRef);
+    const tarSnap = await tx.get(targetUserRef);
+
+    // Do all writes after
     tx.set(followingRef, { uid: targetUid, createdAt: serverTimestamp() });
     tx.set(followerRef, { uid: requesterUid, createdAt: serverTimestamp() });
 
-    const reqSnap = await tx.get(requesterUserRef);
     const reqFollowingCount = reqSnap.exists() ? reqSnap.data()?.followingCount || 0 : 0;
     tx.set(requesterUserRef, { followingCount: reqFollowingCount + 1 }, { merge: true });
 
-    const tarSnap = await tx.get(targetUserRef);
     const tarFollowersCount = tarSnap.exists() ? tarSnap.data()?.followersCount || 0 : 0;
     tx.set(targetUserRef, { followersCount: tarFollowersCount + 1 }, { merge: true });
 
