@@ -3,12 +3,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import type { DirectMessage, DirectConversation } from '../../types/directMessage';
 import { useAuth } from '../../hooks/useAuth';
 import { 
-  getDirectMessages, 
   sendDirectMessage, 
   updateConversationStatus, 
   blockUser 
 } from '../../services/directMessageService';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, collection, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import toast from 'react-hot-toast';
 import { 
@@ -59,23 +58,33 @@ export const DirectMessageRoom: React.FC = () => {
     return () => unsubscribe();
   }, [conversationId, currentUser]);
 
-  // Load initial 50 messages
-  const loadMessages = async () => {
-    if (!conversationId) return;
-    setLoading(true);
-    try {
-      const list = await getDirectMessages(conversationId, 50);
-      setMessages(list);
-    } catch (err) {
-      toast.error('Failed to load messages.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Listen to messages in realtime
   useEffect(() => {
-    loadMessages();
-  }, [conversationId]);
+    if (!conversationId || !currentUser) return;
+    setLoading(true);
+
+    const messagesRef = collection(db, 'conversations', conversationId, 'messages');
+    const q = query(messagesRef, orderBy('createdAt', 'asc'), limit(50));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const list = snapshot.docs.map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          ...data,
+          createdAt: data.createdAt ? data.createdAt.toDate() : new Date()
+        } as DirectMessage;
+      });
+      setMessages(list);
+      setLoading(false);
+    }, (err) => {
+      console.error("Error reading messages:", err);
+      toast.error("Failed to load messages.");
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [conversationId, currentUser]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -87,8 +96,7 @@ export const DirectMessageRoom: React.FC = () => {
 
     setSending(true);
     try {
-      const newMsg = await sendDirectMessage(conversationId, inputContent, currentUser);
-      setMessages((prev) => [...prev, newMsg]);
+      await sendDirectMessage(conversationId, inputContent, currentUser);
       setInputContent('');
     } catch (err: any) {
       toast.error(err.message || 'Failed to send message.');
