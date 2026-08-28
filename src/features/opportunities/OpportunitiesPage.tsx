@@ -4,6 +4,7 @@ import type { Opportunity, OpportunityType, OpportunityMode } from '../../types/
 import { getOpportunities } from '../../services/opportunityService';
 import { OpportunityCard } from './OpportunityCard';
 import { CreateOpportunityModal } from './CreateOpportunityModal';
+import { OpportunityDiscovery } from './OpportunityDiscovery';
 import { 
   Briefcase, 
   Search, 
@@ -84,7 +85,7 @@ export const OpportunitiesPage: React.FC = () => {
       // Debounced Search Match
       if (debouncedSearch) {
         const titleMatch = opp.title.toLowerCase().includes(debouncedSearch);
-        const orgMatch = opp.organizationName.toLowerCase().includes(debouncedSearch);
+        const orgMatch = (opp.organizationName || opp.organization || '').toLowerCase().includes(debouncedSearch);
         const descMatch = opp.description.toLowerCase().includes(debouncedSearch);
         if (!titleMatch && !orgMatch && !descMatch) return false;
       }
@@ -111,6 +112,14 @@ export const OpportunitiesPage: React.FC = () => {
 
         <div className="flex items-center gap-2 flex-wrap">
           <button
+            onClick={() => navigate('/opportunities/applications')}
+            className="px-3.5 py-2 bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-2xl text-xs font-bold flex items-center gap-1.5"
+          >
+            <Briefcase className="w-4 h-4 text-sky-400" />
+            <span>My Applications</span>
+          </button>
+
+          <button
             onClick={() => navigate('/saved-opportunities')}
             className="px-3.5 py-2 bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-2xl text-xs font-bold flex items-center gap-1.5"
           >
@@ -127,6 +136,8 @@ export const OpportunitiesPage: React.FC = () => {
           </button>
         </div>
       </div>
+
+      <OpportunityDiscovery />
 
       {/* Search Bar & Filter Tabs */}
       <div className="space-y-3">

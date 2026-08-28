@@ -110,6 +110,11 @@ service cloud.firestore {
         allow read, create, update, delete: if isOwner(userId);
       }
 
+      // Phase 49: User Opportunity Applications Sub-collection (Private to owner)
+      match /opportunityApplications/{appId} {
+        allow read, create, update, delete: if isOwner(userId);
+      }
+
       // Phase 41: Group Notification Preferences Sub-collection
       match /groupNotificationPreferences/{groupId} {
         allow read, create, update, delete: if isOwner(userId);
@@ -647,6 +652,11 @@ service cloud.firestore {
     }
 
     match /marketplaceOffers/{offerId} {
+      allow read, create, update, delete: if isAuthenticated();
+    }
+
+    // Phase 49: Referral Requests Collection
+    match /referralRequests/{requestId} {
       allow read, create, update, delete: if isAuthenticated();
     }
 

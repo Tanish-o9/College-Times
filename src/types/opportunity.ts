@@ -1,73 +1,113 @@
+import type { Timestamp, FieldValue } from 'firebase/firestore';
+
+// Phase 49 — Opportunity Hub 2.0 type additions
+
+export type OpportunityMode = 'Remote' | 'On-site' | 'Hybrid' | 'Online' | 'Offline' | 'online' | 'offline' | 'hybrid' | 'All';
+export type OpportunityStatus = 'draft' | 'active' | 'closing_soon' | 'closed' | 'cancelled' | 'hidden' | 'deleted';
+
 export type OpportunityType =
-  | 'Placement'
   | 'Internship'
+  | 'Full-Time Job'
+  | 'Part-Time Job'
   | 'Hackathon'
-  | 'Scholarship'
   | 'Competition'
-  | 'Research'
+  | 'Scholarship'
   | 'Workshop'
   | 'Certification'
+  | 'Research Opportunity'
   | 'Freelance'
+  | 'Campus Ambassador'
+  | 'Open Source'
+  | 'Referral'
+  // Legacy values from pre-Phase-49 code
+  | 'Placement'
+  | 'Research'
   | 'Part-time'
   | 'Campus Drive'
   | 'Other';
 
-export type OpportunityMode = 'online' | 'offline' | 'hybrid';
-export type OpportunityStatus = 'draft' | 'active' | 'closed' | 'expired' | 'hidden' | 'deleted';
-export type ApplicationStatus = 'saved' | 'applied' | 'shortlisted' | 'selected' | 'rejected' | 'withdrawn';
+export type ApplicationStatus =
+  | 'saved'
+  | 'applied'
+  | 'assessment'
+  | 'interview'
+  | 'selected'
+  | 'rejected'
+  | 'withdrawn';
 
-export interface Opportunity {
+export interface Opportunity2 {
   id: string;
   title: string;
   description: string;
-  organizationName: string;
-  organizationLogo?: string;
+  organization?: string;
   type: OpportunityType;
-  category?: string;
-  location?: string;
-  mode: OpportunityMode;
+  skills: string[];
   eligibility?: string;
-  branches?: string[];
-  yearOfStudy?: string[];
-  skills?: string[];
+  location?: string;
+  workMode?: OpportunityMode;
   stipend?: string;
-  salaryRange?: string;
-  applicationUrl: string;
-  applicationDeadline: any;
-  startDate?: any;
-  endDate?: any;
-  createdBy: string;
-  createdAt: any;
-  updatedAt?: any;
-  status: OpportunityStatus;
-  visibility: 'campus' | 'group' | 'private';
-  isOfficial: boolean;
-  isVerified: boolean;
+  salary?: string;
+  applicationUrl?: string;
+  deadline?: any;
+  contactEmail?: string;
+  creatorId?: string;
+  creatorName?: string;
+  creatorAvatar?: string;
   groupId?: string;
-  eventId?: string;
-  saveCount: number;
-  viewCount: number;
-  applicationCount: number;
+  referralAvailable?: boolean;
+  status: OpportunityStatus;
+  viewCount?: number;
+  saveCount?: number;
+  createdAt?: Timestamp | FieldValue | any;
 }
 
 export interface OpportunityApplication {
+  id: string;
   opportunityId: string;
+  opportunityTitle: string;
+  organization: string;
+  userId: string;
   status: ApplicationStatus;
-  appliedAt: any;
-  updatedAt?: any;
+  notes?: string;
+  appliedAt: Timestamp | FieldValue | any;
+  updatedAt?: Timestamp | FieldValue | any;
+}
+
+export interface ReferralRequest {
+  id: string;
+  opportunityId: string;
+  opportunityTitle: string;
+  requesterId: string;
+  requesterName: string;
+  requesterAvatar?: string;
+  referrerId: string;
+  status: 'pending' | 'accepted' | 'rejected' | 'completed';
+  note?: string;
+  createdAt: Timestamp | FieldValue | any;
 }
 
 export interface OpportunityReminder {
+  id: string;
   opportunityId: string;
   userId: string;
-  createdAt: any;
+  reminderType: '24h' | '3d' | 'custom';
+  scheduledTime: Timestamp | FieldValue | any;
 }
 
-export interface OpportunityPreferenceSettings {
-  preferredTypes: OpportunityType[];
-  preferredBranches: string[];
-  preferredSkills: string[];
-  preferredModes: OpportunityMode[];
-  preferredLocations: string[];
-  updatedAt?: any;
+// Backward-compatible alias for legacy code (pre-Phase-49 services)
+export interface Opportunity extends Opportunity2 {
+  mode?: OpportunityMode;
+  organizationName?: string;
+  organizationLogo?: string;
+  category?: string;
+  branches?: string[];
+  isOfficial?: boolean;
+  applicationLink?: string;
+  closingAt?: any;
+  createdBy?: string;
+  isVerified?: boolean;
+  salaryRange?: string;
+  applicationDeadline?: any;
+  applicationCount?: number;
 }
+

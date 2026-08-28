@@ -1,60 +1,79 @@
-import { doc, getDoc, runTransaction, serverTimestamp, increment } from 'firebase/firestore';
-import type { User as FirebaseUser } from 'firebase/auth';
+import {
+  doc,
+  setDoc,
+  collection,
+  getDocs,
+  serverTimestamp,
+} from 'firebase/firestore';
 import { db, logAnalyticsEvent } from '../lib/firebase';
 import type { OpportunityApplication, ApplicationStatus } from '../types/opportunity';
 
-/**
- * Tracks private user application status for an opportunity.
- * Path: users/{uid}/opportunityApplications/{opportunityId}
- */
-export const trackApplicationStatus = async (
+export const trackApplication = async (
+  userId: string,
   opportunityId: string,
-  newStatus: ApplicationStatus,
-  currentUser: FirebaseUser
-): Promise<OpportunityApplication> => {
-  if (!currentUser || !opportunityId) throw new Error('Authentication required.');
-  const uid = currentUser.uid;
+  opportunityTitle: string,
+  organization: string,
+  status: ApplicationStatus = 'applied',
+  notes?: string
+): Promise<void> => {
+  if (!userId || !opportunityId) return;
 
-  const oppRef = doc(db, 'opportunities', opportunityId);
-  const appRef = doc(db, 'users', uid, 'opportunityApplications', opportunityId);
-
-  await runTransaction(db, async (transaction) => {
-    const appSnap = await transaction.get(appRef);
-    const prevStatus = appSnap.exists() ? appSnap.data().status : null;
-
-    transaction.set(appRef, {
-      opportunityId,
-      status: newStatus,
-      appliedAt: serverTimestamp(),
-    });
-
-    if (newStatus === 'applied' && prevStatus !== 'applied') {
-      transaction.update(oppRef, { applicationCount: increment(1) });
-    }
+  const appRef = doc(db, 'users', userId, 'opportunityApplications', opportunityId);
+  await setDoc(appRef, {
+    id: opportunityId,
+    opportunityId,
+    opportunityTitle,
+    organization,
+    userId,
+    status,
+    notes: notes?.trim() || '',
+    appliedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
   });
 
-  logAnalyticsEvent('opportunity_applied', { opportunityId, status: newStatus });
-  return {
-    opportunityId,
-    status: newStatus,
-    appliedAt: new Date(),
-  };
+  logAnalyticsEvent('application_status_updated', { opportunityId, status });
 };
 
-/**
- * Reads user's private application status for an opportunity.
- */
-export const getUserApplicationStatus = async (
+export const updateApplicationStatus = async (
+  userId: string,
   opportunityId: string,
-  uid: string
-): Promise<OpportunityApplication | null> => {
-  if (!opportunityId || !uid) return null;
-  try {
-    const appRef = doc(db, 'users', uid, 'opportunityApplications', opportunityId);
-    const snap = await getDoc(appRef);
-    if (!snap.exists()) return null;
-    return snap.data() as OpportunityApplication;
-  } catch (err) {
-    return null;
-  }
+  newStatus: ApplicationStatus,
+  notes?: string
+): Promise<void> => {
+  if (!userId || !opportunityId) return;
+
+  const appRef = doc(db, 'users', userId, 'opportunityApplications', opportunityId);
+  await setDoc(
+    appRef,
+    {
+      status: newStatus,
+      ...(notes !== undefined ? { notes: notes.trim() } : {}),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+};
+
+export const getUserApplications = async (
+  userId: string,
+  limitCount: number = 20
+): Promise<OpportunityApplication[]> => {
+  if (!userId) return [];
+  const boundedLimit = Math.min(50, limitCount);
+
+  const colRef = collection(db, 'users', userId, 'opportunityApplications');
+  const snap = await getDocs(colRef);
+
+  return snap.docs.slice(0, boundedLimit).map((d) => d.data() as OpportunityApplication);
+};
+
+// Backward-compatible aliases used by existing OpportunityCard
+export const trackApplicationStatus = trackApplication;
+export const getUserApplicationStatus = async (userId: string, opportunityId: string): Promise<ApplicationStatus | null> => {
+  if (!userId || !opportunityId) return null;
+  const appRef = doc(db, 'users', userId, 'opportunityApplications', opportunityId);
+  const { getDoc } = await import('firebase/firestore');
+  const snap = await getDoc(appRef);
+  if (!snap.exists()) return null;
+  return (snap.data() as OpportunityApplication).status;
 };

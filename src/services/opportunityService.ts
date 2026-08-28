@@ -165,7 +165,7 @@ export const getOpportunities = async (
         if (filters.isOfficial && !item.isOfficial) return false;
         if (qLower) {
           const matchTitle = item.title.toLowerCase().includes(qLower);
-          const matchOrg = item.organizationName.toLowerCase().includes(qLower);
+          const matchOrg = (item.organizationName || item.organization || '').toLowerCase().includes(qLower);
           const matchDesc = item.description.toLowerCase().includes(qLower);
           if (!matchTitle && !matchOrg && !matchDesc) return false;
         }

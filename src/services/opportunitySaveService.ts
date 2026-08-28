@@ -64,7 +64,7 @@ export const getSavedOpportunities = async (currentUser: FirebaseUser): Promise<
     const ids = snap.docs.map((d) => d.id);
 
     const results = await Promise.all(ids.map((id) => getOpportunityById(id)));
-    return results.filter((o): o is Opportunity => o !== null);
+    return results.filter((o: Opportunity | null): o is Opportunity => o !== null);
   } catch (err) {
     console.error('Error fetching saved opportunities:', err);
     return [];

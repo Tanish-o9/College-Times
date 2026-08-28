@@ -46,12 +46,12 @@ export const OpportunityCard: React.FC<OpportunityCardProps> = ({ opportunity })
     Promise.all([
       hasUserSavedOpportunity(opportunity.id, currentUser.uid),
       hasUserOpportunityReminder(opportunity.id, currentUser.uid),
-      getUserApplicationStatus(opportunity.id, currentUser.uid),
+      getUserApplicationStatus(currentUser.uid, opportunity.id),
     ]).then(([savedVal, remVal, appVal]) => {
       if (mounted) {
         setSaved(savedVal);
         setHasReminder(remVal);
-        if (appVal) setUserAppStatus(appVal.status);
+        if (appVal) setUserAppStatus(appVal);
       }
     });
 
@@ -92,12 +92,18 @@ export const OpportunityCard: React.FC<OpportunityCardProps> = ({ opportunity })
   const handleApplyClick = async () => {
     if (!currentUser || !opportunity.id) return;
     try {
-      await trackApplicationStatus(opportunity.id, 'applied', currentUser);
+      await trackApplicationStatus(
+        currentUser.uid,
+        opportunity.id,
+        opportunity.title,
+        opportunity.organizationName || opportunity.organization || 'AKGEC Opportunity',
+        'applied'
+      );
       setUserAppStatus('applied');
     } catch (err) {
       // Non-blocking status tracking
     }
-    window.open(opportunity.applicationUrl, '_blank');
+    window.open(opportunity.applicationUrl || opportunity.applicationLink, '_blank');
   };
 
   // Calculate Days Remaining
@@ -192,7 +198,7 @@ export const OpportunityCard: React.FC<OpportunityCardProps> = ({ opportunity })
       {/* Skills Tags */}
       {opportunity.skills && opportunity.skills.length > 0 && (
         <div className="flex items-center gap-1.5 flex-wrap pt-1">
-          {opportunity.skills.slice(0, 4).map((s) => (
+          {opportunity.skills.slice(0, 4).map((s: string) => (
             <span key={s} className="px-2 py-0.5 bg-slate-950 text-slate-400 border border-slate-800 rounded-md text-[10px] font-medium">
               #{s}
             </span>
