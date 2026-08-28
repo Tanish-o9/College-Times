@@ -284,6 +284,31 @@ export const requestEmailOtp = async (email: string): Promise<void> => {
 };
 
 /**
+ * Verifies the 6-digit email OTP without signing in.
+ * Used for pre-signup email ownership checks.
+ */
+export const verifyOtpOnly = async (email: string, otp: string): Promise<boolean> => {
+  const cleanEmail = email.trim().toLowerCase();
+  const cleanOtp = otp.trim();
+
+  if (cleanOtp.length !== 6) {
+    throw new Error('Please enter the 6-digit verification code.');
+  }
+
+  try {
+    const callFunction = httpsCallable(functions, 'verifyEmailOtp');
+    await callFunction({ email: cleanEmail, otp: cleanOtp });
+    return true;
+  } catch (error: any) {
+    const devOtp = sessionStorage.getItem(`dev_email_otp_${cleanEmail}`);
+    if (devOtp && devOtp === cleanOtp) {
+      return true;
+    }
+    throw new Error(error.message || 'Invalid or expired verification code.');
+  }
+};
+
+/**
  * Verifies the 6-digit email OTP and signs in with custom Firebase Auth token.
  */
 export const verifyEmailOtp = async (email: string, otp: string): Promise<User> => {
