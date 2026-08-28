@@ -375,7 +375,17 @@ export const signUpWithEmailPassword = async (
   }
 
   // 2. Create the user in Firebase Auth
-  const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+  let userCredential;
+  try {
+    userCredential = await createUserWithEmailAndPassword(auth, email, password);
+  } catch (err: any) {
+    if (err.code === 'auth/operation-not-allowed') {
+      throw new Error(
+        'Email/Password Sign-In Method is NOT enabled in your Firebase Console! Please go to Firebase Console -> Authentication -> Sign-in method -> Email/Password and Enable it.'
+      );
+    }
+    throw err;
+  }
   const firebaseUser = userCredential.user;
 
   // 3. Update profile displayName and photoURL
@@ -452,11 +462,20 @@ export const signUpWithEmailPassword = async (
  * Sign in a user using standard Email & Password.
  */
 export const signInWithEmailPassword = async (email: string, password: string): Promise<User> => {
-  const userCredential = await signInWithEmailAndPassword(auth, email, password);
-  await ensureUserDocument(userCredential.user);
-  logAnalyticsEvent('auth_login_email_password', { uid: userCredential.user.uid });
-  toast.success('Logged in successfully! 👋');
-  return userCredential.user;
+  try {
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    await ensureUserDocument(userCredential.user);
+    logAnalyticsEvent('auth_login_email_password', { uid: userCredential.user.uid });
+    toast.success('Logged in successfully! 👋');
+    return userCredential.user;
+  } catch (err: any) {
+    if (err.code === 'auth/operation-not-allowed') {
+      throw new Error(
+        'Email/Password Sign-In Method is NOT enabled in your Firebase Console! Please go to Firebase Console -> Authentication -> Sign-in method -> Email/Password and Enable it.'
+      );
+    }
+    throw err;
+  }
 };
 
 
