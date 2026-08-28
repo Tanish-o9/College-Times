@@ -5,6 +5,10 @@ import * as nodemailer from 'nodemailer';
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
 
+  console.log(`[VITE CONFIG] Loaded mode: ${mode}`);
+  console.log(`[VITE CONFIG] SMTP_USER: ${env.SMTP_USER ? 'CONFIGURED' : 'MISSING'}`);
+  console.log(`[VITE CONFIG] SMTP_APP_PASSWORD: ${env.SMTP_APP_PASSWORD ? 'CONFIGURED' : 'MISSING'}`);
+
   return {
     plugins: [
       react(),
@@ -12,7 +16,10 @@ export default defineConfig(({ mode }) => {
         name: 'local-email-otp-server',
         configureServer(server) {
           server.middlewares.use(async (req, res, next) => {
-            if (req.url === '/api/send-email-otp' && req.method === 'POST') {
+            if (req.url && req.url.includes('/api/')) {
+              console.log(`[DEV SERVER] Incoming API request: ${req.method} ${req.url}`);
+            }
+            if (req.url && req.url.startsWith('/api/send-email-otp') && req.method === 'POST') {
               let body = '';
               req.on('data', (chunk) => {
                 body += chunk.toString();
