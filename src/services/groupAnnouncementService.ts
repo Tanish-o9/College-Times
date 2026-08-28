@@ -16,6 +16,7 @@ import { db, logAnalyticsEvent } from '../lib/firebase';
 import type { User } from '../types/models';
 import type { GroupAnnouncement } from '../types/group';
 import { logGroupActivity } from './groupManagementService';
+import { logGroupActivityEvent } from './groupActivityService';
 
 export type AnnouncementPriority = 'normal' | 'important' | 'urgent';
 
@@ -55,6 +56,18 @@ export const createGroupAnnouncement = async (
   const newDoc = await addDoc(annRef, annData);
   const actorName = userProfile?.displayName || currentUser.displayName || 'Admin';
   logGroupActivity(groupId, 'announcement_created', currentUser.uid, actorName, `Created ${priority} announcement: ${title}`);
+  
+  await logGroupActivityEvent(
+    groupId,
+    'announcement',
+    currentUser.uid,
+    actorName,
+    userProfile?.photoURL || currentUser.photoURL || undefined,
+    newDoc.id,
+    'announcement',
+    `Created announcement: ${title}`
+  );
+
   logAnalyticsEvent('group_announcement_created', { groupId, priority });
 
   return {

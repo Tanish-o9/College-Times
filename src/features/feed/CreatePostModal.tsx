@@ -24,6 +24,7 @@ interface CreatePostModalProps {
   isOpen: boolean;
   onClose: () => void;
   onPostCreated: (post: Post & { _replaceOptimisticId?: string; _removeOptimisticId?: string }) => void;
+  groupId?: string;
 }
 
 type CategoryOption = 'General' | 'Event' | 'Mishap' | 'LostFound';
@@ -35,6 +36,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   isOpen,
   onClose,
   onPostCreated,
+  groupId,
 }) => {
   const { currentUser, userProfile } = useAuth();
   
@@ -254,6 +256,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
         priority,
         notifyAudience,
         reference: refType ? { type: refType, id: refId, title: refTitle } : null,
+        ...(groupId ? { groupId } : {}),
       };
 
       const newPost = await createPost(payload, currentUser, userProfile);

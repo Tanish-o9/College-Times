@@ -18,6 +18,7 @@ import { db, logAnalyticsEvent } from '../lib/firebase';
 import type { User } from '../types/models';
 import type { CampusGroup, CampusGroupType, GroupMember, UserGroupMembership } from '../types/group';
 import { createInviteCodeForGroup } from './groupInviteService';
+import { logGroupActivityEvent } from './groupActivityService';
 
 export interface PaginatedGroupsResult {
   groups: CampusGroup[];
@@ -404,6 +405,17 @@ export const joinGroup = async (
     });
   });
 
+  await logGroupActivityEvent(
+    groupId,
+    'membership_change',
+    currentUser.uid,
+    userProfile?.displayName || currentUser.displayName || 'Student',
+    userProfile?.photoURL || currentUser.photoURL || undefined,
+    undefined,
+    undefined,
+    'joined the group'
+  );
+
   logAnalyticsEvent('group_joined', { groupType, groupId });
 };
 
@@ -443,6 +455,17 @@ export const leaveGroup = async (groupId: string, uid: string): Promise<void> =>
     transaction.delete(memberRef);
     transaction.delete(userMembershipRef);
   });
+
+  await logGroupActivityEvent(
+    groupId,
+    'membership_change',
+    uid,
+    'Student',
+    undefined,
+    undefined,
+    undefined,
+    'left the group'
+  );
 
   logAnalyticsEvent('group_left', { groupType, groupId });
 };

@@ -18,12 +18,15 @@ import {
 import type { User as FirebaseUser } from 'firebase/auth';
 import { db } from '../lib/firebase';
 import type { CampusEvent, User } from '../types';
+import { logGroupActivityEvent } from './groupActivityService';
 
 export interface CreateEventPayload {
   title: string;
   description: string;
   location: string;
   eventDate: string; // ISO date string from date picker input
+  groupId?: string;
+  visibility?: 'campus' | 'group' | 'private';
 }
 
 export interface EventParticipant {
@@ -114,9 +117,24 @@ export const createEvent = async (
       createdBy: currentUser.uid,
       rsvpCount: 0,
       createdAt: serverTimestamp(),
+      ...(payload.groupId ? { groupId: payload.groupId } : {}),
+      ...(payload.visibility ? { visibility: payload.visibility } : {}),
     };
 
     const docRef = await addDoc(eventsRef, newEventData);
+
+    if (payload.groupId) {
+      await logGroupActivityEvent(
+        payload.groupId,
+        'event',
+        currentUser.uid,
+        currentUser.displayName || 'Group Member',
+        currentUser.photoURL || undefined,
+        docRef.id,
+        'event',
+        `Created event: ${payload.title}`
+      );
+    }
 
     return {
       id: docRef.id,
@@ -464,4 +482,52 @@ export const getEventsFiltered = async (
   }
 
   return list;
+};
+
+/**
+ * Fetches upcoming group events.
+ */
+export const getUpcomingGroupEvents = async (groupId: string): Promise<CampusEvent[]> => {
+  try {
+    const eventsRef = collection(db, 'events');
+    const now = Timestamp.now();
+    const q = query(
+      eventsRef,
+      where('groupId', '==', groupId),
+      where('eventDate', '>=', now),
+      orderBy('eventDate', 'asc')
+    );
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map((docSnap) => ({
+      id: docSnap.id,
+      ...docSnap.data(),
+    })) as CampusEvent[];
+  } catch (error) {
+    console.error('Error fetching upcoming group events:', error);
+    throw error;
+  }
+};
+
+/**
+ * Fetches past group events.
+ */
+export const getPastGroupEvents = async (groupId: string): Promise<CampusEvent[]> => {
+  try {
+    const eventsRef = collection(db, 'events');
+    const now = Timestamp.now();
+    const q = query(
+      eventsRef,
+      where('groupId', '==', groupId),
+      where('eventDate', '<', now),
+      orderBy('eventDate', 'desc')
+    );
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map((docSnap) => ({
+      id: docSnap.id,
+      ...docSnap.data(),
+    })) as CampusEvent[];
+  } catch (error) {
+    console.error('Error fetching past group events:', error);
+    throw error;
+  }
 };

@@ -21,6 +21,8 @@ import { GroupLeaderboard } from './GroupLeaderboard';
 import { GroupSearchTab } from './GroupSearchTab';
 import { GroupActivityTimeline } from './GroupActivityTimeline';
 import { RealtimeGroupActivity } from './RealtimeGroupActivity';
+import { GroupPosts } from './GroupPosts';
+import { GroupEvents } from './GroupEvents';
 import {
   ArrowLeft,
   Users,
@@ -41,6 +43,8 @@ import {
   Search,
   Settings,
   ShieldAlert,
+  Calendar,
+  FileText,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { doc, getDoc, collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
@@ -57,7 +61,8 @@ export type GroupTab =
   | 'members'
   | 'leaderboard'
   | 'search'
-  | 'invites';
+  | 'invites'
+  | 'chat';
 
 export const GroupDetailPage: React.FC = () => {
   const { groupId } = useParams<{ groupId: string }>();
@@ -140,6 +145,10 @@ export const GroupDetailPage: React.FC = () => {
   }, [activeTab, groupId, isMember]);
 
   const handleTabChange = (tab: GroupTab) => {
+    if (tab === 'chat') {
+      navigate(`/chat/group-${groupId}`);
+      return;
+    }
     setActiveTab(tab);
     setSearchParams({ tab });
   };
@@ -222,7 +231,7 @@ export const GroupDetailPage: React.FC = () => {
           {/* Quick Group Chat Channel Navigation */}
           {isMember && (
             <button
-              onClick={() => navigate(`/chat?channel=group-${groupId}`)}
+              onClick={() => navigate(`/chat/group-${groupId}`)}
               className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-sky-400 border border-slate-800 rounded-xl text-xs font-semibold flex items-center gap-1.5 shrink-0"
               title="Open Group Chat"
             >
@@ -371,6 +380,42 @@ export const GroupDetailPage: React.FC = () => {
                   </button>
 
                   <button
+                    onClick={() => handleTabChange('posts')}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+                      activeTab === 'posts'
+                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <FileText className="w-4 h-4" />
+                    <span>Posts</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleTabChange('moments')}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+                      activeTab === 'moments'
+                        ? 'bg-purple-500/10 text-purple-400 border border-purple-500/30'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    <span>Moments</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleTabChange('events')}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+                      activeTab === 'events'
+                        ? 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Calendar className="w-4 h-4" />
+                    <span>Events</span>
+                  </button>
+
+                  <button
                     onClick={() => handleTabChange('members')}
                     className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
                       activeTab === 'members'
@@ -442,6 +487,27 @@ export const GroupDetailPage: React.FC = () => {
 
                 {activeTab === 'announcements' && (
                   <GroupAnnouncements groupId={group.id} userRole={userRole} />
+                )}
+
+                {activeTab === 'posts' && (
+                  <GroupPosts groupId={group.id} isMember={isMember} />
+                )}
+
+                {activeTab === 'moments' && (
+                  <div className="space-y-4">
+                    <div className="p-6 bg-slate-900 border border-slate-800 rounded-3xl text-center space-y-2">
+                      <Sparkles className="w-8 h-8 mx-auto text-purple-400 animate-pulse" />
+                      <h3 className="text-sm font-bold text-white">Group Moments</h3>
+                      <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+                        Share your daily college life stories and visual updates with other members.
+                        Moments are displayed in the carousel at the top of the group page.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'events' && (
+                  <GroupEvents groupId={group.id} isMember={isMember} userRole={userRole} />
                 )}
 
                 {activeTab === 'members' && (

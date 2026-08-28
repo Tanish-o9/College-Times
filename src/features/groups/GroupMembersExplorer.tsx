@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getGroupMembersPage, searchGroupMembers } from '../../services/groupMemberManagementService';
+import { getOrCreateConversation } from '../../services/directMessageService';
+import { useAuth } from '../../hooks/useAuth';
 import type { GroupMember, GroupRole } from '../../types/group';
 import { Search, MessageSquare, RefreshCw } from 'lucide-react';
 import type { QueryDocumentSnapshot } from 'firebase/firestore';
+import toast from 'react-hot-toast';
 
 interface GroupMembersExplorerProps {
   groupId: string;
@@ -11,6 +14,7 @@ interface GroupMembersExplorerProps {
 
 export const GroupMembersExplorer: React.FC<GroupMembersExplorerProps> = ({ groupId }) => {
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot | null>(null);
   const [roleFilter, setRoleFilter] = useState<GroupRole | 'all'>('all');
@@ -121,7 +125,18 @@ export const GroupMembersExplorer: React.FC<GroupMembersExplorerProps> = ({ grou
               </div>
 
               <button
-                onClick={() => navigate(`/direct/${m.uid}`)}
+                onClick={async () => {
+                  if (!currentUser) {
+                    toast.error('Log in to message group members.');
+                    return;
+                  }
+                  try {
+                    const conv = await getOrCreateConversation(m.uid, currentUser, m.displayName);
+                    navigate(`/messages/${conv.id}`);
+                  } catch (err) {
+                    navigate('/messages');
+                  }
+                }}
                 className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl flex items-center gap-1 shrink-0"
               >
                 <MessageSquare className="w-3.5 h-3.5 text-sky-400" />

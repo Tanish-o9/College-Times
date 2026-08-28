@@ -18,6 +18,7 @@ import {
 import type { User as FirebaseUser } from 'firebase/auth';
 import { db, logAnalyticsEvent } from '../lib/firebase';
 import type { Post, User, PostAudience, PostPriority } from '../types';
+import { logGroupActivityEvent } from './groupActivityService';
 
 export interface PaginatedPostsResult {
   posts: Post[];
@@ -34,6 +35,7 @@ export interface CreatePostPayload {
   priority?: PostPriority;
   notifyAudience?: boolean;
   reference?: any;
+  groupId?: string;
 }
 
 export interface CreateLostFoundPayload {
@@ -152,9 +154,9 @@ export const createPost = async (
       reportCount: 0,
       status: 'active' as const,
       postType: 'news' as const,
-      audience,
       priority: postPriority,
       notifyAudience: payload.notifyAudience ?? false,
+      ...(payload.groupId ? { groupId: payload.groupId } : {}),
     };
 
     if (primaryImageUrl) {
@@ -184,6 +186,19 @@ export const createPost = async (
       const newPostRef = doc(postsRef);
       newDocId = newPostRef.id;
       await setDoc(newPostRef, newPostData);
+    }
+
+    if (payload.groupId) {
+      await logGroupActivityEvent(
+        payload.groupId,
+        'post',
+        currentUser.uid,
+        authorName,
+        authorAvatar,
+        newDocId,
+        'post',
+        `Published a post: ${payload.title}`
+      );
     }
 
     logAnalyticsEvent('post_created', { category: payload.category });

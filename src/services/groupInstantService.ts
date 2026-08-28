@@ -23,6 +23,7 @@ import { db, storage, logAnalyticsEvent } from '../lib/firebase';
 import type { User } from '../types/models';
 import type { GroupInstant, GroupInstantMedia, GroupInstantComment } from '../types/group';
 import { isUserGroupChatMember } from './groupChatService';
+import { logGroupActivityEvent } from './groupActivityService';
 
 const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 
@@ -184,6 +185,17 @@ export const createGroupInstant = async (
       createdAt: serverTimestamp(),
     });
   }
+
+  await logGroupActivityEvent(
+    groupId,
+    'moment',
+    currentUser.uid,
+    userProfile?.displayName || currentUser.displayName || 'Campus Student',
+    userProfile?.photoURL || currentUser.photoURL || undefined,
+    newDoc.id,
+    'moment',
+    caption.trim() ? `Shared a moment: ${caption}` : 'Shared a group moment'
+  );
 
   logAnalyticsEvent('instant_created', { groupId, mediaCount: uploadedMedia.length });
 

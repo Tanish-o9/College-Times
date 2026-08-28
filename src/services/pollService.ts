@@ -3,6 +3,7 @@ import type { User as FirebaseUser } from 'firebase/auth';
 import { db, logAnalyticsEvent } from '../lib/firebase';
 import type { Post, User } from '../types/models';
 import type { PollData, PollOption, PollVoteRecord } from '../types/poll';
+import { logGroupActivityEvent } from './groupActivityService';
 
 export interface CreatePollParams {
   question: string;
@@ -75,6 +76,19 @@ export const createPollPost = async (
     newDocId = newPostRef.id;
     transaction.set(newPostRef, newPostData);
   });
+
+  if (params.groupId) {
+    await logGroupActivityEvent(
+      params.groupId,
+      'poll',
+      currentUser.uid,
+      authorName,
+      userProfile?.photoURL || currentUser.photoURL || undefined,
+      newDocId,
+      'poll',
+      `Created poll: ${params.question}`
+    );
+  }
 
   logAnalyticsEvent('group_poll_created', { optionCount: pollOptions.length });
 
