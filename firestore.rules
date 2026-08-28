@@ -223,6 +223,24 @@ service cloud.firestore {
           && request.resource.data.scope in ['notifications', 'messages', 'groups', 'feed', 'events'];
         allow delete: if isOwner(userId);
       }
+
+      // Phase 45: Followers Sub-collection
+      match /followers/{followerUid} {
+        allow read: if isAuthenticated();
+        allow create, update, delete: if isAuthenticated() && (isOwner(userId) || request.auth.uid == followerUid);
+      }
+
+      // Phase 45: Following Sub-collection
+      match /following/{followingUid} {
+        allow read: if isAuthenticated();
+        allow create, update, delete: if isAuthenticated() && (isOwner(userId) || request.auth.uid == followingUid);
+      }
+
+      // Phase 45: Follow Requests Sub-collection
+      match /followRequests/{requestUid} {
+        allow read: if isAuthenticated();
+        allow create, update, delete: if isAuthenticated() && (isOwner(userId) || request.auth.uid == requestUid);
+      }
     }
 
     // Unified Centralized Notifications Collection
