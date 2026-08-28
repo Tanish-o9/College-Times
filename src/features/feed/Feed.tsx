@@ -89,6 +89,7 @@ export const Feed: React.FC = () => {
 
   // Bounded Realtime Listener — auto-merges new posts at the top (limit 5, no pill needed)
   useEffect(() => {
+    if (!currentUser) return; // Wait until authenticated to avoid permission errors
     const postsRef = collection(db, 'posts');
     // Order by timestamp desc only to avoid composite index requirements
     const q = query(
@@ -129,7 +130,8 @@ export const Feed: React.FC = () => {
 
     return () => unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Stable — never recreated
+  }, [currentUser]); // Stable — re-run when auth resolves
+
 
 
   const mergeNewPosts = () => {
@@ -296,8 +298,9 @@ export const Feed: React.FC = () => {
   };
 
   useEffect(() => {
+    if (!currentUser) return; // Wait until authenticated to avoid permission errors
     fetchInitialPosts(feedMode, selectedCategory);
-  }, [feedMode, selectedCategory]);
+  }, [feedMode, selectedCategory, currentUser]);
 
   // Infinite Scroll Trigger on Sentinel Intersection
   useEffect(() => {
