@@ -37,13 +37,30 @@ export const uploadPostImages = async (
     const storagePath = `postMedia/${userId}/${postId}/${Date.now()}_${idx}_${cleanName}`;
     const storageRef = ref(storage, storagePath);
 
-    const readFileAsDataUrl = (f: File): Promise<string> => {
-      return new Promise((res, rej) => {
-        const reader = new FileReader();
-        reader.onload = () => res(reader.result as string);
-        reader.onerror = (e) => rej(e);
-        reader.readAsDataURL(f);
-      });
+    const readFileAsDataUrl = async (f: File): Promise<string> => {
+      try {
+        const imageCompression = (await import('browser-image-compression')).default;
+        const options = {
+          maxSizeMB: 0.04, // Under 40KB
+          maxWidthOrHeight: 600,
+          useWebWorker: false
+        };
+        const compressed = await imageCompression(f, options);
+        return new Promise((res, rej) => {
+          const reader = new FileReader();
+          reader.onload = () => res(reader.result as string);
+          reader.onerror = (e) => rej(e);
+          reader.readAsDataURL(compressed);
+        });
+      } catch (err) {
+        console.error('Compression failed, using uncompressed fallback:', err);
+        return new Promise((res, rej) => {
+          const reader = new FileReader();
+          reader.onload = () => res(reader.result as string);
+          reader.onerror = (e) => rej(e);
+          reader.readAsDataURL(f);
+        });
+      }
     };
 
     return new Promise<PostImageItem>((resolve) => {

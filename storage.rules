@@ -114,6 +114,7 @@ service firebase.storage {
           request.resource.contentType.matches('image/.*') ||
           request.resource.contentType == 'application/pdf'
         );
+    }
     // Phase 33: User Uploaded Group Chat Media Path: groupChatMedia/{groupId}/{userId}/{filename}
     match /groupChatMedia/{groupId}/{userId}/{filename} {
       allow read, write: if true;
