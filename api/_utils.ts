@@ -1,8 +1,6 @@
 import * as crypto from 'crypto';
 import * as nodemailer from 'nodemailer';
 
-const DEFAULT_SECRET = 'e7b41f98d2a654901c3e8b7f521094ab6c8d7e9f2a3b4c5d6e7f8a9b0c1d2e3f';
-
 /**
  * Validates whether an email belongs to an allowed college domain.
  */
@@ -39,7 +37,10 @@ export const generateCryptographicOtp = (): string => {
  * Computes an HMAC-SHA256 hash of the 6-digit OTP.
  */
 export const hashOtp = (otp: string): string => {
-  const secret = process.env.OTP_SECRET || DEFAULT_SECRET;
+  const secret = process.env.OTP_SECRET;
+  if (!secret) {
+    throw new Error('Server configuration error: OTP_SECRET environment variable is missing.');
+  }
   return crypto.createHmac('sha256', secret).update(otp.trim()).digest('hex');
 };
 
@@ -61,8 +62,12 @@ interface SendOtpEmailParams {
  * Creates Nodemailer SMTP transporter using dedicated environment credentials.
  */
 const getTransporter = () => {
-  const smtpUser = process.env.SMTP_USER || 'collegetimes.auth@gmail.com';
-  const smtpPass = process.env.SMTP_APP_PASSWORD || 'emnsgufexwcwdhhb';
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_APP_PASSWORD;
+
+  if (!smtpUser || !smtpPass) {
+    throw new Error('Server configuration error: SMTP credentials are not configured in environment variables.');
+  }
 
   const host = process.env.SMTP_HOST || 'smtp.gmail.com';
   const port = parseInt(process.env.SMTP_PORT || '465', 10);
@@ -132,13 +137,12 @@ export const sendOtpEmail = async ({
 
   const textContent = `College Times Verification Code: ${otpCode}\n\nThis code expires in ${expiryMinutes} minutes. If you did not request this, please ignore this email.`;
 
-  if (!transporter) {
-    console.log(`[DEV MOCK MAIL] Nodemailer SMTP not configured. OTP: ${otpCode} for ${recipientEmail}.`);
-    return true;
-  }
-
   try {
-    const smtpUser = process.env.SMTP_USER || 'collegetimes.auth@gmail.com';
+    const smtpUser = process.env.SMTP_USER;
+    if (!smtpUser) {
+      throw new Error('SMTP_USER environment variable is missing.');
+    }
+
     await transporter.sendMail({
       from: `"College Times Auth" <${smtpUser}>`,
       to: recipientEmail,

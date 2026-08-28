@@ -33,8 +33,12 @@ export default defineConfig(({ mode }) => {
                   console.log(`Code:  ${otp}`);
                   console.log(`==================================================\n`);
 
-                  const smtpUser = env.SMTP_USER || 'collegetimes.auth@gmail.com';
-                  const smtpPass = env.SMTP_APP_PASSWORD || 'emnsgufexwcwdhhb';
+                  const smtpUser = env.SMTP_USER;
+                  const smtpPass = env.SMTP_APP_PASSWORD;
+
+                  if (!smtpUser || !smtpPass) {
+                    throw new Error('Local dev server configuration error: SMTP credentials are not configured in your .env file.');
+                  }
 
                   const transporter = nodemailer.createTransport({
                     host: env.SMTP_HOST || 'smtp.gmail.com',
