@@ -116,9 +116,16 @@ export const createPost = async (
         storagePath: String(img.storagePath || ''),
       }));
 
+    // Strip base64/data URIs and oversized URLs — Firestore field limit is ~1MB
+    const rawImageUrl = payload.imageUrl?.trim() || '';
+    const safeExternalUrl =
+      !rawImageUrl.startsWith('data:') && rawImageUrl.length <= 2048
+        ? rawImageUrl
+        : '';
+
     const primaryImageUrl = sanitizedImages.length > 0
       ? sanitizedImages[0].downloadUrl
-      : payload.imageUrl?.trim() || '';
+      : safeExternalUrl;
 
     const newPostData: Record<string, any> = {
       title: payload.title.trim(),

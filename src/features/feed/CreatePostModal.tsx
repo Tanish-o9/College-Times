@@ -220,11 +220,24 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       setUploadStep('publishing');
       toast.loading('Publishing campus post...', { id: 'post-upload-status' });
 
+      // Guard: reject data URIs or oversized imageUrl that would exceed Firestore 1MB field limit
+      const safeImageUrl = imageUrl.trim();
+      if (safeImageUrl.startsWith('data:')) {
+        toast.error('Cannot upload base64 image URLs. Please use the file picker to attach images.', { id: 'post-upload-status' });
+        setSubmitting(false);
+        return;
+      }
+      if (safeImageUrl.length > 2048) {
+        toast.error('Image URL is too long (max 2048 chars). Use the file picker instead.', { id: 'post-upload-status' });
+        setSubmitting(false);
+        return;
+      }
+
       const payload: CreatePostPayload = {
         title: title.trim(),
         content: content.trim(),
         category,
-        ...(uploadedImages.length > 0 ? { images: uploadedImages, imageUrl: uploadedImages[0].downloadUrl } : imageUrl.trim() ? { imageUrl: imageUrl.trim() } : {}),
+        ...(uploadedImages.length > 0 ? { images: uploadedImages, imageUrl: uploadedImages[0].downloadUrl } : safeImageUrl ? { imageUrl: safeImageUrl } : {}),
         audience: { type: audienceType },
         priority,
         notifyAudience,
@@ -508,7 +521,19 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                   <input
                     type="url"
                     value={imageUrl}
-                    onChange={(e) => setImageUrl(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      // Block base64 / data URIs — they are too large for Firestore (>1MB)
+                      if (val.startsWith('data:')) {
+                        toast.error('Please upload an image file instead of pasting a base64/data URL.', { id: 'imageurl-error' });
+                        return;
+                      }
+                      if (val.length > 2048) {
+                        toast.error('Image URL is too long. Please use a direct image link.', { id: 'imageurl-error' });
+                        return;
+                      }
+                      setImageUrl(val);
+                    }}
                     placeholder="Or paste external image URL..."
                     className="w-full pl-10 pr-4 py-2 bg-slate-950/80 border border-slate-800 focus:border-sky-500 rounded-xl text-white text-xs placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-sky-500 transition-all font-mono"
                   />
