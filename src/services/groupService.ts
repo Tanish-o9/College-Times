@@ -60,17 +60,20 @@ export const getPublicGroupsPage = async (
   const boundedSize = Math.min(50, Math.max(1, pageSize));
   try {
     const colRef = collection(db, 'groups');
-    let q = query(colRef, where('active', '==', true), orderBy('createdAt', 'desc'), limit(boundedSize));
+    // Order by createdAt DESC only to avoid composite index requirements
+    let q = query(colRef, orderBy('createdAt', 'desc'), limit(boundedSize));
 
     if (lastDoc) {
-      q = query(colRef, where('active', '==', true), orderBy('createdAt', 'desc'), startAfter(lastDoc), limit(boundedSize));
+      q = query(colRef, orderBy('createdAt', 'desc'), startAfter(lastDoc), limit(boundedSize));
     }
 
     const snap = await getDocs(q);
-    const groups: CampusGroup[] = snap.docs.map((d) => ({
-      ...(d.data() as CampusGroup),
-      id: d.id,
-    }));
+    const groups: CampusGroup[] = snap.docs
+      .map((d) => ({
+        ...(d.data() as CampusGroup),
+        id: d.id,
+      }))
+      .filter((g) => g.active !== false);
 
     const newLastDoc = snap.docs.length > 0 ? snap.docs[snap.docs.length - 1] : null;
     return { groups, lastDoc: newLastDoc };
@@ -169,12 +172,22 @@ export const searchGroups = async (
 };
 
 /**
+ * Utility to hash a string to SHA-256 for secure passcode comparison.
+ */
+export const hashStringSHA256 = async (str: string): Promise<string> => {
+  const msgBuffer = new TextEncoder().encode(str);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+};
+
+/**
  * Creates a new Campus Group.
  * Any authenticated student can create a group and becomes creator/admin.
  * Automatically generates a unique invite pass code (CT-XXXXXX).
  */
 export const createGroup = async (
-  payload: Partial<CampusGroup>,
+  payload: Partial<CampusGroup> & { passcode?: string },
   currentUser: FirebaseUser,
   userProfile?: User | null
 ): Promise<CampusGroup> => {
@@ -192,6 +205,10 @@ export const createGroup = async (
   const groupRef = doc(db, 'groups', groupId);
   const memberRef = doc(db, 'groups', groupId, 'members', currentUser.uid);
   const userMembershipRef = doc(db, 'users', currentUser.uid, 'groupMemberships', groupId);
+
+  const customPasscode = payload.passcode?.trim() || '';
+  const hasPassword = customPasscode.length > 0;
+  const passcodeHash = hasPassword ? await hashStringSHA256(customPasscode) : undefined;
 
   const newGroup: CampusGroup = {
     id: groupId,
@@ -211,6 +228,8 @@ export const createGroup = async (
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
     inviteEnabled: true,
+    hasPassword,
+    ...(passcodeHash ? { passcodeHash } : {}),
   };
 
   const initialMember: GroupMember = {
@@ -309,7 +328,8 @@ export const deactivateGroup = async (
 export const joinGroup = async (
   groupId: string,
   currentUser: FirebaseUser,
-  userProfile?: User | null
+  userProfile?: User | null,
+  enteredPasscode?: string
 ): Promise<void> => {
   if (!groupId || !currentUser) return;
 
@@ -337,7 +357,16 @@ export const joinGroup = async (
       throw new Error('Cannot join an inactive group.');
     }
 
-    if (groupData.visibility === 'private') {
+    // Verify passcode/password if enabled
+    if (groupData.hasPassword && groupData.passcodeHash) {
+      if (!enteredPasscode) {
+        throw new Error('This group is password-protected. Please enter the passcode.');
+      }
+      const hashed = await hashStringSHA256(enteredPasscode);
+      if (hashed !== groupData.passcodeHash) {
+        throw new Error('Incorrect group password.');
+      }
+    } else if (groupData.visibility === 'private') {
       throw new Error('This group is private. Please join using an invite pass code.');
     }
 

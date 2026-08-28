@@ -27,6 +27,10 @@ export interface CampusGroup {
   inviteCodeVersion?: number;
   inviteEnabled?: boolean;
   inviteCodePlaintext?: string;
+
+  // Group Password Protection
+  hasPassword?: boolean;
+  passcodeHash?: string;
 }
 
 export type GroupRole = 'owner' | 'admin' | 'moderator' | 'member';

@@ -28,6 +28,7 @@ import toast from 'react-hot-toast';
 
 import { CreateGroupModal } from './CreateGroupModal';
 import { JoinGroupByCodeModal } from './JoinGroupByCodeModal';
+import { JoinGroupWithPasswordModal } from './JoinGroupWithPasswordModal';
 
 type FilterTab = 'all' | 'campus' | 'department' | 'batch' | 'community' | 'my_groups';
 
@@ -47,6 +48,7 @@ export const GroupsPage: React.FC = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isJoinCodeModalOpen, setIsJoinCodeModalOpen] = useState(false);
   const [initialJoinCode, setInitialJoinCode] = useState('');
+  const [passwordPromptGroup, setPasswordPromptGroup] = useState<CampusGroup | null>(null);
 
   // Check URL query parameters for pass codes (e.g. ?code=CT-7K4P9X or /groups/join?code=...)
   useEffect(() => {
@@ -90,18 +92,25 @@ export const GroupsPage: React.FC = () => {
   useEffect(() => {
     const handleSearchFilter = async () => {
       if (!currentUser) return;
-      if (!searchQuery.trim() && activeTab === 'all') {
-        return;
-      }
 
       setLoading(true);
       try {
         if (activeTab === 'my_groups') {
-          // My Joined Groups tab
+          // Fetch recent groups, then filter by joinedGroupIds
+          const res = await getPublicGroupsPage(50);
           const myIds = Array.from(joinedGroupIds);
-          const filteredMyGroups = groups.filter((g) => myIds.includes(g.id));
-          setGroups(filteredMyGroups);
+          let filtered = res.groups.filter((g) => myIds.includes(g.id));
+          if (searchQuery.trim()) {
+            const term = searchQuery.trim().toLowerCase();
+            filtered = filtered.filter(
+              (g) =>
+                g.name.toLowerCase().includes(term) ||
+                g.description?.toLowerCase().includes(term)
+            );
+          }
+          setGroups(filtered);
         } else {
+          // General search / category filter
           const cat = activeTab !== 'all' ? activeTab : 'all';
           const results = await searchGroups(searchQuery, cat, 30);
           setGroups(results);
@@ -115,11 +124,16 @@ export const GroupsPage: React.FC = () => {
 
     const timer = setTimeout(handleSearchFilter, 300);
     return () => clearTimeout(timer);
-  }, [searchQuery, activeTab]);
+  }, [searchQuery, activeTab, joinedGroupIds]);
 
   const handleJoinPublic = async (group: CampusGroup, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!currentUser || actionGroupId) return;
+
+    if (group.hasPassword) {
+      setPasswordPromptGroup(group);
+      return;
+    }
 
     if (group.visibility === 'private') {
       setInitialJoinCode(group.inviteCodePlaintext || '');
@@ -308,7 +322,7 @@ export const GroupsPage: React.FC = () => {
                         <h3 className="text-base font-extrabold text-white truncate group-hover:text-sky-400 transition-colors">
                           {group.name}
                         </h3>
-                        <div className="flex items-center gap-2 mt-0.5">
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1">
                           <span className={`px-2 py-0.5 rounded-full border text-[10px] font-bold uppercase tracking-wider ${badge.color}`}>
                             {group.category || badge.label}
                           </span>
@@ -321,6 +335,13 @@ export const GroupsPage: React.FC = () => {
                             )}
                             <span>{isPrivate ? 'Private' : 'Public'}</span>
                           </span>
+
+                          {group.hasPassword && (
+                            <span className="px-2 py-0.5 rounded-full border border-sky-500/20 bg-sky-500/10 text-sky-400 text-[9px] font-bold uppercase tracking-wider flex items-center gap-0.5">
+                              <Key className="w-2.5 h-2.5" />
+                              <span>Password</span>
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -413,6 +434,18 @@ export const GroupsPage: React.FC = () => {
         onJoined={(groupId) => {
           setJoinedGroupIds((prev) => new Set([...prev, groupId]));
           loadData();
+        }}
+      />
+
+      <JoinGroupWithPasswordModal
+        isOpen={passwordPromptGroup !== null}
+        onClose={() => setPasswordPromptGroup(null)}
+        group={passwordPromptGroup}
+        onJoined={(groupId) => {
+          setJoinedGroupIds((prev) => new Set([...prev, groupId]));
+          setGroups((prev) =>
+            prev.map((g) => (g.id === groupId ? { ...g, memberCount: g.memberCount + 1 } : g))
+          );
         }}
       />
     </div>

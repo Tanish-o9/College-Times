@@ -55,6 +55,7 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
   const [batchYear, setBatchYear] = useState<string>('');
   const [rules, setRules] = useState('');
   const [iconUrl, setIconUrl] = useState('');
+  const [passcode, setPasscode] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   if (!isOpen) return null;
@@ -84,6 +85,7 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
           ...(departmentId ? { departmentId } : {}),
           ...(batchYear ? { batchYear: Number(batchYear) } : {}),
           ...(iconUrl.trim() ? { iconUrl: iconUrl.trim() } : {}),
+          passcode: passcode.trim(),
         },
         currentUser,
         userProfile
@@ -99,6 +101,7 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
       setDepartmentId('');
       setBatchYear('');
       setIconUrl('');
+      setPasscode('');
     } catch (err: any) {
       toast.error(err.message || 'Failed to create group.');
     } finally {
@@ -274,6 +277,23 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
               {visibility === 'public'
                 ? 'Public groups are discoverable and joinable by any campus student.'
                 : 'Private groups require a unique CT invite pass code to join.'}
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5 flex items-center gap-1.5">
+              <Key className="w-3.5 h-3.5 text-sky-400" />
+              <span>Group Password / Join Passcode (Optional)</span>
+            </label>
+            <input
+              type="text"
+              value={passcode}
+              onChange={(e) => setPasscode(e.target.value.replace(/\s+/g, ''))}
+              placeholder="e.g. SECURE123 (Leave blank for no password)"
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 font-mono"
+            />
+            <p className="text-[10px] text-slate-500 mt-1">
+              If set, students must enter this exact passcode to join the group. Leave blank to let anyone join instantly.
             </p>
           </div>
 
