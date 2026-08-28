@@ -12,7 +12,7 @@ import {
   type ConfirmationResult, 
   type User 
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, runTransaction, increment, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, runTransaction, increment, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
 
 import { auth, db, logAnalyticsEvent } from '../lib/firebase';
 import { isUsernameAvailable } from './usernameService';
@@ -435,6 +435,24 @@ export const signUpWithEmailPassword = async (
     throw err;
   }
   const firebaseUser = userCredential.user;
+
+  // 1.5. Ensure email uniqueness in Firestore users collection (handles case when "Multiple accounts per email" is allowed in Firebase Console)
+  try {
+    const q = query(collection(db, 'users'), where('email', '==', email.trim().toLowerCase()));
+    const snap = await getDocs(q);
+    if (!snap.empty) {
+      // If a user profile with this email already exists, delete the newly created Auth account and throw email-already-in-use
+      await firebaseUser.delete();
+      const err = new Error('Firebase: Error (auth/email-already-in-use).');
+      (err as any).code = 'auth/email-already-in-use';
+      throw err;
+    }
+  } catch (err: any) {
+    if (err.code === 'auth/email-already-in-use') {
+      throw err;
+    }
+    console.warn('Failed to verify email uniqueness in Firestore:', err);
+  }
 
   // 2. Check username availability (now authenticated, so permission is allowed)
   let finalUsername = normUsername;
