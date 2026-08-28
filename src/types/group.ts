@@ -43,6 +43,7 @@ export interface GroupMember {
   joinedAt: Timestamp | FieldValue | any;
   displayName?: string;
   photoURL?: string;
+  points?: number;
 }
 
 export interface UserGroupMembership {

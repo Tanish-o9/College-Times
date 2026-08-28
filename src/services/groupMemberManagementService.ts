@@ -244,3 +244,20 @@ export const unmuteGroupMember = async (
 
   logGroupActivity(groupId, 'role_changed', adminUser.uid, 'Admin', `Unmuted member ${targetUid}`);
 };
+
+/**
+ * Fetches the top group members ordered by their contribution points.
+ */
+export const getGroupLeaderboard = async (
+  groupId: string,
+  limitCount: number = 10
+): Promise<GroupMember[]> => {
+  if (!groupId) return [];
+  const colRef = collection(db, 'groups', groupId, 'members');
+  const q = query(colRef, orderBy('points', 'desc'), limit(limitCount));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({
+    ...(d.data() as GroupMember),
+    uid: d.id,
+  }));
+};

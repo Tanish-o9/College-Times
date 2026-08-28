@@ -11,6 +11,8 @@ import {
   getDocs,
   serverTimestamp,
   QueryDocumentSnapshot,
+  increment,
+  updateDoc,
 } from 'firebase/firestore';
 import { db, logAnalyticsEvent } from '../lib/firebase';
 
@@ -71,6 +73,22 @@ export const logGroupActivityEvent = async (
       ...(preview ? { preview: preview.trim().slice(0, 150) } : {}),
       createdAt: serverTimestamp(),
     });
+
+    let pointsToAdd = 0;
+    if (type === 'post') pointsToAdd = 10;
+    else if (type === 'moment') pointsToAdd = 10;
+    else if (type === 'poll') pointsToAdd = 15;
+    else if (type === 'event') pointsToAdd = 20;
+    else if (type === 'announcement') pointsToAdd = 20;
+    else if (type === 'membership_change' && preview && preview.toLowerCase().includes('joined')) pointsToAdd = 5;
+
+    if (pointsToAdd > 0) {
+      const memberRef = doc(db, 'groups', groupId, 'members', actorId);
+      await updateDoc(memberRef, {
+        points: increment(pointsToAdd)
+      }).catch((err) => console.warn('Failed to increment group member points:', err));
+    }
+
     logAnalyticsEvent('group_activity_created', { groupId, type });
   } catch (err) {
     console.error('Failed to log group activity event:', err);

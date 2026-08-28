@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getGroupMembersPage } from '../../services/groupMemberManagementService';
+import { getGroupLeaderboard } from '../../services/groupMemberManagementService';
 import type { GroupMember } from '../../types/group';
 import { Trophy, Award, Medal, Sparkles, RefreshCw } from 'lucide-react';
 
@@ -15,8 +15,8 @@ export const GroupLeaderboard: React.FC<GroupLeaderboardProps> = ({ groupId }) =
     if (!groupId) return;
     setLoading(true);
     try {
-      const res = await getGroupMembersPage(groupId, 10);
-      setTopMembers(res.members);
+      const res = await getGroupLeaderboard(groupId, 10);
+      setTopMembers(res);
     } catch (err) {
       console.error('Failed to load group leaderboard:', err);
     } finally {
@@ -75,7 +75,7 @@ export const GroupLeaderboard: React.FC<GroupLeaderboardProps> = ({ groupId }) =
 
               <div className="flex items-center gap-1.5 px-3 py-1 bg-slate-950 border border-slate-800 rounded-xl text-amber-400 text-xs font-mono font-bold">
                 <Sparkles className="w-3.5 h-3.5" />
-                <span>Top Contributor</span>
+                <span>{m.points || 0} pts</span>
               </div>
             </div>
           ))}

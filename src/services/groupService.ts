@@ -237,6 +237,7 @@ export const createGroup = async (
     uid: currentUser.uid,
     role: 'admin',
     joinedAt: serverTimestamp(),
+    points: 0,
     ...(userProfile?.displayName ? { displayName: userProfile.displayName } : {}),
     ...(userProfile?.photoURL ? { photoURL: userProfile.photoURL } : {}),
   };
@@ -388,6 +389,7 @@ export const joinGroup = async (
       uid,
       role: 'member',
       joinedAt: serverTimestamp(),
+      points: 0,
       ...(userProfile?.displayName ? { displayName: userProfile.displayName } : {}),
       ...(userProfile?.photoURL ? { photoURL: userProfile.photoURL } : {}),
     };
