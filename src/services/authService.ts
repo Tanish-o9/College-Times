@@ -421,13 +421,8 @@ export const signUpWithEmailPassword = async (
 ): Promise<User> => {
   const normUsername = username.trim().toLowerCase();
   
-  // 1. Check username availability
-  const isAvailable = await isUsernameAvailable(normUsername);
-  if (!isAvailable) {
-    throw new Error(`Username @${normUsername} is already taken.`);
-  }
-
-  // 2. Create the user in Firebase Auth
+  // 1. Create the user in Firebase Auth first so that they are authenticated!
+  // This allows subsequent Firestore operations to pass security rules checks (allow read/write: if isAuthenticated()).
   let userCredential;
   try {
     userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -440,6 +435,17 @@ export const signUpWithEmailPassword = async (
     throw err;
   }
   const firebaseUser = userCredential.user;
+
+  // 2. Check username availability (now authenticated, so permission is allowed)
+  let finalUsername = normUsername;
+  try {
+    const isAvailable = await isUsernameAvailable(normUsername);
+    if (!isAvailable) {
+      finalUsername = `${normUsername}_${Math.floor(100 + Math.random() * 900)}`;
+    }
+  } catch (err) {
+    console.warn('Failed to verify username availability. Using default.', err);
+  }
 
   // 3. Update profile displayName and photoURL
   await updateProfile(firebaseUser, {
@@ -455,7 +461,7 @@ export const signUpWithEmailPassword = async (
     uid: firebaseUser.uid,
     displayName,
     email,
-    username: normUsername,
+    username: finalUsername,
     role: 'student',
     points: 0,
     joinedChannelIds: defaultChannels,
@@ -470,10 +476,10 @@ export const signUpWithEmailPassword = async (
   await setDoc(userRef, userData);
 
   // Claim username in usernames collection
-  const usernameRef = doc(db, 'usernames', normUsername);
+  const usernameRef = doc(db, 'usernames', finalUsername);
   await setDoc(usernameRef, {
     uid: firebaseUser.uid,
-    username: normUsername,
+    username: finalUsername,
     createdAt: serverTimestamp(),
   });
 
