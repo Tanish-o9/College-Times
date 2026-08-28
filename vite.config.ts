@@ -1,11 +1,7 @@
 import react from '@vitejs/plugin-react';
-import { defineConfig, loadEnv } from 'vite';
-// @ts-ignore
-import nodemailer from './functions/node_modules/nodemailer/lib/nodemailer.js';
+import { defineConfig } from 'vite';
 
-export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '');
-
+export default defineConfig(() => {
   return {
     plugins: [
       react(),
@@ -28,45 +24,17 @@ export default defineConfig(({ mode }) => {
                     return;
                   }
 
-                  const smtpUser = env.SMTP_USER;
-                  const smtpPass = env.SMTP_APP_PASSWORD;
+                  console.log(`\n==================================================`);
+                  console.log(`[DEV OTP SERVER] OTP Code generated for local testing:`);
+                  console.log(`Email: ${email}`);
+                  console.log(`Code:  ${otp}`);
+                  console.log(`==================================================\n`);
 
-                  if (!smtpUser || !smtpPass) {
-                    res.statusCode = 500;
-                    res.end(JSON.stringify({ error: 'SMTP credentials missing in .env' }));
-                    return;
-                  }
-
-                  const transporter = nodemailer.createTransport({
-                    host: 'smtp.gmail.com',
-                    port: 465,
-                    secure: true,
-                    auth: { user: smtpUser, pass: smtpPass },
-                  });
-
-                  await transporter.sendMail({
-                    from: `"College Times Auth" <${smtpUser}>`,
-                    to: email,
-                    subject: `Your College Times Verification Code is ${otp}`,
-                    text: `College Times Verification Code: ${otp}\n\nThis code expires in 5 minutes.`,
-                    html: `
-                      <div style="font-family: Arial, sans-serif; background-color: #0f172a; padding: 24px; color: #f8fafc; border-radius: 16px;">
-                        <h2 style="color: #38bdf8;">College Times Verification Code</h2>
-                        <p style="font-size: 14px; color: #cbd5e1;">Enter this code to complete your sign-in to College Times:</p>
-                        <div style="background-color: #1e293b; padding: 16px; border-radius: 12px; font-size: 28px; font-weight: bold; letter-spacing: 6px; color: #38bdf8; text-align: center; margin: 16px 0;">
-                          ${otp}
-                        </div>
-                        <p style="font-size: 12px; color: #94a3b8;">This code expires in 5 minutes and can only be used once.</p>
-                      </div>
-                    `,
-                  });
-
-                  console.log(`[REAL GMAIL SENT] OTP ${otp} delivered via Nodemailer to ${email}`);
                   res.statusCode = 200;
                   res.setHeader('Content-Type', 'application/json');
-                  res.end(JSON.stringify({ success: true, message: 'OTP sent to email inbox' }));
+                  res.end(JSON.stringify({ success: true, message: 'OTP logged to server console' }));
                 } catch (err: any) {
-                  console.error('[REAL GMAIL ERROR]', err.message);
+                  console.error('[DEV OTP ERROR]', err.message);
                   res.statusCode = 500;
                   res.end(JSON.stringify({ error: err.message }));
                 }
