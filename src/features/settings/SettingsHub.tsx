@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import imageCompression from 'browser-image-compression';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { NotificationPreferences } from '../notifications/NotificationPreferences';
@@ -15,6 +16,8 @@ import {
   ChevronRight,
   Save,
   RefreshCw,
+  Upload,
+  Image as ImageIcon,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -28,6 +31,17 @@ const TABS: { id: SettingsTab; label: string; icon: React.ElementType; color: st
   { id: 'appearance', label: 'Appearance', icon: Palette, color: 'text-purple-400' },
   { id: 'connected', label: 'Connected Accounts', icon: LinkIcon, color: 'text-indigo-400' },
   { id: 'account', label: 'Account', icon: Trash2, color: 'text-slate-400' },
+];
+
+const DEFAULT_AVATARS = [
+  'https://api.dicebear.com/7.x/adventurer/svg?seed=Felix',
+  'https://api.dicebear.com/7.x/adventurer/svg?seed=Aneka',
+  'https://api.dicebear.com/7.x/adventurer/svg?seed=John',
+  'https://api.dicebear.com/7.x/adventurer/svg?seed=Aria',
+  'https://api.dicebear.com/7.x/adventurer/svg?seed=Jack',
+  'https://api.dicebear.com/7.x/adventurer/svg?seed=Sophia',
+  'https://api.dicebear.com/7.x/adventurer/svg?seed=Liam',
+  'https://api.dicebear.com/7.x/adventurer/svg?seed=Mia',
 ];
 
 export const SettingsHub: React.FC = () => {
@@ -44,8 +58,37 @@ export const SettingsHub: React.FC = () => {
   const [batchYear, setBatchYear] = useState<string>(
     userProfile?.batchYear ? String(userProfile.batchYear) : ''
   );
+  const [photoURL, setPhotoURL] = useState(userProfile?.photoURL || '');
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [interests, setInterests] = useState<string>((userProfile as any)?.interests?.join(', ') || '');
   const [savingProfile, setSavingProfile] = useState(false);
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingAvatar(true);
+    try {
+      const options = {
+        maxSizeMB: 0.03, // Compress to ~30KB max
+        maxWidthOrHeight: 180, // Avatar dimensions
+        useWebWorker: true
+      };
+      const compressedFile = await imageCompression(file, options);
+      
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64data = reader.result as string;
+        setPhotoURL(base64data);
+        setUploadingAvatar(false);
+      };
+      reader.readAsDataURL(compressedFile);
+    } catch (err) {
+      console.error('Failed to compress/read image:', err);
+      toast.error('Failed to upload image. Please try a different file.');
+      setUploadingAvatar(false);
+    }
+  };
 
   // Privacy Settings state
   const [isPrivate, setIsPrivate] = useState(userProfile?.profileVisibility === 'private');
@@ -62,6 +105,7 @@ export const SettingsHub: React.FC = () => {
       setDepartment(userProfile?.department || '');
       setBatchYear(userProfile?.batchYear ? String(userProfile.batchYear) : '');
       setInterests((userProfile as any)?.interests?.join(', ') || '');
+      setPhotoURL(userProfile?.photoURL || '');
       setIsPrivate(userProfile?.profileVisibility === 'private');
     }
   }, [userProfile]);
@@ -91,6 +135,7 @@ export const SettingsHub: React.FC = () => {
         department: department.trim(),
         batchYear: batchYear ? parseInt(batchYear) : null,
         interests: interestsList,
+        photoURL: photoURL.trim(),
         updatedAt: serverTimestamp(),
       });
       await refreshProfile();
@@ -194,6 +239,57 @@ export const SettingsHub: React.FC = () => {
                   placeholder="Coding, Music, Sports (comma-separated)"
                 />
                 <p className="text-[10px] text-slate-600 mt-1">Separate interests with commas</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-2">
+                  Profile Avatar (DP)
+                </label>
+                <div className="grid grid-cols-4 sm:grid-cols-8 gap-2 mb-3">
+                  {DEFAULT_AVATARS.map((avatar) => (
+                    <button
+                      type="button"
+                      key={avatar}
+                      onClick={() => setPhotoURL(avatar)}
+                      className={`aspect-square rounded-2xl overflow-hidden border bg-slate-950 transition-all ${
+                        photoURL === avatar
+                          ? 'border-sky-500 scale-105 shadow-lg shadow-sky-500/20'
+                          : 'border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
+                      <img src={avatar} alt="Avatar option" className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <div className="relative">
+                    <ImageIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                    <input
+                      type="text"
+                      value={photoURL.startsWith('data:image/') ? '[Custom Uploaded Photo]' : photoURL}
+                      onChange={(e) => setPhotoURL(e.target.value)}
+                      placeholder="Or enter custom image URL link..."
+                      className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-800 focus:border-sky-500 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none"
+                    />
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-2 px-4 py-2 bg-slate-900 border border-slate-850 hover:border-sky-500 rounded-xl cursor-pointer text-xs text-slate-300 transition-all">
+                      <Upload className="w-3.5 h-3.5 text-sky-400" />
+                      <span>Upload Custom Photo</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleAvatarUpload}
+                        className="hidden"
+                      />
+                    </label>
+                    {uploadingAvatar && <span className="text-[10px] text-slate-500 animate-pulse">Compressing photo...</span>}
+                    {photoURL.startsWith('data:image/') && (
+                      <span className="text-[10px] text-sky-400 flex items-center gap-1 font-semibold">✓ Uploaded DP</span>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
 

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import imageCompression from 'browser-image-compression';
 import { 
   signUpWithEmailPassword, 
   signInWithEmailPassword, 
@@ -20,7 +21,8 @@ import {
   UserPlus, 
   Sparkles, 
   RefreshCw,
-  Phone
+  Phone,
+  Upload
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -68,6 +70,34 @@ export const LoginPage: React.FC = () => {
   const [batchYear, setBatchYear] = useState('2028');
   const [bio, setBio] = useState('');
   const [photoURL, setPhotoURL] = useState(DEFAULT_AVATARS[0]);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingAvatar(true);
+    try {
+      const options = {
+        maxSizeMB: 0.03, // Compress to ~30KB max
+        maxWidthOrHeight: 180, // Avatar dimensions
+        useWebWorker: true
+      };
+      const compressedFile = await imageCompression(file, options);
+      
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64data = reader.result as string;
+        setPhotoURL(base64data);
+        setUploadingAvatar(false);
+      };
+      reader.readAsDataURL(compressedFile);
+    } catch (err) {
+      console.error('Failed to compress/read image:', err);
+      toast.error('Failed to upload image. Please try a different file.');
+      setUploadingAvatar(false);
+    }
+  };
 
   if (!loading && currentUser) {
     return <Navigate to="/" replace />;
@@ -303,7 +333,7 @@ export const LoginPage: React.FC = () => {
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="e.g. rahul@college.edu"
+                      placeholder="e.g. tanish@college.edu"
                       required
                       className="w-full pl-10 pr-4 py-3 bg-slate-950 border border-slate-800 focus:border-sky-500 rounded-2xl text-xs text-white placeholder-slate-600 focus:outline-none"
                     />
@@ -352,7 +382,7 @@ export const LoginPage: React.FC = () => {
                         type="text"
                         value={displayName}
                         onChange={(e) => setDisplayName(e.target.value)}
-                        placeholder="e.g. Rahul Sharma"
+                        placeholder="e.g. Tanish"
                         required
                         className="w-full pl-10 pr-4 py-3 bg-slate-950 border border-slate-800 focus:border-purple-500 rounded-2xl text-xs text-white placeholder-slate-600 focus:outline-none"
                       />
@@ -369,7 +399,7 @@ export const LoginPage: React.FC = () => {
                         type="text"
                         value={username}
                         onChange={(e) => setUsername(e.target.value.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase())}
-                        placeholder="e.g. rahul_29 (3-30 chars)"
+                        placeholder="e.g. tanish_29 (3-30 chars)"
                         required
                         className="w-full pl-10 pr-4 py-3 bg-slate-950 border border-slate-800 focus:border-purple-500 rounded-2xl text-xs text-white placeholder-slate-600 focus:outline-none font-mono"
                       />
@@ -387,7 +417,7 @@ export const LoginPage: React.FC = () => {
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="e.g. rahul@college.edu"
+                      placeholder="e.g. tanish@college.edu"
                       required
                       className="w-full pl-10 pr-4 py-3 bg-slate-950 border border-slate-800 focus:border-purple-500 rounded-2xl text-xs text-white placeholder-slate-600 focus:outline-none"
                     />
@@ -475,15 +505,33 @@ export const LoginPage: React.FC = () => {
                     ))}
                   </div>
 
-                  <div className="relative">
-                    <ImageIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                    <input
-                      type="text"
-                      value={photoURL}
-                      onChange={(e) => setPhotoURL(e.target.value)}
-                      placeholder="Or enter custom image URL link..."
-                      className="w-full pl-10 pr-4 py-3 bg-slate-950 border border-slate-800 focus:border-purple-500 rounded-2xl text-xs text-white placeholder-slate-600 focus:outline-none"
-                    />
+                  <div className="flex flex-col gap-2">
+                    <div className="relative">
+                      <ImageIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                      <input
+                        type="text"
+                        value={photoURL.startsWith('data:image/') ? '[Custom Uploaded Photo]' : photoURL}
+                        onChange={(e) => setPhotoURL(e.target.value)}
+                        placeholder="Or enter custom image URL link..."
+                        className="w-full pl-10 pr-4 py-3 bg-slate-950 border border-slate-800 focus:border-purple-500 rounded-2xl text-xs text-white placeholder-slate-600 focus:outline-none"
+                      />
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 border border-slate-850 hover:border-purple-500 rounded-xl cursor-pointer text-xs text-slate-300 transition-all">
+                        <Upload className="w-3.5 h-3.5 text-purple-400" />
+                        <span>Upload Custom Photo</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleAvatarUpload}
+                          className="hidden"
+                        />
+                      </label>
+                      {uploadingAvatar && <span className="text-[10px] text-slate-500 animate-pulse">Compressing photo...</span>}
+                      {photoURL.startsWith('data:image/') && (
+                        <span className="text-[10px] text-purple-400 flex items-center gap-1 font-semibold">✓ Uploaded DP</span>
+                      )}
+                    </div>
                   </div>
                 </div>
 

@@ -326,7 +326,7 @@ export const ProfilePage: React.FC = () => {
                     type="text"
                     value={newUsername}
                     onChange={(e) => setNewUsername(e.target.value)}
-                    placeholder="Choose username (e.g. rahul_29)..."
+                    placeholder="Choose username (e.g. tanish_29)..."
                     className="flex-1 bg-slate-950 border border-slate-800 rounded-2xl px-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500/50"
                   />
                   <button
