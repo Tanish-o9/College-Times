@@ -168,11 +168,11 @@ export const DiscoverPage: React.FC = () => {
                       <img src={p.photoURL} className="w-8 h-8 rounded-full object-cover border border-slate-800 shrink-0" alt="" />
                     ) : (
                       <div className="w-8 h-8 rounded-full bg-slate-850 flex items-center justify-center text-xs font-bold text-slate-300 shrink-0">
-                        {p.displayName.slice(0, 1)}
+                        {(p.displayName || 'Student').slice(0, 1)}
                       </div>
                     )}
                     <div className="min-w-0">
-                      <h3 className="text-xs font-bold text-white truncate">{p.displayName}</h3>
+                      <h3 className="text-xs font-bold text-white truncate">{p.displayName || 'Student'}</h3>
                       <span className="text-[9px] text-emerald-400 font-mono block">★ {p.explanation}</span>
                     </div>
                   </div>
