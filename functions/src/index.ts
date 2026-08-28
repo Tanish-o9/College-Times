@@ -468,3 +468,42 @@ export const onGroupInstantCreate = functions.firestore
 
     return null;
   });
+
+/**
+ * Phase 31: Cloud Function triggered on new message creation in channels/{channelId}/messages/{messageId}.
+ */
+export const onMessageCreate = functions.firestore
+  .document('channels/{channelId}/messages/{messageId}')
+  .onCreate(async (snapshot, context) => {
+    const data = snapshot.data();
+    if (!data) return null;
+    return onMessageCreateHandler(
+      db,
+      admin,
+      context.params.channelId,
+      context.params.messageId,
+      data as any
+    );
+  });
+
+/**
+ * Phase 31: Cloud Function triggered on new post creation in posts/{postId}.
+ */
+export const onPostCreate = functions.firestore
+  .document('posts/{postId}')
+  .onCreate(async (snapshot, context) => {
+    const data = snapshot.data();
+    if (!data) return null;
+    return onPostCreateHandler(db, admin, context.params.postId, data as any);
+  });
+
+/**
+ * Phase 31: Cloud Function triggered on campusBroadcasts/{incidentId} write.
+ */
+export const onCampusBroadcast = functions.firestore
+  .document('campusBroadcasts/{incidentId}')
+  .onWrite(async (change, context) => {
+    const data = change.after.exists ? change.after.data() : null;
+    if (!data) return null;
+    return onCampusBroadcastHandler(db, admin, context.params.incidentId, data as any);
+  });
