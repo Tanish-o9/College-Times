@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { db, auth } from './_firebase';
+import { getFirebaseServices } from './_firebase';
 import { hashOtp, generateChallengeId } from './_utils';
 import * as admin from 'firebase-admin';
 
@@ -26,6 +26,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    const { db, auth } = getFirebaseServices();
     const rawEmail = req.body?.email || '';
     const rawOtp = req.body?.otp || '';
 

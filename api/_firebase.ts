@@ -1,15 +1,22 @@
 import * as admin from 'firebase-admin';
 
-const getFirebaseAdmin = () => {
-  if (admin.apps.length > 0) {
-    return admin;
+let dbInstance: admin.firestore.Firestore | null = null;
+let authInstance: admin.auth.Auth | null = null;
+
+export const getFirebaseServices = () => {
+  if (dbInstance && authInstance) {
+    return { db: dbInstance, auth: authInstance };
   }
 
-  const projectId = process.env.FIREBASE_PROJECT_ID;
-  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  const privateKey = process.env.FIREBASE_PRIVATE_KEY;
+  if (admin.apps.length === 0) {
+    const projectId = process.env.FIREBASE_PROJECT_ID;
+    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+    const privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
-  if (projectId && clientEmail && privateKey) {
+    if (!projectId || !clientEmail || !privateKey) {
+      throw new Error('Server configuration error: Firebase Admin credentials (FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY) are missing in environment variables.');
+    }
+
     admin.initializeApp({
       credential: admin.credential.cert({
         projectId,
@@ -18,13 +25,10 @@ const getFirebaseAdmin = () => {
       }),
     });
     console.log('[FIREBASE ADMIN] Initialized via Service Account credentials.');
-  } else {
-    throw new Error('Server configuration error: Firebase Admin credentials (FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY) are missing in environment variables.');
   }
 
-  return admin;
-};
+  dbInstance = admin.firestore();
+  authInstance = admin.auth();
 
-export const adminApp = getFirebaseAdmin();
-export const db = adminApp.firestore();
-export const auth = adminApp.auth();
+  return { db: dbInstance, auth: authInstance };
+};

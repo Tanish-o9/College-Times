@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { db } from './_firebase';
+import { getFirebaseServices } from './_firebase';
 import { 
   validateCollegeDomain, 
   generateCryptographicOtp, 
@@ -35,6 +35,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    const { db } = getFirebaseServices();
     const rawEmail = req.body?.email || '';
     const email = rawEmail.trim().toLowerCase();
 
