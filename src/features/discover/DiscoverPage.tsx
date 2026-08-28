@@ -177,7 +177,7 @@ export const DiscoverPage: React.FC = () => {
                     </div>
                   </div>
                   <button
-                    onClick={() => navigate(`/profile/${p.displayName}`)}
+                    onClick={() => navigate(`/profile/${p.username || p.uid}`)}
                     className="px-3 py-1 bg-emerald-500 text-slate-950 font-bold text-[10px] rounded-lg shrink-0"
                   >
                     Connect
