@@ -1,7 +1,7 @@
 import * as crypto from 'crypto';
 import * as nodemailer from 'nodemailer';
 
-const DEFAULT_SECRET = 'college_times_otp_secret_key_2026_akgec';
+const DEFAULT_SECRET = 'e7b41f98d2a654901c3e8b7f521094ab6c8d7e9f2a3b4c5d6e7f8a9b0c1d2e3f';
 
 /**
  * Validates whether an email belongs to an allowed college domain.
@@ -61,12 +61,8 @@ interface SendOtpEmailParams {
  * Creates Nodemailer SMTP transporter using dedicated environment credentials.
  */
 const getTransporter = () => {
-  const smtpUser = process.env.SMTP_USER || '';
-  const smtpPass = process.env.SMTP_APP_PASSWORD || '';
-
-  if (!smtpUser || !smtpPass) {
-    return null;
-  }
+  const smtpUser = process.env.SMTP_USER || 'collegetimes.auth@gmail.com';
+  const smtpPass = process.env.SMTP_APP_PASSWORD || 'emnsgufexwcwdhhb';
 
   const host = process.env.SMTP_HOST || 'smtp.gmail.com';
   const port = parseInt(process.env.SMTP_PORT || '465', 10);
