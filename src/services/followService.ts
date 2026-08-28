@@ -109,6 +109,13 @@ export const isFollowingUser = async (currentUid: string, targetUid: string): Pr
   return snap.exists();
 };
 
+export const hasPendingFollowRequest = async (currentUid: string, targetUid: string): Promise<boolean> => {
+  if (!currentUid || !targetUid) return false;
+  const ref = doc(db, 'users', targetUid, 'followRequests', currentUid);
+  const snap = await getDoc(ref);
+  return snap.exists() && snap.data()?.status === 'pending';
+};
+
 export const getFollowersPage = async (
   uid: string,
   limitCount: number = 20
