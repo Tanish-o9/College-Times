@@ -9,27 +9,34 @@ service firebase.storage {
 
     // User Uploaded Post Photos Path: posts/{userId}/{filename}
     match /posts/{userId}/{filename} {
-      allow read, write: if true;
+      allow read: if request.auth != null;
+      allow write: if request.auth != null 
+        && request.auth.uid == userId
+        && request.resource.size <= 10 * 1024 * 1024;
     }
 
     // User Uploaded Multi-Image Post Media Path: postMedia/{userId}/{postId}/{filename}
     match /postMedia/{userId}/{postId}/{filename} {
-      allow read, write: if true;
-    }
-
-    // Phase 48: Marketplace Media Path: marketplaceMedia/{listingId}/{userId}/{filename}
-    match /marketplaceMedia/{listingId}/{userId}/{filename} {
-      allow read, write: if true;
+      allow read: if request.auth != null;
+      allow write: if request.auth != null 
+        && request.auth.uid == userId
+        && request.resource.size <= 10 * 1024 * 1024;
     }
 
     // Phase 31: Private DM Media Path: dmMedia/{conversationId}/{userId}/{filename}
     match /dmMedia/{conversationId}/{userId}/{filename} {
-      allow read, write: if true;
+      allow read: if request.auth != null;
+      allow write: if request.auth != null 
+        && request.auth.uid == userId
+        && request.resource.size <= 10 * 1024 * 1024;
     }
 
     // Phase 32: Campus Story Media Path: storyMedia/{userId}/{storyId}/{filename}
     match /storyMedia/{userId}/{storyId}/{filename} {
-      allow read, write: if true;
+      allow read: if request.auth != null;
+      allow write: if request.auth != null 
+        && request.auth.uid == userId
+        && request.resource.size <= 10 * 1024 * 1024;
     }
 
     // User Uploaded Chat Files Path: chatFiles/{channelId}/{userId}/{filename}
@@ -115,13 +122,12 @@ service firebase.storage {
           request.resource.contentType == 'application/pdf'
         );
     }
-    // Phase 33: User Uploaded Group Chat Media Path: groupChatMedia/{groupId}/{userId}/{filename}
-    match /groupChatMedia/{groupId}/{userId}/{filename} {
-      allow read, write: if true;
-    }
     // Phase 34: User Uploaded Group Instant Media Path: groupInstantMedia/{groupId}/{userId}/{instantId}/{filename}
     match /groupInstantMedia/{groupId}/{userId}/{instantId}/{filename} {
-      allow read, write: if true;
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.size <= 10 * 1024 * 1024;
     }
   }
 }

@@ -1,4 +1,4 @@
-import crypto from 'crypto';
+import * as crypto from 'crypto';
 
 const DEFAULT_SECRET = 'college_times_otp_secret_key_2026_akgec';
 
