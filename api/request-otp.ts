@@ -7,7 +7,7 @@ import {
   generateChallengeId, 
   sendOtpEmail 
 } from './_utils';
-import * as admin from 'firebase-admin';
+import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 
 const RESEND_COOLDOWN_MS = 60 * 1000;
 const OTP_EXPIRY_MS = 5 * 60 * 1000;
@@ -84,7 +84,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const hashedCode = hashOtp(otpCode);
 
     // Challenge document creation/update
-    const expiresAtTimestamp = admin.firestore.Timestamp.fromMillis(nowMs + OTP_EXPIRY_MS);
+    const expiresAtTimestamp = Timestamp.fromMillis(nowMs + OTP_EXPIRY_MS);
     const previousWindow = challengeSnap.exists ? (challengeSnap.data() || {}).requestsWindow || [] : [];
     const hourAgoMs = nowMs - 60 * 60 * 1000;
     const updatedWindow = [...previousWindow.filter((t: number) => t > hourAgoMs), nowMs];
@@ -97,8 +97,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         attempts: 0,
         maxAttempts: MAX_ATTEMPTS,
         consumed: false,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        lastSentAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
+        lastSentAt: FieldValue.serverTimestamp(),
         requestsWindow: updatedWindow,
       },
       { merge: true }

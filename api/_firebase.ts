@@ -1,14 +1,16 @@
-import * as admin from 'firebase-admin';
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 
-let dbInstance: admin.firestore.Firestore | null = null;
-let authInstance: admin.auth.Auth | null = null;
+let dbInstance: ReturnType<typeof getFirestore> | null = null;
+let authInstance: ReturnType<typeof getAuth> | null = null;
 
 export const getFirebaseServices = () => {
   if (dbInstance && authInstance) {
     return { db: dbInstance, auth: authInstance };
   }
 
-  if (admin.apps.length === 0) {
+  if (getApps().length === 0) {
     const projectId = process.env.FIREBASE_PROJECT_ID;
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
     const privateKey = process.env.FIREBASE_PRIVATE_KEY;
@@ -17,8 +19,8 @@ export const getFirebaseServices = () => {
       throw new Error('Server configuration error: Firebase Admin credentials (FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY) are missing in environment variables.');
     }
 
-    admin.initializeApp({
-      credential: admin.credential.cert({
+    initializeApp({
+      credential: cert({
         projectId,
         clientEmail,
         privateKey: privateKey.replace(/\\n/g, '\n'),
@@ -27,8 +29,8 @@ export const getFirebaseServices = () => {
     console.log('[FIREBASE ADMIN] Initialized via Service Account credentials.');
   }
 
-  dbInstance = admin.firestore();
-  authInstance = admin.auth();
+  dbInstance = getFirestore();
+  authInstance = getAuth();
 
   return { db: dbInstance, auth: authInstance };
 };

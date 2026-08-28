@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getFirebaseServices } from './_firebase';
 import { hashOtp, generateChallengeId } from './_utils';
-import * as admin from 'firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 
 const MAX_ATTEMPTS = 5;
 
@@ -72,7 +72,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (submittedHash !== challengeData.otpHash) {
       // Increment failed attempt counter
       await challengeRef.update({
-        attempts: admin.firestore.FieldValue.increment(1),
+        attempts: FieldValue.increment(1),
       });
 
       const remaining = MAX_ATTEMPTS - (challengeData.attempts + 1);
@@ -85,10 +85,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
-    // Mark challenge consumed
+    // Mark OTP as consumed
     await challengeRef.update({
       consumed: true,
-      consumedAt: admin.firestore.FieldValue.serverTimestamp(),
+      consumedAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     });
 
     // Firebase Auth User Creation / Retrieval
@@ -124,13 +125,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           points: 0,
           emailVerified: true,
           joinedChannelIds: ['general', 'admin-announcements'],
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-          lastLoginAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp(),
+          lastLoginAt: FieldValue.serverTimestamp(),
         },
         { merge: true }
       );
     } else {
-      await userRef.set({ emailVerified: true, lastLoginAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+      await userRef.set({ emailVerified: true, lastLoginAt: FieldValue.serverTimestamp() }, { merge: true });
     }
 
     // Create Firebase Auth custom token
