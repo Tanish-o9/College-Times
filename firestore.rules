@@ -544,8 +544,22 @@ service cloud.firestore {
         allow create: if isAuthenticated() 
           && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantIds
           && request.resource.data.senderId == request.auth.uid;
-        allow update: if isAuthenticated() && resource.data.senderId == request.auth.uid;
+        allow update: if isAuthenticated() && (
+          resource.data.senderId == request.auth.uid ||
+          (
+            request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantIds
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactionCounts'])
+          )
+        );
         allow delete: if false;
+
+        // Emoji Reactions Subcollection
+        match /reactions/{userId} {
+          allow read: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantIds;
+          allow write: if isAuthenticated() 
+            && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantIds
+            && request.auth.uid == userId;
+        }
       }
     }
 

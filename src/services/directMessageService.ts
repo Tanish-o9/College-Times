@@ -10,10 +10,12 @@ import {
   limit, 
   runTransaction, 
   serverTimestamp,
-  deleteDoc
+  deleteDoc,
+  increment
 } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import type { User as FirebaseUser } from 'firebase/auth';
-import { db, logAnalyticsEvent } from '../lib/firebase';
+import { db, storage, logAnalyticsEvent } from '../lib/firebase';
 import type { 
   DirectConversation, 
   DirectMessage, 
@@ -312,4 +314,94 @@ export const deleteConversation = async (conversationId: string, currentUser: Fi
   const convRef = doc(db, 'conversations', conversationId);
   await deleteDoc(convRef);
   logAnalyticsEvent('dm_conversation_deleted', { conversationId });
+};
+
+/**
+ * Transactionally toggles or updates an emoji reaction on a DM message.
+ */
+export const toggleDMReaction = async (
+  conversationId: string,
+  messageId: string,
+  userId: string,
+  emoji: string
+): Promise<void> => {
+  if (!conversationId || !messageId || !userId || !emoji) return;
+
+  const reactionRef = doc(db, 'conversations', conversationId, 'messages', messageId, 'reactions', userId);
+  const messageRef = doc(db, 'conversations', conversationId, 'messages', messageId);
+
+  await runTransaction(db, async (transaction) => {
+    const messageSnap = await transaction.get(messageRef);
+    if (!messageSnap.exists()) {
+      throw new Error('Message no longer exists.');
+    }
+
+    const reactionSnap = await transaction.get(reactionRef);
+
+    if (!reactionSnap.exists()) {
+      transaction.set(reactionRef, {
+        emoji,
+        userId,
+        createdAt: serverTimestamp(),
+      });
+      transaction.update(messageRef, {
+        [`reactionCounts.${emoji}`]: increment(1),
+      });
+    } else {
+      const existingEmoji = reactionSnap.data().emoji;
+
+      if (existingEmoji === emoji) {
+        transaction.delete(reactionRef);
+        const currentCounts = messageSnap.data().reactionCounts || {};
+        const currentVal = currentCounts[emoji] || 0;
+        const newVal = Math.max(0, currentVal - 1);
+        transaction.update(messageRef, {
+          [`reactionCounts.${emoji}`]: newVal,
+        });
+      } else {
+        transaction.set(reactionRef, {
+          emoji,
+          userId,
+          updatedAt: serverTimestamp(),
+        });
+        const currentCounts = messageSnap.data().reactionCounts || {};
+        const oldVal = currentCounts[existingEmoji] || 0;
+        const newOldVal = Math.max(0, oldVal - 1);
+        transaction.update(messageRef, {
+          [`reactionCounts.${existingEmoji}`]: newOldVal,
+          [`reactionCounts.${emoji}`]: increment(1),
+        });
+      }
+    }
+  });
+
+  logAnalyticsEvent('dm_reaction_toggled', { conversationId, emoji });
+};
+
+/**
+ * Uploads media (photo/video) for a private conversation.
+ * Path: dmMedia/{conversationId}/{userId}/{timestamp}_{filename}
+ */
+export const uploadDMMedia = async (
+  file: File,
+  conversationId: string,
+  userId: string
+): Promise<string> => {
+  if (!file || !conversationId || !userId) {
+    throw new Error('File, Conversation ID, and User ID are required.');
+  }
+
+  if (file.size > 10 * 1024 * 1024) {
+    throw new Error('Media files must be 10MB or smaller.');
+  }
+
+  const timestamp = Date.now();
+  const cleanFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+  const storagePath = `dmMedia/${conversationId}/${userId}/${timestamp}_${cleanFileName}`;
+
+  const mediaRef = ref(storage, storagePath);
+  await uploadBytes(mediaRef, file);
+
+  const downloadURL = await getDownloadURL(mediaRef);
+  return downloadURL;
 };

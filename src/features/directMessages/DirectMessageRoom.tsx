@@ -5,9 +5,11 @@ import { useAuth } from '../../hooks/useAuth';
 import { 
   sendDirectMessage, 
   updateConversationStatus, 
-  blockUser 
+  blockUser,
+  toggleDMReaction,
+  uploadDMMedia
 } from '../../services/directMessageService';
-import { doc, onSnapshot, collection, query, orderBy, limit } from 'firebase/firestore';
+import { doc, onSnapshot, collection, query, orderBy, limit, getDocs, where } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import toast from 'react-hot-toast';
 import { 
@@ -19,7 +21,13 @@ import {
   Check, 
   X, 
   MessageSquare,
-  Lock
+  Lock,
+  Paperclip,
+  Smile,
+  CornerUpLeft,
+  Forward,
+  File,
+  User
 } from 'lucide-react';
 
 export const DirectMessageRoom: React.FC = () => {
@@ -34,6 +42,13 @@ export const DirectMessageRoom: React.FC = () => {
   const [sending, setSending] = useState<boolean>(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Rich Messaging States
+  const [replyingTo, setReplyingTo] = useState<DirectMessage | null>(null);
+  const [forwardingMsg, setForwardingMsg] = useState<DirectMessage | null>(null);
+  const [forwardChats, setForwardChats] = useState<DirectConversation[]>([]);
+  const [activeReactionPickerMsgId, setActiveReactionPickerMsgId] = useState<string | null>(null);
+  const [uploading, setUploading] = useState<boolean>(false);
 
   // Derive target participant UID & Name
   const targetUid = conversation?.participantIds.find((id) => id !== currentUser?.uid);
@@ -86,6 +101,25 @@ export const DirectMessageRoom: React.FC = () => {
     return () => unsubscribe();
   }, [conversationId, currentUser]);
 
+  // Load other chats for forwarding when modal opens
+  useEffect(() => {
+    if (!currentUser || !forwardingMsg) return;
+    const loadForwardChats = async () => {
+      try {
+        const convsRef = collection(db, 'conversations');
+        const q = query(convsRef, where('participantIds', 'array-contains', currentUser.uid), limit(20));
+        const snap = await getDocs(q);
+        const list = snap.docs
+          .map((d) => ({ id: d.id, ...d.data() }) as DirectConversation)
+          .filter((c) => c.id !== conversationId);
+        setForwardChats(list);
+      } catch (err) {
+        console.error('Failed to load chats for forwarding:', err);
+      }
+    };
+    loadForwardChats();
+  }, [currentUser, forwardingMsg, conversationId]);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -96,12 +130,45 @@ export const DirectMessageRoom: React.FC = () => {
 
     setSending(true);
     try {
-      await sendDirectMessage(conversationId, inputContent, currentUser);
+      await sendDirectMessage(conversationId, inputContent, currentUser, {
+        replyToMessageId: replyingTo?.id || undefined,
+        replyToPreview: replyingTo ? (replyingTo.messageType === 'text' ? replyingTo.content : `[${replyingTo.messageType.toUpperCase()}]`) : undefined
+      });
       setInputContent('');
+      setReplyingTo(null);
     } catch (err: any) {
       toast.error(err.message || 'Failed to send message.');
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !currentUser || !conversationId) return;
+
+    setUploading(true);
+    const toastId = toast.loading(`Uploading ${file.name}...`);
+    try {
+      const downloadURL = await uploadDMMedia(file, conversationId, currentUser.uid);
+      const isImg = file.type.startsWith('image/');
+      const isVid = file.type.startsWith('video/');
+      const type = isImg ? 'image' : (isVid ? 'video' : 'file');
+
+      await sendDirectMessage(conversationId, '', currentUser, {
+        messageType: type as any,
+        attachment: {
+          url: downloadURL,
+          filename: file.name,
+          mimeType: file.type
+        }
+      });
+      toast.success('Media sent successfully!', { id: toastId });
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to upload media.', { id: toastId });
+    } finally {
+      setUploading(false);
+      e.target.value = '';
     }
   };
 
@@ -204,7 +271,7 @@ export const DirectMessageRoom: React.FC = () => {
       )}
 
       {/* Main Messages List */}
-      <div className="flex-1 overflow-y-auto py-4 space-y-3 px-1">
+      <div className="flex-1 overflow-y-auto py-4 space-y-4 px-1">
         {loading ? (
           <div className="py-16 flex items-center justify-center gap-2 text-slate-400 text-xs">
             <RefreshCw className="w-5 h-5 animate-spin text-indigo-400" />
@@ -223,23 +290,113 @@ export const DirectMessageRoom: React.FC = () => {
             return (
               <div
                 key={msg.id}
-                className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
+                className={`flex flex-col relative ${isMe ? 'items-end' : 'items-start'}`}
               >
-                <div
-                  className={`max-w-[80%] p-3.5 rounded-2xl space-y-1 ${
-                    isMe
-                      ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-br-none'
-                      : 'bg-slate-900 border border-slate-800 text-slate-200 rounded-bl-none'
-                  }`}
-                >
-                  {isDeleted ? (
-                    <p className="text-xs italic text-slate-400">This message was deleted.</p>
-                  ) : (
-                    <p className="text-xs leading-relaxed whitespace-pre-wrap break-words">
-                      {msg.content}
-                    </p>
+                <div className={`flex items-center gap-2 group ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                  {/* Message Bubble itself */}
+                  <div
+                    className={`max-w-[70%] p-3.5 rounded-2xl space-y-1 relative ${
+                      isMe
+                        ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-br-none'
+                        : 'bg-slate-900 border border-slate-800 text-slate-200 rounded-bl-none'
+                    }`}
+                  >
+                    {msg.replyToMessageId && (
+                      <div className="mb-2 p-2 bg-slate-950/60 rounded-xl border-l-2 border-indigo-400 text-[10px] text-slate-300 truncate">
+                        <span className="font-bold text-indigo-300 block">Replying to:</span>
+                        {msg.replyToPreview}
+                      </div>
+                    )}
+
+                    {isDeleted ? (
+                      <p className="text-xs italic text-slate-400">This message was deleted.</p>
+                    ) : msg.messageType === 'image' && msg.attachment ? (
+                      <div className="space-y-1">
+                        <img src={msg.attachment.url} alt={msg.attachment.filename} className="max-w-full rounded-lg object-cover max-h-60" />
+                        {msg.content && <p className="text-xs mt-1">{msg.content}</p>}
+                      </div>
+                    ) : msg.messageType === 'video' && msg.attachment ? (
+                      <div className="space-y-1">
+                        <video src={msg.attachment.url} controls className="max-w-full rounded-lg max-h-60" />
+                        {msg.content && <p className="text-xs mt-1">{msg.content}</p>}
+                      </div>
+                    ) : msg.messageType === 'file' && msg.attachment ? (
+                      <div className="flex items-center gap-2 p-2 bg-slate-950/40 rounded-xl border border-slate-800">
+                        <File className="w-4 h-4 text-indigo-400 shrink-0" />
+                        <a href={msg.attachment.url} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-300 hover:underline truncate max-w-[200px]">
+                          {msg.attachment.filename}
+                        </a>
+                      </div>
+                    ) : (
+                      <p className="text-xs leading-relaxed whitespace-pre-wrap break-words">
+                        {msg.content}
+                      </p>
+                    )}
+
+                    {/* Emoji Reaction Picker Dropdown */}
+                    {activeReactionPickerMsgId === msg.id && (
+                      <div className="absolute z-20 bottom-full mb-1 flex items-center gap-1.5 bg-slate-950 border border-slate-800 p-2 rounded-2xl shadow-2xl animate-in fade-in slide-in-from-bottom-2">
+                        {['👍', '❤️', '😂', '😮', '😢', '🔥'].map((emoji) => (
+                          <button
+                            key={emoji}
+                            onClick={() => {
+                              toggleDMReaction(conversationId!, msg.id, currentUser!.uid, emoji);
+                              setActiveReactionPickerMsgId(null);
+                            }}
+                            className="hover:scale-130 active:scale-95 transition-transform text-sm p-0.5"
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Actions Toolbar next to bubble */}
+                  {!isDeleted && (
+                    <div className="flex items-center gap-0.5 bg-slate-950/60 hover:bg-slate-950 border border-slate-800/80 p-1 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-md">
+                      <button
+                        onClick={() => setActiveReactionPickerMsgId(activeReactionPickerMsgId === msg.id ? null : msg.id)}
+                        className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors"
+                        title="React"
+                      >
+                        <Smile className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => setReplyingTo(msg)}
+                        className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors"
+                        title="Reply"
+                      >
+                        <CornerUpLeft className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => setForwardingMsg(msg)}
+                        className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors"
+                        title="Forward"
+                      >
+                        <Forward className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   )}
                 </div>
+
+                {/* Reaction Summary Pills */}
+                {msg.reactionCounts && Object.keys(msg.reactionCounts).length > 0 && (
+                  <div className="flex items-center gap-1 px-1 mt-1 flex-wrap">
+                    {Object.entries(msg.reactionCounts)
+                      .filter(([_, count]) => count > 0)
+                      .map(([emoji, count]) => (
+                        <button
+                          key={emoji}
+                          onClick={() => toggleDMReaction(conversationId!, msg.id, currentUser!.uid, emoji)}
+                          className="flex items-center gap-1 bg-slate-950/80 hover:bg-slate-800/80 border border-slate-800/60 rounded-full px-2 py-0.5 text-[9px] transition-all"
+                        >
+                          <span>{emoji}</span>
+                          <span className="text-slate-400 font-bold">{count}</span>
+                        </button>
+                      ))}
+                  </div>
+                )}
 
                 <span className="text-[10px] text-slate-500 px-1 mt-1 font-mono">
                   {msg.createdAt
@@ -255,6 +412,26 @@ export const DirectMessageRoom: React.FC = () => {
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Replying Status Strip */}
+      {replyingTo && (
+        <div className="flex items-center justify-between p-3 bg-slate-950 border border-slate-800 rounded-2xl mb-2 shrink-0 animate-in fade-in slide-in-from-bottom-2">
+          <div className="truncate space-y-0.5 border-l-2 border-indigo-500 pl-3">
+            <span className="text-[10px] font-bold text-indigo-400 block">
+              Replying to {replyingTo.senderId === currentUser?.uid ? 'yourself' : replyingTo.senderName}
+            </span>
+            <p className="text-xs text-slate-400 truncate">
+              {replyingTo.messageType === 'text' ? replyingTo.content : `[${replyingTo.messageType.toUpperCase()}]`}
+            </p>
+          </div>
+          <button
+            onClick={() => setReplyingTo(null)}
+            className="text-slate-500 hover:text-white p-1"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Bottom Composer Bar */}
       {isBlocked ? (
         <div className="p-3 bg-slate-900 border border-slate-800 rounded-2xl text-center text-xs text-rose-400 font-semibold flex items-center justify-center gap-1.5 shrink-0">
@@ -262,24 +439,113 @@ export const DirectMessageRoom: React.FC = () => {
           <span>Messaging is disabled for blocked conversations.</span>
         </div>
       ) : (
-        <form onSubmit={handleSend} className="flex items-center gap-2 pt-2 border-t border-slate-800 shrink-0">
-          <input
-            type="text"
-            value={inputContent}
-            onChange={(e) => setInputContent(e.target.value)}
-            placeholder="Type a private message..."
-            disabled={sending}
-            className="flex-1 bg-slate-900 border border-slate-800 rounded-2xl px-4 py-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 font-medium"
-          />
+        <div className="flex flex-col gap-2 pt-2 border-t border-slate-800 shrink-0">
+          {uploading && (
+            <div className="py-2 px-3 bg-slate-950 border border-slate-800 rounded-xl flex items-center gap-2 text-[10px] text-slate-400">
+              <RefreshCw className="w-3.5 h-3.5 animate-spin text-indigo-400" />
+              <span>Uploading media file... Please wait.</span>
+            </div>
+          )}
 
-          <button
-            type="submit"
-            disabled={sending || !inputContent.trim()}
-            className="p-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white rounded-2xl text-xs font-bold shadow-lg shadow-indigo-500/20 disabled:opacity-50 transition-all shrink-0"
-          >
-            {sending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-          </button>
-        </form>
+          <form onSubmit={handleSend} className="flex items-center gap-2">
+            {/* Attachment File Input */}
+            <input
+              type="file"
+              id="dm-media-upload"
+              accept="image/*,video/*,application/*"
+              className="hidden"
+              onChange={handleMediaUpload}
+              disabled={sending || uploading}
+            />
+            <label
+              htmlFor="dm-media-upload"
+              className="p-3 bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-white rounded-2xl cursor-pointer transition-all shrink-0 flex items-center justify-center"
+              title="Attach photo, video or file"
+            >
+              <Paperclip className="w-4 h-4" />
+            </label>
+
+            <input
+              type="text"
+              value={inputContent}
+              onChange={(e) => setInputContent(e.target.value)}
+              placeholder="Type a private message..."
+              disabled={sending || uploading}
+              className="flex-1 bg-slate-900 border border-slate-800 rounded-2xl px-4 py-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 font-medium"
+            />
+
+            <button
+              type="submit"
+              disabled={sending || uploading || !inputContent.trim()}
+              className="p-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white rounded-2xl text-xs font-bold shadow-lg shadow-indigo-500/20 disabled:opacity-50 transition-all shrink-0"
+            >
+              {sending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            </button>
+          </form>
+        </div>
+      )}
+
+      {/* Forward Modal */}
+      {forwardingMsg && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm" onClick={() => setForwardingMsg(null)} />
+          <div className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 z-10 shadow-2xl animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Forward className="w-5 h-5 text-indigo-400" />
+                <span>Forward Message</span>
+              </h3>
+              <button onClick={() => setForwardingMsg(null)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-400 italic bg-slate-950/60 p-3 border border-slate-800 rounded-2xl truncate">
+              {forwardingMsg.messageType === 'text' ? forwardingMsg.content : `[${forwardingMsg.messageType.toUpperCase()}] ${forwardingMsg.attachment?.filename || ''}`}
+            </p>
+
+            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+              {forwardChats.length === 0 ? (
+                <p className="py-6 text-center text-xs text-slate-500 italic">No other conversations to forward to.</p>
+              ) : (
+                forwardChats.map((c) => {
+                  const partnerId = c.participantIds.find((id) => id !== currentUser?.uid);
+                  const partnerName = partnerId && c.participantNames ? c.participantNames[partnerId] || 'Campus Peer' : 'Campus Peer';
+                  return (
+                    <div
+                      key={c.id}
+                      className="flex items-center justify-between gap-3 p-3 bg-slate-950/80 border border-slate-800 rounded-2xl hover:border-slate-700 transition-all"
+                    >
+                      <div className="flex items-center gap-2 truncate">
+                        <div className="w-7 h-7 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-[10px] shrink-0">
+                          <User className="w-3.5 h-3.5" />
+                        </div>
+                        <span className="text-xs font-bold text-white truncate">{partnerName}</span>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          try {
+                            await sendDirectMessage(c.id, forwardingMsg.content || '', currentUser!, {
+                              messageType: forwardingMsg.messageType,
+                              attachment: forwardingMsg.attachment
+                            });
+                            toast.success(`Message forwarded to ${partnerName}!`);
+                            setForwardingMsg(null);
+                          } catch (err) {
+                            toast.error('Failed to forward message.');
+                          }
+                        }}
+                        className="px-3.5 py-1.5 bg-indigo-500 hover:bg-indigo-400 text-white rounded-xl text-xs font-bold shadow-md transition-all shrink-0"
+                      >
+                        Send
+                      </button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

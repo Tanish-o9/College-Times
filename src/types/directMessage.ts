@@ -1,5 +1,5 @@
 export type ConversationStatus = 'pending' | 'active' | 'blocked' | 'declined';
-export type DirectMessageType = 'text' | 'image' | 'file';
+export type DirectMessageType = 'text' | 'image' | 'video' | 'file';
 
 export interface ParticipantMeta {
   muted?: boolean;
