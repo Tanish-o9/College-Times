@@ -132,7 +132,7 @@ export function rankEvents(
       if (profile?.interests && profile.interests.length > 0) {
         const match = profile.interests.some((interest) =>
           e.title.toLowerCase().includes(interest.toLowerCase()) ||
-          e.description.toLowerCase().includes(interest.toLowerCase())
+          (e.description || '').toLowerCase().includes(interest.toLowerCase())
         );
         if (match) {
           score += 30;
@@ -167,7 +167,7 @@ export function rankOpportunities(
     if (profile?.interests && profile.interests.length > 0) {
       const match = profile.interests.some((interest) =>
         o.title.toLowerCase().includes(interest.toLowerCase()) ||
-        o.description.toLowerCase().includes(interest.toLowerCase())
+        (o.description || '').toLowerCase().includes(interest.toLowerCase())
       );
       if (match) {
         score += 15;
@@ -193,7 +193,7 @@ export function rankListings(
       if (profile?.interests && profile.interests.length > 0) {
         const match = profile.interests.some((interest) =>
           l.title.toLowerCase().includes(interest.toLowerCase()) ||
-          l.description.toLowerCase().includes(interest.toLowerCase())
+          (l.description || '').toLowerCase().includes(interest.toLowerCase())
         );
         if (match) {
           score += 30;
