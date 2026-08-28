@@ -55,11 +55,6 @@ export const LoginPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'login' | 'signup' | 'phone_otp'>('login');
   const [submitting, setSubmitting] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const [sendingOtp, setSendingOtp] = useState(false);
-
-  // Signup OTP verification states
-  const [showSignupOtp, setShowSignupOtp] = useState(false);
-  const [signupOtp, setSignupOtp] = useState('');
 
   // Form Fields
   const [email, setEmail] = useState('');
@@ -125,7 +120,7 @@ export const LoginPage: React.FC = () => {
 
   const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (submitting || sendingOtp) return;
+    if (submitting) return;
 
     const trimmedEmail = email.trim();
     const trimmedName = displayName.trim();
@@ -147,20 +142,6 @@ export const LoginPage: React.FC = () => {
       return;
     }
 
-    /*
-    // Commented out OTP logic for direct sign up
-    setSendingOtp(true);
-    try {
-      const { requestEmailOtp } = await import('../../services/authService');
-      await requestEmailOtp(trimmedEmail);
-      setShowSignupOtp(true);
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to send verification code.');
-    } finally {
-      setSendingOtp(false);
-    }
-    */
-
     // Direct account creation without email OTP
     setSubmitting(true);
     try {
@@ -180,43 +161,6 @@ export const LoginPage: React.FC = () => {
     } finally {
       setSubmitting(false);
     }
-  };
-
-  const handleVerifySignupOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    /*
-    // Commented out OTP verification logic
-    if (submitting) return;
-
-    const trimmedOtp = signupOtp.trim();
-    if (trimmedOtp.length !== 6) {
-      toast.error('Please enter the 6-digit OTP code.');
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      const { verifyOtpOnly } = await import('../../services/authService');
-      const verified = await verifyOtpOnly(email.trim(), trimmedOtp);
-      if (verified) {
-        await signUpWithEmailPassword(
-          email.trim(),
-          password,
-          displayName.trim(),
-          username.trim().toLowerCase(),
-          department,
-          Number(batchYear),
-          bio.trim(),
-          photoURL
-        );
-        navigate('/');
-      }
-    } catch (err: any) {
-      toast.error(err.message || 'Incorrect verification code.');
-    } finally {
-      setSubmitting(false);
-    }
-    */
   };
 
   const handleGoogleSignIn = async () => {
@@ -294,62 +238,6 @@ export const LoginPage: React.FC = () => {
 
           {/* Tab Contents */}
           <div className="p-6 overflow-y-auto max-h-[60vh] flex-1">
-            {/* Commented out OTP verification form in UI
-            showSignupOtp ? (
-              <form onSubmit={handleVerifySignupOtp} className="space-y-5">
-                <div className="text-center space-y-2">
-                  <div className="w-12 h-12 rounded-2xl bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center mx-auto">
-                    <Mail className="w-6 h-6" />
-                  </div>
-                  <h3 className="text-sm font-bold text-white">Verify Your Email Address</h3>
-                  <p className="text-slate-400 text-xs leading-relaxed max-w-sm mx-auto">
-                    We've sent a 6-digit verification code to <span className="text-purple-400 font-bold font-mono">{email}</span>. Please enter it below.
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 text-center">
-                    6-Digit OTP Code
-                  </label>
-                  <input
-                    type="text"
-                    value={signupOtp}
-                    onChange={(e) => setSignupOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    placeholder="123456"
-                    maxLength={6}
-                    required
-                    autoFocus
-                    className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-2xl text-center text-2xl font-mono tracking-[0.5em] text-purple-300 placeholder-slate-800 focus:outline-none focus:border-purple-500/50"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={submitting || signupOtp.length !== 6}
-                  className="w-full py-3.5 px-4 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-black rounded-2xl shadow-lg flex items-center justify-center gap-2 transition-all text-xs"
-                >
-                  {submitting ? (
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <span>Verify & Create Account</span>
-                  )}
-                </button>
-
-                <div className="text-center pt-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowSignupOtp(false);
-                      setSignupOtp('');
-                    }}
-                    className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
-                  >
-                    Change Registration Details
-                  </button>
-                </div>
-              </form>
-            ) :
-            */}
             {activeTab === 'login' ? (
               <form onSubmit={handleLoginSubmit} className="space-y-4">
                 <div>
