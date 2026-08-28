@@ -40,12 +40,16 @@ export const SettingsHub: React.FC = () => {
   // Profile form state
   const [displayName, setDisplayName] = useState(userProfile?.displayName || '');
   const [bio, setBio] = useState((userProfile as any)?.bio || '');
-  const [department, setDepartment] = useState(userProfile?.departmentId || '');
+  const [department, setDepartment] = useState(userProfile?.department || '');
   const [batchYear, setBatchYear] = useState<string>(
     userProfile?.batchYear ? String(userProfile.batchYear) : ''
   );
   const [interests, setInterests] = useState<string>((userProfile as any)?.interests?.join(', ') || '');
   const [savingProfile, setSavingProfile] = useState(false);
+
+  // Privacy Settings state
+  const [isPrivate, setIsPrivate] = useState(userProfile?.profileVisibility === 'private');
+  const [savingPrivacy, setSavingPrivacy] = useState(false);
 
   useEffect(() => {
     if (tab) setActiveTab(tab as SettingsTab);
@@ -55,9 +59,10 @@ export const SettingsHub: React.FC = () => {
     if (userProfile) {
       setDisplayName(userProfile.displayName || '');
       setBio((userProfile as any)?.bio || '');
-      setDepartment(userProfile?.departmentId || '');
+      setDepartment(userProfile?.department || '');
       setBatchYear(userProfile?.batchYear ? String(userProfile.batchYear) : '');
       setInterests((userProfile as any)?.interests?.join(', ') || '');
+      setIsPrivate(userProfile?.profileVisibility === 'private');
     }
   }, [userProfile]);
 
@@ -83,7 +88,7 @@ export const SettingsHub: React.FC = () => {
       await updateDoc(userRef, {
         displayName: displayName.trim(),
         bio: bio.trim(),
-        departmentId: department.trim(),
+        department: department.trim(),
         batchYear: batchYear ? parseInt(batchYear) : null,
         interests: interestsList,
         updatedAt: serverTimestamp(),
@@ -94,6 +99,25 @@ export const SettingsHub: React.FC = () => {
       toast.error(err.message || 'Failed to save profile.');
     } finally {
       setSavingProfile(false);
+    }
+  };
+
+  const handleSavePrivacy = async (newVal: boolean) => {
+    if (!currentUser) return;
+    setIsPrivate(newVal);
+    setSavingPrivacy(true);
+    try {
+      const userRef = doc(db, 'users', currentUser.uid);
+      await updateDoc(userRef, {
+        profileVisibility: newVal ? 'private' : 'public',
+        updatedAt: serverTimestamp(),
+      });
+      await refreshProfile();
+      toast.success(newVal ? 'Account visibility set to Private.' : 'Account visibility set to Public.');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update privacy settings.');
+    } finally {
+      setSavingPrivacy(false);
     }
   };
 
@@ -198,19 +222,43 @@ export const SettingsHub: React.FC = () => {
               <h2 className="text-lg font-bold text-white">Privacy Settings</h2>
               <p className="text-xs text-slate-400 mt-1">Control who can see your profile and activity</p>
             </div>
-            <div className="space-y-3">
+            
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 bg-slate-950 border border-slate-800 rounded-2xl">
+                <div className="space-y-1 pr-4">
+                  <span className="text-sm font-semibold text-slate-200 block">Private Account</span>
+                  <span className="text-xs text-slate-500 block leading-relaxed">
+                    When your account is private, only students you approve can follow you and view your connections.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  disabled={savingPrivacy}
+                  onClick={() => handleSavePrivacy(!isPrivate)}
+                  className={`w-12 h-7 rounded-full p-1 transition-all ${
+                    isPrivate ? 'bg-sky-500' : 'bg-slate-855 border border-slate-750'
+                  } flex items-center shrink-0 cursor-pointer`}
+                >
+                  <div
+                    className={`w-5 h-5 bg-slate-950 rounded-full shadow-md transition-all ${
+                      isPrivate ? 'translate-x-5 bg-slate-950' : 'translate-x-0 bg-slate-400'
+                    }`}
+                  />
+                </button>
+              </div>
+
               {[
-                { label: 'Show profile in search results', key: 'searchVisible', defaultVal: true },
-                { label: 'Allow others to view my groups', key: 'groupsVisible', defaultVal: true },
-                { label: 'Show my activity in the campus feed', key: 'activityVisible', defaultVal: true },
+                { label: 'Show profile in search results', key: 'searchVisible' },
+                { label: 'Allow others to view my groups', key: 'groupsVisible' },
+                { label: 'Show my activity in the campus feed', key: 'activityVisible' },
               ].map((item) => (
                 <div
                   key={item.key}
-                  className="flex items-center justify-between p-4 bg-slate-950 border border-slate-800 rounded-2xl"
+                  className="flex items-center justify-between p-4 bg-slate-950 border border-slate-800 rounded-2xl opacity-60 pointer-events-none"
                 >
-                  <span className="text-sm text-slate-200">{item.label}</span>
-                  <div className="w-10 h-6 bg-emerald-500/30 border border-emerald-500/50 rounded-full relative cursor-pointer">
-                    <div className="w-4 h-4 bg-emerald-400 rounded-full absolute top-1 right-1 transition-all" />
+                  <span className="text-sm text-slate-400">{item.label}</span>
+                  <div className="w-12 h-7 bg-emerald-500/20 border border-emerald-500/30 rounded-full p-1 flex items-center">
+                    <div className="w-5 h-5 bg-emerald-400 rounded-full translate-x-5" />
                   </div>
                 </div>
               ))}

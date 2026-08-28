@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { followUser, unfollowUser, isFollowingUser } from '../../services/followService';
+import { followUser, unfollowUser, isFollowingUser, hasPendingFollowRequest } from '../../services/followService';
 import { claimUsername } from '../../services/usernameService';
 import type { UserProfile2 } from '../../types/profile';
 import {
@@ -27,6 +27,7 @@ export const ProfilePage: React.FC = () => {
 
   const [profile, setProfile] = useState<UserProfile2 | null>(null);
   const [isFollowing, setIsFollowing] = useState(false);
+  const [isRequested, setIsRequested] = useState(false);
   const [loading, setLoading] = useState(true);
   const [actionBusy, setActionBusy] = useState(false);
 
@@ -72,6 +73,13 @@ export const ProfilePage: React.FC = () => {
         if (currentUser && currentUser.uid !== targetUid) {
           const followingStatus = await isFollowingUser(currentUser.uid, targetUid);
           setIsFollowing(followingStatus);
+          
+          if (!followingStatus) {
+            const requestedStatus = await hasPendingFollowRequest(currentUser.uid, targetUid);
+            setIsRequested(requestedStatus);
+          } else {
+            setIsRequested(false);
+          }
         }
       } else {
         setProfile(null);
@@ -94,16 +102,25 @@ export const ProfilePage: React.FC = () => {
       if (isFollowing) {
         await unfollowUser(currentUser.uid, profile.uid);
         setIsFollowing(false);
+        setIsRequested(false);
         setProfile((prev) => (prev ? { ...prev, followersCount: Math.max(0, prev.followersCount - 1) } : null));
         toast.success(`Unfollowed @${profile.username}`);
+      } else if (isRequested) {
+        // Cancel pending follow request
+        const { rejectFollowRequest } = await import('../../services/followService');
+        await rejectFollowRequest(profile.uid, currentUser.uid);
+        setIsRequested(false);
+        toast.success(`Cancelled follow request to @${profile.username}`);
       } else {
         const isPublic = profile.profileVisibility === 'public';
         const result = await followUser(currentUser.uid, profile.uid, !isPublic);
         if (result) {
           setIsFollowing(true);
+          setIsRequested(false);
           setProfile((prev) => (prev ? { ...prev, followersCount: prev.followersCount + 1 } : null));
           toast.success(`Following @${profile.username}`);
         } else {
+          setIsRequested(true);
           toast.success(`Follow request sent to @${profile.username}`);
         }
       }
@@ -207,7 +224,9 @@ export const ProfilePage: React.FC = () => {
                         className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 ${
                           isFollowing
                             ? 'bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-300 border border-slate-700'
-                            : 'bg-sky-500 hover:bg-sky-400 text-slate-950 shadow-md'
+                            : isRequested
+                              ? 'bg-slate-800 text-slate-400 border border-slate-750 hover:text-slate-300'
+                              : 'bg-sky-500 hover:bg-sky-400 text-slate-950 shadow-md'
                         }`}
                       >
                         {actionBusy ? (
@@ -216,6 +235,11 @@ export const ProfilePage: React.FC = () => {
                           <>
                             <UserCheck className="w-4 h-4 text-emerald-400" />
                             <span>Following</span>
+                          </>
+                        ) : isRequested ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 text-sky-400" />
+                            <span>Requested</span>
                           </>
                         ) : (
                           <>
