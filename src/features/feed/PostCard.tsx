@@ -7,6 +7,8 @@ import { checkPostIsSaved, toggleSavePost } from '../../services/postBookmarkSer
 import { reportPost, reactToPost } from '../../services/postService';
 import { PostImageGallery } from './PostImageGallery';
 import { CommentSheet } from './CommentSheet';
+import { db } from '../../lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import { 
   Clock, 
@@ -35,6 +37,56 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
 
   // Reactions state
   const [showReactions, setShowReactions] = useState(false);
+  const [userReaction, setUserReaction] = useState<string | null>(null); // current user's reaction type
+  const [reactBusy, setReactBusy] = useState(false);
+
+  // Fetch current user's existing reaction on mount
+  useEffect(() => {
+    if (!currentUser || !post.id) return;
+    let mounted = true;
+    getDoc(doc(db, 'posts', post.id, 'reactions', currentUser.uid))
+      .then((snap) => {
+        if (!mounted) return;
+        if (snap.exists()) setUserReaction(snap.data().type as string);
+        else setUserReaction(null);
+      })
+      .catch(() => {});
+    return () => { mounted = false; };
+  }, [currentUser, post.id]);
+
+  const handleReactionSelect = async (reactionType: string) => {
+    if (!currentUser || !post.id || reactBusy) return;
+    setReactBusy(true);
+    setShowReactions(false);
+
+    // Optimistic UI update
+    const prev = userReaction;
+    if (prev === reactionType) {
+      // Toggle off — same reaction clicked again
+      setUserReaction(null);
+      setLikeCount((c) => Math.max(0, c - 1));
+    } else if (prev) {
+      // Switch reaction — count stays the same
+      setUserReaction(reactionType);
+    } else {
+      // New reaction
+      setUserReaction(reactionType);
+      setLikeCount((c) => c + 1);
+    }
+
+    try {
+      await reactToPost(post.id, currentUser.uid, reactionType);
+    } catch {
+      // Rollback optimistic update on error
+      setUserReaction(prev);
+      if (prev === reactionType) setLikeCount((c) => c + 1);
+      else if (!prev) setLikeCount((c) => Math.max(0, c - 1));
+      toast.error('Failed to react.');
+    } finally {
+      setReactBusy(false);
+    }
+  };
+
 
   // Bookmark state
   const [saved, setSaved] = useState<boolean>(false);
@@ -63,16 +115,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
     };
   }, [currentUser, post.id]);
 
-  const handleReactionSelect = async (reactionType: string) => {
-    if (!currentUser || !post.id) return;
-    try {
-      await reactToPost(post.id, currentUser.uid, reactionType);
-      setLikeCount((prev) => prev + 1);
-      toast.success(`Reacted with ${reactionType}`);
-    } catch (err) {
-      toast.error('Failed to react.');
-    }
-  };
+
 
   const handleSaveToggle = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -237,15 +280,29 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setShowReactions(!showReactions);
+                  if (userReaction) {
+                    // Clicking main button when already reacted → toggle off
+                    handleReactionSelect(userReaction);
+                  } else {
+                    setShowReactions(!showReactions);
+                  }
                 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-950/80 border border-slate-800 hover:border-slate-700 rounded-xl text-slate-400 hover:text-sky-400 transition-all font-mono"
+                disabled={reactBusy}
+                className={`flex items-center gap-1.5 px-3 py-1.5 border rounded-xl transition-all font-mono ${
+                  userReaction
+                    ? 'bg-sky-500/10 border-sky-500/30 text-sky-300 hover:bg-rose-500/10 hover:border-rose-500/30 hover:text-rose-300'
+                    : 'bg-slate-950/80 border-slate-800 hover:border-slate-700 text-slate-400 hover:text-sky-400'
+                }`}
               >
-                <span>React</span>
+                <span>
+                  {userReaction
+                    ? ({ like: '👍', love: '❤️', laugh: '😂', wow: '😮', fire: '🔥' } as Record<string, string>)[userReaction] ?? 'React'
+                    : 'React'}
+                </span>
                 <span className="text-xs font-semibold">{likeCount}</span>
               </button>
 
-              {showReactions && (
+              {showReactions && !userReaction && (
                 <div className="absolute bottom-10 left-0 bg-slate-950 border border-slate-800 p-2 rounded-2xl shadow-2xl flex gap-2 z-40">
                   {[
                     { emoji: '👍', type: 'like' },
@@ -260,9 +317,8 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
                       onClick={(e) => {
                         e.stopPropagation();
                         handleReactionSelect(react.type);
-                        setShowReactions(false);
                       }}
-                      className="p-2 hover:bg-slate-800 rounded-xl text-base transition-colors"
+                      className={`p-2 hover:bg-slate-800 rounded-xl text-base transition-colors ${userReaction === react.type ? 'ring-2 ring-sky-500' : ''}`}
                       title={react.type}
                     >
                       {react.emoji}
