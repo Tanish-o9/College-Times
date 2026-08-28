@@ -12,10 +12,9 @@ import {
   type ConfirmationResult, 
   type User 
 } from 'firebase/auth';
-import { httpsCallable } from 'firebase/functions';
 import { doc, getDoc, setDoc, runTransaction, increment, serverTimestamp } from 'firebase/firestore';
 
-import { auth, db, functions, logAnalyticsEvent } from '../lib/firebase';
+import { auth, db, logAnalyticsEvent } from '../lib/firebase';
 import { isUsernameAvailable } from './usernameService';
 import toast from 'react-hot-toast';
 
@@ -253,13 +252,20 @@ export const requestEmailOtp = async (email: string): Promise<void> => {
   }
 
   try {
-    const callFunction = httpsCallable(functions, 'requestEmailOtp');
-    const result: any = await callFunction({ email: cleanEmail });
+    const resp = await fetch('/api/request-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: cleanEmail }),
+    });
+    const result = await resp.json();
+    if (!resp.ok) {
+      throw new Error(result.error || 'Failed to request verification code.');
+    }
     
     logAnalyticsEvent('auth_otp_requested', { provider: 'email_otp' });
-    toast.success(result.data?.message || 'Verification code sent if email is eligible.', { id: 'email-otp-sent' });
+    toast.success(result.message || 'Verification code sent if email is eligible.', { id: 'email-otp-sent' });
   } catch (error: any) {
-    console.warn('Cloud Function unavailable, sending real email via local Nodemailer SMTP handler...', error?.message);
+    console.warn('Vercel API unavailable, checking dev fallback:', error?.message);
     const randomOtp = Math.floor(100000 + Math.random() * 900000).toString();
     sessionStorage.setItem(`dev_email_otp_${cleanEmail}`, randomOtp);
 
@@ -296,8 +302,15 @@ export const verifyOtpOnly = async (email: string, otp: string): Promise<boolean
   }
 
   try {
-    const callFunction = httpsCallable(functions, 'verifyEmailOtp');
-    await callFunction({ email: cleanEmail, otp: cleanOtp });
+    const resp = await fetch('/api/verify-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: cleanEmail, otp: cleanOtp }),
+    });
+    const result = await resp.json();
+    if (!resp.ok) {
+      throw new Error(result.error || 'Invalid or expired verification code.');
+    }
     return true;
   } catch (error: any) {
     const devOtp = sessionStorage.getItem(`dev_email_otp_${cleanEmail}`);
@@ -320,10 +333,17 @@ export const verifyEmailOtp = async (email: string, otp: string): Promise<User> 
   }
 
   try {
-    const callFunction = httpsCallable(functions, 'verifyEmailOtp');
-    const result: any = await callFunction({ email: cleanEmail, otp: cleanOtp });
+    const resp = await fetch('/api/verify-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: cleanEmail, otp: cleanOtp }),
+    });
+    const result = await resp.json();
+    if (!resp.ok) {
+      throw new Error(result.error || 'Invalid or expired verification code.');
+    }
 
-    const customToken = result.data?.customToken;
+    const customToken = result.customToken;
     if (!customToken) {
       throw new Error('Failed to retrieve authentication token.');
     }
