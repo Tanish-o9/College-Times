@@ -146,6 +146,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   } catch (error: any) {
     console.error('[API VERIFY OTP ERROR]', error.message);
-    res.status(500).json({ error: error.message || 'Internal Server Error' });
+    const errorMsg = process.env.NODE_ENV === 'development' ? (error.message || 'Internal Server Error') : 'An unexpected error occurred. Please try again later.';
+    res.status(500).json({ error: errorMsg });
   }
 }
