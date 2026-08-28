@@ -31,9 +31,12 @@ service cloud.firestore {
         && request.resource.data.role == 'student'
         && request.resource.data.points == 0;
 
-      // On update: owner only, role immutable, points or recentMessageTimestamps can update
-      allow update: if isOwner(userId)
-        && request.resource.data.role == resource.data.role;
+      // On update: owner only, role immutable, points or recentMessageTimestamps can update;
+      // non-owners can only update friendsCount, followersCount, and followingCount.
+      allow update: if (isOwner(userId) && request.resource.data.role == resource.data.role)
+        || (isAuthenticated()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['friendsCount', 'followersCount', 'followingCount'])
+           );
 
       allow delete: if false;
 
