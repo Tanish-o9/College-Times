@@ -194,6 +194,12 @@ export const sendDirectMessage = async (
         deepLink: `/messages/${conversationId}`,
       }).catch(() => {});
     }
+    try {
+      const { incrementScopeUnread } = await import('./activityStateService');
+      await incrementScopeUnread(recipientId, 'messages');
+    } catch (err) {
+      console.error('Failed to increment messages unread state:', err);
+    }
   }
 
   logAnalyticsEvent('dm_message_sent', { conversationId, messageType: messageData.messageType });

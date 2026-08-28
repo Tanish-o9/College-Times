@@ -11,7 +11,9 @@ import {
   runTransaction, 
   increment, 
   serverTimestamp, 
-  Timestamp 
+  Timestamp,
+  collectionGroup,
+  startAfter
 } from 'firebase/firestore';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { db } from '../lib/firebase';
@@ -214,6 +216,32 @@ export const getEventParticipants = async (
   }
 };
 
+export const getEventParticipantsPaginated = async (
+  eventId: string,
+  lastVisibleSnap: any = null,
+  limitCount: number = 20
+) => {
+  try {
+    const rsvpsRef = collection(db, 'events', eventId, 'rsvps');
+    let q = query(rsvpsRef, limit(limitCount));
+    if (lastVisibleSnap) {
+      q = query(rsvpsRef, startAfter(lastVisibleSnap), limit(limitCount));
+    }
+    const snapshot = await getDocs(q);
+    const list = snapshot.docs.map((docSnap) => ({
+      userId: docSnap.id,
+      userName: docSnap.data().userName || 'Student',
+    }));
+    return {
+      participants: list,
+      lastVisible: snapshot.docs[snapshot.docs.length - 1] || null,
+    };
+  } catch (error) {
+    console.error('Error fetching event participants paginated:', error);
+    return { participants: [], lastVisible: null };
+  }
+};
+
 /**
  * Phase 29: Atomically updates RSVP status ('going' | 'interested' | 'maybe' | 'cancelled').
  * Enforces capacity server-side for 'going' status.
@@ -351,4 +379,89 @@ export const editEvent = async (
 
     transaction.update(eventRef, payload);
   });
+};
+
+export interface EventFilters {
+  tab: 'upcoming' | 'today' | 'this_week' | 'my_events' | 'past';
+  category?: string;
+  searchQuery?: string;
+}
+
+export const getEventsFiltered = async (
+  filters: EventFilters,
+  currentUser: FirebaseUser
+): Promise<CampusEvent[]> => {
+  if (!currentUser) return [];
+  const eventsRef = collection(db, 'events');
+  let q;
+
+  const now = Timestamp.now();
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date();
+  todayEnd.setHours(23, 59, 59, 999);
+
+  const weekEnd = new Date();
+  weekEnd.setDate(weekEnd.getDate() + 7);
+
+  if (filters.tab === 'past') {
+    q = query(eventsRef, where('eventDate', '<', now), orderBy('eventDate', 'desc'), limit(50));
+  } else if (filters.tab === 'today') {
+    q = query(
+      eventsRef,
+      where('eventDate', '>=', Timestamp.fromDate(todayStart)),
+      where('eventDate', '<=', Timestamp.fromDate(todayEnd)),
+      orderBy('eventDate', 'asc'),
+      limit(50)
+    );
+  } else if (filters.tab === 'this_week') {
+    q = query(
+      eventsRef,
+      where('eventDate', '>=', now),
+      where('eventDate', '<=', Timestamp.fromDate(weekEnd)),
+      orderBy('eventDate', 'asc'),
+      limit(50)
+    );
+  } else if (filters.tab === 'my_events') {
+    const rsvpsQuery = query(
+      collectionGroup(db, 'rsvps'),
+      where('userId', '==', currentUser.uid)
+    );
+    const rsvpsSnap = await getDocs(rsvpsQuery);
+    const eventIds = rsvpsSnap.docs.map((d) => d.ref.parent.parent?.id).filter(Boolean) as string[];
+
+    if (eventIds.length === 0) return [];
+
+    const eventsList: CampusEvent[] = [];
+    // Firestore limit in queries to maximum of 10
+    for (let i = 0; i < eventIds.length; i += 10) {
+      const batchIds = eventIds.slice(i, i + 10);
+      const batchQuery = query(eventsRef, where('__name__', 'in', batchIds));
+      const batchSnap = await getDocs(batchQuery);
+      batchSnap.docs.forEach((docSnap) => {
+        eventsList.push({ id: docSnap.id, ...docSnap.data() } as CampusEvent);
+      });
+    }
+    return eventsList;
+  } else {
+    q = query(eventsRef, where('eventDate', '>=', now), orderBy('eventDate', 'asc'), limit(50));
+  }
+
+  const snap = await getDocs(q);
+  let list = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as CampusEvent[];
+
+  if (filters.category && filters.category !== 'All') {
+    list = list.filter((e) => e.category === filters.category);
+  }
+  if (filters.searchQuery) {
+    const sLower = filters.searchQuery.toLowerCase();
+    list = list.filter(
+      (e) =>
+        e.title.toLowerCase().includes(sLower) ||
+        (e.description || '').toLowerCase().includes(sLower) ||
+        (e.location || '').toLowerCase().includes(sLower)
+    );
+  }
+
+  return list;
 };

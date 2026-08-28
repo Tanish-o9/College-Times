@@ -127,6 +127,15 @@ export const createNotification = async (params: CreateNotificationParams): Prom
   batch.set(rootNotifRef, payloadData, { merge: true });
   await batch.commit();
 
+  if (!isSuppressed) {
+    try {
+      const { incrementScopeUnread } = await import('./activityStateService');
+      await incrementScopeUnread(recipientId, 'notifications');
+    } catch (err) {
+      console.error('Failed to increment notifications unread state:', err);
+    }
+  }
+
   logAnalyticsEvent('notification_received', { category, priority, suppressed: isSuppressed });
 };
 

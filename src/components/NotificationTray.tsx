@@ -30,6 +30,9 @@ export const NotificationTray: React.FC<NotificationTrayProps> = ({ isOpen, onCl
     if (!hasMarkedRef.current) {
       hasMarkedRef.current = true;
       markAllAsRead(currentUser.uid);
+      import('../services/activityStateService').then(({ markScopeAsRead }) => {
+        markScopeAsRead(currentUser.uid, 'notifications').catch(() => {});
+      });
     }
 
     let isMounted = true;

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { CampusEvent } from '../../types/models';
-import { getEventById, hasUserRsvpd, getEventParticipants, toggleRsvpStatus, cancelEvent } from '../../services/eventService';
+import { getEventById, hasUserRsvpd, toggleRsvpStatus, cancelEvent, getEventParticipantsPaginated } from '../../services/eventService';
 import { toggleEventReminder, hasUserReminder } from '../../services/eventReminderService';
 import { useAuth } from '../../hooks/useAuth';
 import toast from 'react-hot-toast';
@@ -42,8 +42,11 @@ export const EventDetail: React.FC = () => {
   const [cancelReason, setCancelReason] = useState<string>('');
   const [cancelling, setCancelling] = useState<boolean>(false);
 
-  // Participants list
+  // Participants list & pagination
   const [participants, setParticipants] = useState<{ userId: string; userName: string }[]>([]);
+  const [lastVisible, setLastVisible] = useState<any>(null);
+  const [loadingMore, setLoadingMore] = useState<boolean>(false);
+  const [hasMore, setHasMore] = useState<boolean>(false);
 
   useEffect(() => {
     if (!eventId) return;
@@ -76,8 +79,12 @@ export const EventDetail: React.FC = () => {
           }
         }
 
-        const partyList = await getEventParticipants(eventId, 20);
-        if (mounted) setParticipants(partyList);
+        const res = await getEventParticipantsPaginated(eventId, null, 10);
+        if (mounted) {
+          setParticipants(res.participants);
+          setLastVisible(res.lastVisible);
+          setHasMore(res.participants.length === 10);
+        }
       } catch (err: any) {
         if (mounted) setError('Failed to load event details.');
       } finally {
@@ -92,6 +99,21 @@ export const EventDetail: React.FC = () => {
     };
   }, [eventId, currentUser]);
 
+  const handleLoadMoreParticipants = async () => {
+    if (!eventId || loadingMore || !lastVisible) return;
+    setLoadingMore(true);
+    try {
+      const res = await getEventParticipantsPaginated(eventId, lastVisible, 10);
+      setParticipants((prev) => [...prev, ...res.participants]);
+      setLastVisible(res.lastVisible);
+      setHasMore(res.participants.length === 10);
+    } catch (err) {
+      toast.error('Failed to load more participants.');
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
   const handleRsvpChange = async (newStatus: 'going' | 'interested' | 'maybe' | 'cancelled') => {
     if (!currentUser || !event || !event.id || togglingRsvp) return;
     setTogglingRsvp(true);
@@ -102,8 +124,10 @@ export const EventDetail: React.FC = () => {
       setRsvpCount(res.rsvpCount);
       setInterestedCount(res.interestedCount);
 
-      const updatedParty = await getEventParticipants(event.id, 20);
-      setParticipants(updatedParty);
+      const partyRes = await getEventParticipantsPaginated(event.id, null, 10);
+      setParticipants(partyRes.participants);
+      setLastVisible(partyRes.lastVisible);
+      setHasMore(partyRes.participants.length === 10);
 
       toast.success(newStatus === 'cancelled' ? 'RSVP removed.' : `RSVP updated to ${newStatus}!`);
     } catch (err: any) {
@@ -394,22 +418,31 @@ export const EventDetail: React.FC = () => {
           {participants.length === 0 ? (
             <p className="text-xs text-slate-500 italic">No RSVPs yet. Be the first student to RSVP!</p>
           ) : (
-            <div className="flex items-center gap-2 flex-wrap">
-              {participants.map((p) => (
-                <div
-                  key={p.userId}
-                  className="px-3 py-1.5 bg-slate-950/80 border border-slate-800 rounded-xl text-xs font-medium text-slate-300 flex items-center gap-1.5"
-                >
-                  <div className="w-5 h-5 rounded-full bg-purple-500/20 border border-purple-400/30 text-purple-300 flex items-center justify-center text-[10px] font-bold">
-                    {p.userName.charAt(0).toUpperCase()}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 flex-wrap">
+                {participants.map((p) => (
+                  <div
+                    key={p.userId}
+                    className="px-3 py-1.5 bg-slate-950/80 border border-slate-800 rounded-xl text-xs font-medium text-slate-300 flex items-center gap-1.5"
+                  >
+                    <div className="w-5 h-5 rounded-full bg-purple-500/20 border border-purple-400/30 text-purple-300 flex items-center justify-center text-[10px] font-bold">
+                      {p.userName.charAt(0).toUpperCase()}
+                    </div>
+                    <span>{p.userName}</span>
                   </div>
-                  <span>{p.userName}</span>
-                </div>
-              ))}
-              {rsvpCount > 20 && (
-                <span className="text-xs font-semibold text-slate-500 pl-1">
-                  and {rsvpCount - 20} others
-                </span>
+                ))}
+              </div>
+
+              {hasMore && (
+                <button
+                  type="button"
+                  onClick={handleLoadMoreParticipants}
+                  disabled={loadingMore}
+                  className="px-4 py-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white rounded-xl text-[11px] font-bold flex items-center gap-1.5 transition-all"
+                >
+                  {loadingMore ? <RefreshCw className="w-3 h-3 animate-spin text-purple-400" /> : null}
+                  <span>Load More Attendees</span>
+                </button>
               )}
             </div>
           )}

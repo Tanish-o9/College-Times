@@ -11,6 +11,10 @@ import {
   ArrowLeft,
   RefreshCw,
   AtSign,
+  Settings,
+  GraduationCap,
+  Hash,
+  Tag,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { doc, getDoc } from 'firebase/firestore';
@@ -186,8 +190,16 @@ export const ProfilePage: React.FC = () => {
                 </div>
 
                 {/* Actions */}
-                <div className="flex items-center gap-2 w-full sm:w-auto">
-                  {!isSelf && currentUser && (
+                <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+                  {isSelf ? (
+                    <button
+                      onClick={() => navigate('/settings/profile')}
+                      className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl border border-slate-700 text-xs font-semibold flex items-center gap-1.5"
+                    >
+                      <Settings className="w-4 h-4 text-sky-400" />
+                      <span>Edit Profile</span>
+                    </button>
+                  ) : currentUser && (
                     <>
                       <button
                         onClick={handleFollowToggle}
@@ -214,7 +226,13 @@ export const ProfilePage: React.FC = () => {
                       </button>
 
                       <button
-                        onClick={() => navigate(`/direct/${profile.uid}`)}
+                        onClick={() => {
+                          import('../../services/directMessageService').then(({ getOrCreateConversation }) => {
+                            getOrCreateConversation(profile.uid, currentUser!, profile.displayName)
+                              .then((conv) => navigate(`/messages/${conv.id}`))
+                              .catch(() => navigate('/messages'));
+                          });
+                        }}
                         className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl border border-slate-700 text-xs font-semibold flex items-center gap-1.5"
                       >
                         <MessageSquare className="w-4 h-4 text-sky-400" />
@@ -236,6 +254,33 @@ export const ProfilePage: React.FC = () => {
                   <span className="text-slate-400 ml-1.5">Following</span>
                 </div>
               </div>
+
+              {/* Department / Batch / Interests */}
+              {(profile.department || profile.batchYear || (profile as any)?.interests?.length > 0) && (
+                <div className="flex flex-wrap gap-2 pt-4 border-t border-slate-800">
+                  {profile.department && (
+                    <span className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-500/10 border border-sky-500/20 text-sky-300 rounded-full text-[11px] font-semibold">
+                      <GraduationCap className="w-3.5 h-3.5" />
+                      {profile.department}
+                    </span>
+                  )}
+                  {profile.batchYear && (
+                    <span className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-500/10 border border-purple-500/20 text-purple-300 rounded-full text-[11px] font-semibold">
+                      <Hash className="w-3.5 h-3.5" />
+                      Batch {profile.batchYear}
+                    </span>
+                  )}
+                  {((profile as any)?.interests || []).map((interest: string) => (
+                    <span
+                      key={interest}
+                      className="flex items-center gap-1 px-2.5 py-1 bg-slate-800 border border-slate-700 text-slate-300 rounded-full text-[11px] font-medium"
+                    >
+                      <Tag className="w-3 h-3 text-amber-400" />
+                      {interest}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Username Claim Prompt if empty */}

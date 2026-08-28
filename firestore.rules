@@ -212,6 +212,17 @@ service cloud.firestore {
       match /savedPosts/{postId} {
         allow read, create, update, delete: if isOwner(userId);
       }
+
+      // Phase 56: User Activity State Sub-collection (Scoped unread counters per feature)
+      match /activityState/{scope} {
+        allow read: if isOwner(userId);
+        // Users can reset their own scope counters; backend increments via service
+        allow create, update: if isAuthenticated() 
+          && (isOwner(userId) || request.auth.uid != userId)
+          && request.resource.data.scope is string
+          && request.resource.data.scope in ['notifications', 'messages', 'groups', 'feed', 'events'];
+        allow delete: if isOwner(userId);
+      }
     }
 
     // Unified Centralized Notifications Collection

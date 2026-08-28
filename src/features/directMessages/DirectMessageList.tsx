@@ -52,6 +52,11 @@ export const DirectMessageList: React.FC = () => {
 
   useEffect(() => {
     fetchConversations();
+    if (currentUser) {
+      import('../../services/activityStateService').then(({ markScopeAsRead }) => {
+        markScopeAsRead(currentUser.uid, 'messages').catch(() => {});
+      });
+    }
   }, [currentUser]);
 
   const handleUserSelected = async (targetUid: string, targetName: string) => {

@@ -52,6 +52,7 @@ import { MarketplacePage } from './features/marketplace/MarketplacePage';
 import { ListingDetailPage } from './features/marketplace/ListingDetailPage';
 import { MyApplications } from './features/opportunities/MyApplications';
 import { DiscoverPage } from './features/discover/DiscoverPage';
+import { SettingsHub } from './features/settings/SettingsHub';
 
 // Code-split heavy AdminPortal route
 const AdminPage = lazy(() => import('./features/admin/AdminPage').then(module => ({ default: module.AdminPage })));
@@ -113,6 +114,8 @@ export const App: React.FC = () => {
                 <Route path="/saved-messages" element={<SavedMessagesPage />} />
                 <Route path="/chat/settings" element={<ChatNotificationSettings />} />
                 <Route path="/settings/notifications" element={<NotificationPreferences />} />
+                <Route path="/settings" element={<SettingsHub />} />
+                <Route path="/settings/:tab" element={<SettingsHub />} />
                 <Route path="/profile/:username" element={<ProfilePage />} />
                 <Route path="/connections" element={<ConnectionsPage />} />
                 <Route path="/privacy" element={<PrivacyPage />} />

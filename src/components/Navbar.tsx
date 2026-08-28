@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { subscribeToNotifications } from '../services/notificationService';
+import { subscribeToActivityState } from '../services/activityStateService';
 import { searchUnifiedCampus } from '../services/searchService';
 import type { SearchSuggestion } from '../types/search';
 import { SearchSuggestions } from '../features/search/SearchSuggestions';
@@ -18,7 +18,8 @@ import {
   MessageSquare,
   Bookmark,
   Users,
-  X
+  X,
+  Settings
 } from 'lucide-react';
 
 import { useChatAccess } from '../hooks/useChatAccess';
@@ -32,7 +33,8 @@ export const Navbar: React.FC = () => {
   const { isEligible: isChatEligible } = useChatAccess();
   const [myChannels, setMyChannels] = useState<Channel[]>([]);
   const { totalUnreadCount } = useChatUnreadState(myChannels);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [notificationsUnread, setNotificationsUnread] = useState(0);
+  const [messagesUnread, setMessagesUnread] = useState(0);
   const [isTrayOpen, setIsTrayOpen] = useState(false);
   const [isBugModalOpen, setIsBugModalOpen] = useState(false);
 
@@ -55,16 +57,22 @@ export const Navbar: React.FC = () => {
 
   useEffect(() => {
     if (!currentUser) {
-      setUnreadCount(0);
+      setNotificationsUnread(0);
+      setMessagesUnread(0);
       return;
     }
 
-    const unsubscribe = subscribeToNotifications(currentUser.uid, (count: number) => {
-      setUnreadCount(count);
+    const unsubNotifs = subscribeToActivityState(currentUser.uid, 'notifications', (state) => {
+      setNotificationsUnread(state.unreadCount);
+    });
+
+    const unsubMessages = subscribeToActivityState(currentUser.uid, 'messages', (state) => {
+      setMessagesUnread(state.unreadCount);
     });
 
     return () => {
-      unsubscribe();
+      unsubNotifs();
+      unsubMessages();
     };
   }, [currentUser]);
 
@@ -240,6 +248,22 @@ export const Navbar: React.FC = () => {
             </NavLink>
           )}
 
+          {currentUser && (
+            <NavLink to="/messages" className={linkClass}>
+              <div className="relative flex items-center gap-1.5">
+                <MessageSquare className="w-4 h-4 text-pink-400" />
+                <span className="hidden sm:inline">DMs</span>
+                {messagesUnread > 0 && (
+                  <span
+                    className="px-1.5 py-0.5 rounded-full bg-pink-500 text-white font-mono text-[9px] font-bold animate-pulse shrink-0"
+                  >
+                    {messagesUnread}
+                  </span>
+                )}
+              </div>
+            </NavLink>
+          )}
+
           <NavLink to="/saved" className={linkClass}>
             <Bookmark className="w-4 h-4 text-amber-400" />
             <span className="hidden sm:inline">Saved</span>
@@ -263,7 +287,7 @@ export const Navbar: React.FC = () => {
                   title="Notifications"
                 >
                   <Bell className="w-4 h-4 text-sky-400" />
-                  {unreadCount > 0 && (
+                  {notificationsUnread > 0 && (
                     <span className="absolute top-1 right-1 w-2 h-2 bg-sky-500 rounded-full ring-2 ring-slate-900 animate-pulse" />
                   )}
                 </button>
@@ -281,6 +305,14 @@ export const Navbar: React.FC = () => {
                 <div className="w-7 h-7 rounded-lg bg-sky-500/20 text-sky-400 font-bold text-xs flex items-center justify-center border border-sky-500/30">
                   {currentUser.displayName ? currentUser.displayName[0].toUpperCase() : <UserIcon className="w-4 h-4" />}
                 </div>
+              </NavLink>
+
+              <NavLink
+                to="/settings"
+                className="p-2 text-slate-400 hover:text-slate-200 rounded-lg hover:bg-slate-800/60 transition-colors"
+                title="Settings"
+              >
+                <Settings className="w-4 h-4" />
               </NavLink>
             </div>
           ) : (
