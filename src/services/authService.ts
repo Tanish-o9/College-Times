@@ -245,6 +245,9 @@ export const signOutUser = async (): Promise<void> => {
  * Requests a 6-digit verification code sent to the student's college email.
  */
 export const requestEmailOtp = async (email: string): Promise<void> => {
+  // Direct account creation bypass - no-op
+  return;
+  /*
   const cleanEmail = email.trim().toLowerCase();
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!cleanEmail || !emailRegex.test(cleanEmail)) {
@@ -287,6 +290,7 @@ export const requestEmailOtp = async (email: string): Promise<void> => {
 
     logAnalyticsEvent('auth_otp_requested', { provider: 'email_otp', mode: 'dev' });
   }
+  */
 };
 
 /**
@@ -294,6 +298,9 @@ export const requestEmailOtp = async (email: string): Promise<void> => {
  * Used for pre-signup email ownership checks.
  */
 export const verifyOtpOnly = async (email: string, otp: string): Promise<boolean> => {
+  // Direct verification bypass - always return true
+  return true;
+  /*
   const cleanEmail = email.trim().toLowerCase();
   const cleanOtp = otp.trim();
 
@@ -319,6 +326,7 @@ export const verifyOtpOnly = async (email: string, otp: string): Promise<boolean
     }
     throw new Error(error.message || 'Invalid or expired verification code.');
   }
+  */
 };
 
 /**
