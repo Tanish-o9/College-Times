@@ -1,7 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { followUser, unfollowUser, isFollowingUser, hasPendingFollowRequest } from '../../services/followService';
+import {
+  getRelationshipStatus,
+  sendFriendRequest,
+  cancelFriendRequest,
+  acceptFriendRequest,
+  declineFriendRequest,
+  removeFriend,
+  type RelationshipStatus
+} from '../../services/friendService';
 import { claimUsername } from '../../services/usernameService';
 import type { UserProfile2 } from '../../types/profile';
 import {
@@ -14,7 +22,7 @@ import {
   Settings,
   GraduationCap,
   Hash,
-  Tag,
+  Tag
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { doc, getDoc } from 'firebase/firestore';
@@ -26,9 +34,7 @@ export const ProfilePage: React.FC = () => {
   const navigate = useNavigate();
 
   const [profile, setProfile] = useState<UserProfile2 | null>(null);
-  const [isFollowing, setIsFollowing] = useState(false);
-  const [isRequested, setIsRequested] = useState(false);
-  const [isFollower, setIsFollower] = useState(false);
+  const [relationshipStatus, setRelationshipStatus] = useState<RelationshipStatus>('NONE');
   const [loading, setLoading] = useState(true);
   const [actionBusy, setActionBusy] = useState(false);
 
@@ -72,19 +78,8 @@ export const ProfilePage: React.FC = () => {
         });
 
         if (currentUser && currentUser.uid !== targetUid) {
-          const followingStatus = await isFollowingUser(currentUser.uid, targetUid);
-          setIsFollowing(followingStatus);
-          
-          if (!followingStatus) {
-            const requestedStatus = await hasPendingFollowRequest(currentUser.uid, targetUid);
-            setIsRequested(requestedStatus);
-          } else {
-            setIsRequested(false);
-          }
-
-          // Check if target is following current user
-          const followerStatus = await isFollowingUser(targetUid, currentUser.uid);
-          setIsFollower(followerStatus);
+          const status = await getRelationshipStatus(currentUser.uid, targetUid);
+          setRelationshipStatus(status);
         }
       } else {
         setProfile(null);
@@ -100,33 +95,35 @@ export const ProfilePage: React.FC = () => {
     loadProfile();
   }, [username, currentUser]);
 
-  const handleFollowToggle = async () => {
+  const handleRelationshipAction = async () => {
     if (!profile || !currentUser || actionBusy) return;
     setActionBusy(true);
     try {
-      if (isFollowing) {
-        await unfollowUser(currentUser.uid, profile.uid);
-        setIsFollowing(false);
-        setIsRequested(false);
-        setProfile((prev) => (prev ? { ...prev, followersCount: Math.max(0, prev.followersCount - 1) } : null));
-        toast.success(`Unfollowed @${profile.username}`);
-      } else if (isRequested) {
-        // Cancel pending follow request
-        const { rejectFollowRequest } = await import('../../services/followService');
-        await rejectFollowRequest(profile.uid, currentUser.uid);
-        setIsRequested(false);
-        toast.success(`Cancelled follow request to @${profile.username}`);
-      } else {
-        const isPublic = profile.profileVisibility === 'public';
-        const result = await followUser(currentUser.uid, profile.uid, !isPublic);
-        if (result) {
-          setIsFollowing(true);
-          setIsRequested(false);
+      if (relationshipStatus === 'NONE') {
+        const isPending = await sendFriendRequest(currentUser.uid, profile.uid);
+        setRelationshipStatus(isPending ? 'FRIENDS' : 'OUTGOING_PENDING');
+        if (isPending) {
           setProfile((prev) => (prev ? { ...prev, followersCount: prev.followersCount + 1 } : null));
-          toast.success(`Following @${profile.username}`);
+          toast.success(`You are now friends with @${profile.username}! 🎉`);
         } else {
-          setIsRequested(true);
-          toast.success(`Follow request sent to @${profile.username}`);
+          toast.success(`Friend request sent to @${profile.username}`);
+        }
+      } else if (relationshipStatus === 'OUTGOING_PENDING') {
+        await cancelFriendRequest(currentUser.uid, profile.uid);
+        setRelationshipStatus('NONE');
+        toast.success(`Cancelled friend request to @${profile.username}`);
+      } else if (relationshipStatus === 'INCOMING_PENDING') {
+        await acceptFriendRequest(currentUser.uid, profile.uid);
+        setRelationshipStatus('FRIENDS');
+        setProfile((prev) => (prev ? { ...prev, followersCount: prev.followersCount + 1 } : null));
+        toast.success(`You are now friends with @${profile.username}! 🎉`);
+      } else if (relationshipStatus === 'FRIENDS') {
+        const confirm = window.confirm(`Are you sure you want to remove @${profile.username} from your friends?`);
+        if (confirm) {
+          await removeFriend(currentUser.uid, profile.uid);
+          setRelationshipStatus('NONE');
+          setProfile((prev) => (prev ? { ...prev, followersCount: Math.max(0, prev.followersCount - 1) } : null));
+          toast.success(`Removed @${profile.username} from friends`);
         }
       }
     } catch (err: any) {
@@ -223,38 +220,69 @@ export const ProfilePage: React.FC = () => {
                     </button>
                   ) : currentUser && (
                     <>
-                      <button
-                        onClick={handleFollowToggle}
-                        disabled={actionBusy}
-                        className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 ${
-                          isFollowing
-                            ? 'bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-300 border border-slate-700'
-                            : isRequested
-                              ? 'bg-slate-800 text-slate-400 border border-slate-750 hover:text-slate-300'
-                              : 'bg-sky-500 hover:bg-sky-400 text-slate-950 shadow-md'
-                        }`}
-                      >
-                        {actionBusy ? (
-                          <RefreshCw className="w-4 h-4 animate-spin" />
-                        ) : isFollowing ? (
-                          <>
-                            <UserCheck className="w-4 h-4 text-emerald-400" />
-                            <span>Following</span>
-                          </>
-                        ) : isRequested ? (
-                          <>
-                            <RefreshCw className="w-4 h-4 text-sky-400" />
-                            <span>Requested</span>
-                          </>
-                        ) : (
-                          <>
-                            <UserPlus className="w-4 h-4" />
-                            <span>{isFollower ? 'Follow Back' : 'Follow'}</span>
-                          </>
-                        )}
-                      </button>
+                      {relationshipStatus === 'INCOMING_PENDING' ? (
+                        <div className="flex items-center gap-2 flex-1 sm:flex-initial">
+                          <button
+                            onClick={handleRelationshipAction}
+                            disabled={actionBusy}
+                            className="flex-1 sm:flex-initial px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5"
+                          >
+                            {actionBusy ? <RefreshCw className="w-4 h-4 animate-spin" /> : 'Accept'}
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (actionBusy) return;
+                              setActionBusy(true);
+                              try {
+                                await declineFriendRequest(currentUser.uid, profile.uid);
+                                setRelationshipStatus('NONE');
+                                toast.success('Friend request declined.');
+                              } catch (err: any) {
+                                toast.error(err.message || 'Action failed.');
+                              } finally {
+                                setActionBusy(false);
+                              }
+                            }}
+                            disabled={actionBusy}
+                            className="flex-1 sm:flex-initial px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl border border-slate-700 text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+                          >
+                            Decline
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={handleRelationshipAction}
+                          disabled={actionBusy}
+                          className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 ${
+                            relationshipStatus === 'FRIENDS'
+                              ? 'bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-300 border border-slate-700'
+                              : relationshipStatus === 'OUTGOING_PENDING'
+                                ? 'bg-slate-800 text-slate-400 border border-slate-750 hover:text-slate-300'
+                                : 'bg-sky-500 hover:bg-sky-400 text-slate-950 shadow-md'
+                          }`}
+                        >
+                          {actionBusy ? (
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                          ) : relationshipStatus === 'FRIENDS' ? (
+                            <>
+                              <UserCheck className="w-4 h-4 text-emerald-400" />
+                              <span>Friends</span>
+                            </>
+                          ) : relationshipStatus === 'OUTGOING_PENDING' ? (
+                            <>
+                              <RefreshCw className="w-4 h-4 text-sky-400 animate-spin" />
+                              <span>Requested</span>
+                            </>
+                          ) : (
+                            <>
+                              <UserPlus className="w-4 h-4" />
+                              <span>Add Friend</span>
+                            </>
+                          )}
+                        </button>
+                      )}
 
-                      {(profile.profileVisibility === 'public' || isFollowing) && (
+                      {(profile.profileVisibility === 'public' || relationshipStatus === 'FRIENDS') && (
                         <button
                           onClick={() => {
                             import('../../services/directMessageService').then(({ getOrCreateConversation }) => {
@@ -277,12 +305,8 @@ export const ProfilePage: React.FC = () => {
               {/* Stats Strip */}
               <div className="flex items-center gap-8 pt-4 border-t border-slate-800 text-xs font-mono">
                 <div>
-                  <span className="font-bold text-white text-sm">{profile.followersCount}</span>
-                  <span className="text-slate-400 ml-1.5">Followers</span>
-                </div>
-                <div>
-                  <span className="font-bold text-white text-sm">{profile.followingCount}</span>
-                  <span className="text-slate-400 ml-1.5">Following</span>
+                  <span className="font-bold text-white text-sm">{profile.followersCount || 0}</span>
+                  <span className="text-slate-400 ml-1.5">Friends</span>
                 </div>
               </div>
 

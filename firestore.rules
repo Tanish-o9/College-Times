@@ -243,6 +243,24 @@ service cloud.firestore {
       }
     }
 
+    // Friend Requests Collection
+    match /friendRequests/{requestId} {
+      allow read: if isAuthenticated() && (resource == null || resource.data.senderId == request.auth.uid || resource.data.receiverId == request.auth.uid);
+      allow create: if isAuthenticated() 
+        && request.resource.data.senderId == request.auth.uid 
+        && request.resource.data.senderId != request.resource.data.receiverId
+        && request.resource.data.status == 'pending';
+      allow delete: if isAuthenticated() && (resource.data.senderId == request.auth.uid || resource.data.receiverId == request.auth.uid);
+    }
+
+    // Friendships Collection
+    match /friendships/{friendshipId} {
+      allow read: if isAuthenticated() && (resource == null || resource.data.uidA == request.auth.uid || resource.data.uidB == request.auth.uid || request.auth.uid in resource.data.userUids);
+      allow create: if isAuthenticated() 
+        && (request.resource.data.uidA == request.auth.uid || request.resource.data.uidB == request.auth.uid);
+      allow delete: if isAuthenticated() && (resource.data.uidA == request.auth.uid || resource.data.uidB == request.auth.uid);
+    }
+
     // Unified Centralized Notifications Collection
     match /notifications/{notificationId} {
       allow read, delete: if isAuthenticated() && resource.data.recipientId == request.auth.uid;

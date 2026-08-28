@@ -2,18 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { 
-  getFollowersPage, 
   getFollowingPage, 
   getFollowRequests, 
   acceptFollowRequest, 
   rejectFollowRequest 
 } from '../../services/followService';
-import { Users, UserCheck, UserPlus, ArrowLeft, RefreshCw, MessageSquare, ShieldAlert } from 'lucide-react';
+import { Users, UserCheck, ArrowLeft, RefreshCw, MessageSquare, ShieldAlert } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import toast from 'react-hot-toast';
 
-type ConnectionsTab = 'following' | 'followers' | 'requests';
+type ConnectionsTab = 'friends' | 'requests';
 
 interface ConnectedUserPreview {
   uid: string;
@@ -25,7 +24,7 @@ interface ConnectedUserPreview {
 export const ConnectionsPage: React.FC = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
-  const [activeTab, setActiveTab] = useState<ConnectionsTab>('following');
+  const [activeTab, setActiveTab] = useState<ConnectionsTab>('friends');
   const [userList, setUserList] = useState<ConnectedUserPreview[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -50,9 +49,7 @@ export const ConnectionsPage: React.FC = () => {
           }
         }
       } else {
-        const res = activeTab === 'following'
-          ? await getFollowingPage(currentUser.uid, 20)
-          : await getFollowersPage(currentUser.uid, 20);
+        const res = await getFollowingPage(currentUser.uid, 20);
 
         for (const targetUid of res.uids) {
           const uSnap = await getDoc(doc(db, 'users', targetUid));
@@ -80,7 +77,7 @@ export const ConnectionsPage: React.FC = () => {
     if (!currentUser) return;
     try {
       await acceptFollowRequest(currentUser.uid, requesterUid);
-      toast.success('Follow request accepted! 🎉');
+      toast.success('Friend request accepted! 🎉');
       setUserList((prev) => prev.filter((u) => u.uid !== requesterUid));
     } catch (err: any) {
       toast.error(err.message || 'Failed to accept request.');
@@ -91,7 +88,7 @@ export const ConnectionsPage: React.FC = () => {
     if (!currentUser) return;
     try {
       await rejectFollowRequest(currentUser.uid, requesterUid);
-      toast.success('Follow request deleted.');
+      toast.success('Friend request deleted.');
       setUserList((prev) => prev.filter((u) => u.uid !== requesterUid));
     } catch (err: any) {
       toast.error(err.message || 'Failed to reject request.');
@@ -128,27 +125,15 @@ export const ConnectionsPage: React.FC = () => {
         {/* Tabs */}
         <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
           <button
-            onClick={() => setActiveTab('following')}
+            onClick={() => setActiveTab('friends')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-              activeTab === 'following'
+              activeTab === 'friends'
                 ? 'bg-sky-500/10 text-sky-400 border border-sky-500/30'
                 : 'text-slate-400 hover:text-white'
             }`}
           >
             <UserCheck className="w-4 h-4" />
-            <span>Following</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('followers')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-              activeTab === 'followers'
-                ? 'bg-purple-500/10 text-purple-400 border border-purple-500/30'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <UserPlus className="w-4 h-4" />
-            <span>Followers</span>
+            <span>Friends</span>
           </button>
 
           <button
@@ -182,7 +167,7 @@ export const ConnectionsPage: React.FC = () => {
                   {u.photoURL ? (
                     <img src={u.photoURL} alt={u.displayName} className="w-10 h-10 rounded-2xl object-cover border border-slate-700" />
                   ) : (
-                    <div className="w-10 h-10 rounded-2xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400 font-bold text-sm">
+                    <div className="w-10 h-10 rounded-2xl bg-sky-500/10 border-sky-500/30 flex items-center justify-center text-sky-400 font-bold text-sm">
                       {u.displayName[0].toUpperCase()}
                     </div>
                   )}
@@ -218,7 +203,13 @@ export const ConnectionsPage: React.FC = () => {
                         View Profile
                       </button>
                       <button
-                        onClick={() => navigate(`/direct/${u.uid}`)}
+                        onClick={() => {
+                          import('../../services/directMessageService').then(({ getOrCreateConversation }) => {
+                            getOrCreateConversation(u.uid, currentUser!, u.displayName)
+                              .then((conv) => navigate(`/messages/${conv.id}`))
+                              .catch(() => navigate('/messages'));
+                          });
+                        }}
                         className="px-3 py-1.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 text-xs font-semibold rounded-xl flex items-center gap-1"
                       >
                         <MessageSquare className="w-3.5 h-3.5" />
