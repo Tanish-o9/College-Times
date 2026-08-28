@@ -147,6 +147,8 @@ export const LoginPage: React.FC = () => {
       return;
     }
 
+    /*
+    // Commented out OTP logic for direct sign up
     setSendingOtp(true);
     try {
       const { requestEmailOtp } = await import('../../services/authService');
@@ -157,10 +159,33 @@ export const LoginPage: React.FC = () => {
     } finally {
       setSendingOtp(false);
     }
+    */
+
+    // Direct account creation without email OTP
+    setSubmitting(true);
+    try {
+      await signUpWithEmailPassword(
+        trimmedEmail,
+        password,
+        trimmedName,
+        trimmedUsername,
+        department,
+        Number(batchYear),
+        bio.trim(),
+        photoURL
+      );
+      navigate('/');
+    } catch (err: any) {
+      toast.error(err.message || 'Account creation failed. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleVerifySignupOtp = async (e: React.FormEvent) => {
     e.preventDefault();
+    /*
+    // Commented out OTP verification logic
     if (submitting) return;
 
     const trimmedOtp = signupOtp.trim();
@@ -191,6 +216,7 @@ export const LoginPage: React.FC = () => {
     } finally {
       setSubmitting(false);
     }
+    */
   };
 
   const handleGoogleSignIn = async () => {
@@ -268,7 +294,8 @@ export const LoginPage: React.FC = () => {
 
           {/* Tab Contents */}
           <div className="p-6 overflow-y-auto max-h-[60vh] flex-1">
-            {showSignupOtp ? (
+            {/* Commented out OTP verification form in UI
+            showSignupOtp ? (
               <form onSubmit={handleVerifySignupOtp} className="space-y-5">
                 <div className="text-center space-y-2">
                   <div className="w-12 h-12 rounded-2xl bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center mx-auto">
@@ -321,7 +348,9 @@ export const LoginPage: React.FC = () => {
                   </button>
                 </div>
               </form>
-            ) : activeTab === 'login' ? (
+            ) :
+            */}
+            {activeTab === 'login' ? (
               <form onSubmit={handleLoginSubmit} className="space-y-4">
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">
