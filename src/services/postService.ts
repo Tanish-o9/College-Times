@@ -60,25 +60,36 @@ export const getPostsPage = async (
 ): Promise<PaginatedPostsResult> => {
   try {
     const postsRef = collection(db, 'posts');
-    let q;
-
-    if (category === 'All' || !category) {
-      q = lastVisibleDoc
-        ? query(postsRef, orderBy('timestamp', 'desc'), startAfter(lastVisibleDoc), limit(pageSize))
-        : query(postsRef, orderBy('timestamp', 'desc'), limit(pageSize));
-    } else {
-      q = lastVisibleDoc
-        ? query(postsRef, where('category', '==', category), orderBy('timestamp', 'desc'), startAfter(lastVisibleDoc), limit(pageSize))
-        : query(postsRef, where('category', '==', category), orderBy('timestamp', 'desc'), limit(pageSize));
-    }
+    
+    // Fetch recent posts ordered by timestamp desc (requires only a single-field index)
+    // We fetch a larger batch (pageSize * 4) to ensure we have enough matches after filtering in-memory
+    const q = lastVisibleDoc
+      ? query(postsRef, orderBy('timestamp', 'desc'), startAfter(lastVisibleDoc), limit(pageSize * 4))
+      : query(postsRef, orderBy('timestamp', 'desc'), limit(pageSize * 4));
 
     const snapshot = await getDocs(q);
-    const posts = snapshot.docs.map((docSnap) => ({
+    let allPosts = snapshot.docs.map((docSnap) => ({
       ...docSnap.data(),
       id: docSnap.id,
     })) as Post[];
 
-    const newLastDoc = snapshot.docs.length > 0 ? snapshot.docs[snapshot.docs.length - 1] : null;
+    // Filter by category in-memory if a specific category is requested
+    if (category && category !== 'All') {
+      allPosts = allPosts.filter((p) => p.category === category);
+    }
+
+    // Slice to the requested page size
+    const posts = allPosts.slice(0, pageSize);
+
+    // Find the last visible doc from snapshot that matches the last sliced post
+    let newLastDoc: QueryDocumentSnapshot | null = null;
+    if (posts.length > 0) {
+      const lastPostId = posts[posts.length - 1].id;
+      const matchingDoc = snapshot.docs.find((d) => d.id === lastPostId);
+      if (matchingDoc) {
+        newLastDoc = matchingDoc;
+      }
+    }
 
     return { posts, lastDoc: newLastDoc };
   } catch (error) {
@@ -100,6 +111,7 @@ export const createPost = async (
     const postsRef = collection(db, 'posts');
     const userRef = doc(db, 'users', currentUser.uid);
     const authorName = userProfile?.displayName || currentUser.displayName || 'Student';
+    const authorAvatar = userProfile?.photoURL || currentUser.photoURL || '';
 
     // Validate Priority permissions server-side before writing
     const postPriority: PostPriority = payload.priority || 'normal';
@@ -133,6 +145,7 @@ export const createPost = async (
       category: payload.category,
       authorId: currentUser.uid,
       authorName,
+      authorAvatar,
       timestamp: serverTimestamp(),
       likeCount: 0,
       commentCount: 0,
