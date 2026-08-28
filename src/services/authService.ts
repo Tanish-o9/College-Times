@@ -363,6 +363,12 @@ export const verifyEmailOtp = async (email: string, otp: string): Promise<User> 
     toast.success('College email verification successful! 🎉', { id: 'email-otp-success' });
     return userCredential.user;
   } catch (error: any) {
+    if (import.meta.env.PROD || import.meta.env.MODE === 'production') {
+      const msg = error.message || 'Verification failed. Please check the code and try again.';
+      toast.error(msg, { id: 'email-otp-verify-error' });
+      logAnalyticsEvent('auth_otp_failed', { provider: 'email_otp', stage: 'verify' });
+      throw new Error(msg);
+    }
     console.warn('Cloud Function verify error or un-deployed, checking dev fallback:', error?.message);
     const devOtp = sessionStorage.getItem(`dev_email_otp_${cleanEmail}`);
     if (devOtp && devOtp === cleanOtp) {
