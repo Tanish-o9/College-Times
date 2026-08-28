@@ -432,6 +432,9 @@ export const signUpWithEmailPassword = async (
         'Email/Password Sign-In Method is NOT enabled in your Firebase Console! Please go to Firebase Console -> Authentication -> Sign-in method -> Email/Password and Enable it.'
       );
     }
+    if (err.code === 'auth/email-already-in-use') {
+      throw new Error('An account already exists with this email address.');
+    }
     throw err;
   }
   const firebaseUser = userCredential.user;
@@ -443,12 +446,10 @@ export const signUpWithEmailPassword = async (
     if (!snap.empty) {
       // If a user profile with this email already exists, delete the newly created Auth account and throw email-already-in-use
       await firebaseUser.delete();
-      const err = new Error('Firebase: Error (auth/email-already-in-use).');
-      (err as any).code = 'auth/email-already-in-use';
-      throw err;
+      throw new Error('An account already exists with this email address.');
     }
   } catch (err: any) {
-    if (err.code === 'auth/email-already-in-use') {
+    if (err.message === 'An account already exists with this email address.') {
       throw err;
     }
     console.warn('Failed to verify email uniqueness in Firestore:', err);
