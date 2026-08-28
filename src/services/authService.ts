@@ -252,7 +252,7 @@ export const requestEmailOtp = async (email: string): Promise<void> => {
   }
 
   try {
-    const resp = await fetch('/api/request-otp', {
+    const resp = await fetch(`/api/request-otp?t=${Date.now()}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: cleanEmail }),
@@ -271,7 +271,7 @@ export const requestEmailOtp = async (email: string): Promise<void> => {
 
     // Call local Nodemailer dev server to dispatch actual Gmail email
     try {
-      const resp = await fetch('/api/send-email-otp', {
+      const resp = await fetch(`/api/send-email-otp?t=${Date.now()}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: cleanEmail, otp: randomOtp }),
@@ -302,7 +302,7 @@ export const verifyOtpOnly = async (email: string, otp: string): Promise<boolean
   }
 
   try {
-    const resp = await fetch('/api/verify-otp', {
+    const resp = await fetch(`/api/verify-otp?t=${Date.now()}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: cleanEmail, otp: cleanOtp }),
@@ -333,7 +333,7 @@ export const verifyEmailOtp = async (email: string, otp: string): Promise<User> 
   }
 
   try {
-    const resp = await fetch('/api/verify-otp', {
+    const resp = await fetch(`/api/verify-otp?t=${Date.now()}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: cleanEmail, otp: cleanOtp }),
