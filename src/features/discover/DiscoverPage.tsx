@@ -13,8 +13,9 @@ import {
   type RecommendedOpportunity,
   type RecommendedListing,
 } from '../../services/discoveryRankingService';
-import { collection, getDocs, limit, query, where } from 'firebase/firestore';
+import { collection, getDocs, limit, query, where, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
+import { getFollowRequests } from '../../services/followService';
 import {
   Search,
   Users,
@@ -37,22 +38,25 @@ export const DiscoverPage: React.FC = () => {
   const [events, setEvents] = useState<RecommendedEvent[]>([]);
   const [opportunities, setOpportunities] = useState<RecommendedOpportunity[]>([]);
   const [listings, setListings] = useState<RecommendedListing[]>([]);
+  const [pendingRequests, setPendingRequests] = useState<any[]>([]);
 
   const loadDiscoveryData = async () => {
     if (!currentUser) return;
     setLoading(true);
     try {
       // 1. Fetch user profile
-      const userSnap = await getDocs(query(collection(db, 'users'), where('uid', '==', currentUser.uid)));
-      const currentUserProfile = userSnap.docs[0]?.data() as any;
+      const userDocRef = doc(db, 'users', currentUser.uid);
+      const userDocSnap = await getDoc(userDocRef);
+      const currentUserProfile = userDocSnap.exists() ? userDocSnap.data() : null;
 
-      // 2. Fetch candidates in parallel
-      const [peopleSnap, groupsSnap, eventsSnap, oppsSnap, listingsSnap] = await Promise.all([
+      // 2. Fetch candidates in parallel alongside follow requests
+      const [peopleSnap, groupsSnap, eventsSnap, oppsSnap, listingsSnap, reqs] = await Promise.all([
         getDocs(query(collection(db, 'users'), limit(20))),
         getDocs(query(collection(db, 'groups'), limit(20))),
         getDocs(query(collection(db, 'events'), limit(20))),
         getDocs(query(collection(db, 'opportunities'), limit(20))),
         getDocs(query(collection(db, 'marketplaceListings'), limit(20))),
+        getFollowRequests(currentUser.uid),
       ]);
 
       const rawPeople = peopleSnap.docs.map((d) => ({ uid: d.id, ...d.data() })) as any[];
@@ -61,9 +65,22 @@ export const DiscoverPage: React.FC = () => {
       const rawOpps = oppsSnap.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
       const rawListings = listingsSnap.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
 
+      // Fetch detailed profiles of requesters
+      const detailedReqs: any[] = [];
+      for (const requesterUid of reqs.uids) {
+        const uSnap = await getDoc(doc(db, 'users', requesterUid));
+        if (uSnap.exists()) {
+          detailedReqs.push({
+            uid: uSnap.id,
+            ...uSnap.data(),
+          });
+        }
+      }
+      setPendingRequests(detailedReqs);
+
       // 3. Rank them using deterministic discovery engine
-      const rankedPeople = rankPeople(rawPeople, currentUserProfile || currentUser);
-      const rankedGroups = rankGroups(rawGroups, undefined, currentUserProfile?.departmentId);
+      const rankedPeople = rankPeople(rawPeople, (currentUserProfile as any) || currentUser);
+      const rankedGroups = rankGroups(rawGroups, undefined, (currentUserProfile as any)?.department);
       const rankedEvents = rankEvents(rawEvents, undefined, []);
       const rankedOpps = rankOpportunities(rawOpps, undefined, []);
       const rankedListings = rankListings(rawListings, undefined);
@@ -78,6 +95,31 @@ export const DiscoverPage: React.FC = () => {
       toast.error('Failed to load personalized recommendations.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAcceptRequest = async (requesterUid: string) => {
+    if (!currentUser) return;
+    try {
+      const { acceptFollowRequest } = await import('../../services/followService');
+      await acceptFollowRequest(currentUser.uid, requesterUid);
+      toast.success('Follow request accepted! 🎉');
+      setPendingRequests((prev) => prev.filter((r) => r.uid !== requesterUid));
+      loadDiscoveryData(); // Refresh list to update followers count
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to accept request.');
+    }
+  };
+
+  const handleRejectRequest = async (requesterUid: string) => {
+    if (!currentUser) return;
+    try {
+      const { rejectFollowRequest } = await import('../../services/followService');
+      await rejectFollowRequest(currentUser.uid, requesterUid);
+      toast.success('Follow request deleted.');
+      setPendingRequests((prev) => prev.filter((r) => r.uid !== requesterUid));
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to reject request.');
     }
   };
 
@@ -118,6 +160,49 @@ export const DiscoverPage: React.FC = () => {
 
       {/* Main Grid content */}
       <main className="max-w-6xl mx-auto p-4 sm:p-6 space-y-8">
+        {/* Pending Follow Requests panel */}
+        {pendingRequests.length > 0 && (
+          <div className="p-6 bg-sky-500/10 border border-sky-500/20 rounded-3xl space-y-4 shadow-xl">
+            <h2 className="text-xs font-bold text-sky-400 uppercase font-mono tracking-wider flex items-center gap-1.5">
+              <Users className="w-4.5 h-4.5 text-sky-400" />
+              <span>Follow Requests ({pendingRequests.length})</span>
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {pendingRequests.map((r) => (
+                <div key={r.uid} className="p-3 bg-slate-900 border border-slate-800 rounded-2xl flex items-center justify-between gap-3">
+                  <div className="min-w-0 flex items-center gap-2.5">
+                    {r.photoURL ? (
+                      <img src={r.photoURL} className="w-8 h-8 rounded-full object-cover border border-slate-800 shrink-0" alt="" />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-slate-850 flex items-center justify-center text-xs font-bold text-slate-300 shrink-0">
+                        {(r.displayName || 'Student').slice(0, 1)}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <h3 className="text-xs font-bold text-white truncate">{r.displayName || 'Student'}</h3>
+                      <p className="text-[10px] text-slate-400 font-mono truncate">@{r.username || 'username'}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={() => handleAcceptRequest(r.uid)}
+                      className="px-3 py-1.5 bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-[10px] rounded-lg transition-colors"
+                    >
+                      Confirm
+                    </button>
+                    <button
+                      onClick={() => handleRejectRequest(r.uid)}
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-750 font-bold text-[10px] rounded-lg transition-colors"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Search Integration Bar */}
         <div
           onClick={() => navigate('/search')}

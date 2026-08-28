@@ -249,19 +249,21 @@ export const ProfilePage: React.FC = () => {
                         )}
                       </button>
 
-                      <button
-                        onClick={() => {
-                          import('../../services/directMessageService').then(({ getOrCreateConversation }) => {
-                            getOrCreateConversation(profile.uid, currentUser!, profile.displayName)
-                              .then((conv) => navigate(`/messages/${conv.id}`))
-                              .catch(() => navigate('/messages'));
-                          });
-                        }}
-                        className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl border border-slate-700 text-xs font-semibold flex items-center gap-1.5"
-                      >
-                        <MessageSquare className="w-4 h-4 text-sky-400" />
-                        <span>Message</span>
-                      </button>
+                      {(profile.profileVisibility === 'public' || isFollowing) && (
+                        <button
+                          onClick={() => {
+                            import('../../services/directMessageService').then(({ getOrCreateConversation }) => {
+                              getOrCreateConversation(profile.uid, currentUser!, profile.displayName)
+                                .then((conv) => navigate(`/messages/${conv.id}`))
+                                .catch(() => navigate('/messages'));
+                            });
+                          }}
+                          className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl border border-slate-700 text-xs font-semibold flex items-center gap-1.5"
+                        >
+                          <MessageSquare className="w-4 h-4 text-sky-400" />
+                          <span>Message</span>
+                        </button>
+                      )}
                     </>
                   )}
                 </div>
