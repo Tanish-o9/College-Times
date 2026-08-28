@@ -29,6 +29,18 @@ export interface UserNotificationPreferences {
   feed: boolean;
   system: boolean;
 
+  // Unified preferences
+  dmNotifications?: boolean;
+  groupChatNotifications?: boolean;
+  mentionNotifications?: boolean;
+  momentNotifications?: boolean;
+  commentReplyNotifications?: boolean;
+  eventNotifications?: boolean;
+  pollNotifications?: boolean;
+  announcementNotifications?: boolean;
+  emailNotifications?: boolean;
+  pushNotifications?: boolean;
+
   // Communication controls
   quietHours?: QuietHoursConfig;
   digestMode?: 'immediate' | 'hourly' | 'daily';
@@ -58,6 +70,18 @@ const defaultPreferences: UserNotificationPreferences = {
   marketplace: true,
   feed: true,
   system: true,
+
+  dmNotifications: true,
+  groupChatNotifications: true,
+  mentionNotifications: true,
+  momentNotifications: true,
+  commentReplyNotifications: true,
+  eventNotifications: true,
+  pollNotifications: true,
+  announcementNotifications: true,
+  emailNotifications: false,
+  pushNotifications: true,
+
   quietHours: { enabled: false, start: '22:00', end: '07:00' },
   digestMode: 'immediate',
 };
@@ -65,10 +89,18 @@ const defaultPreferences: UserNotificationPreferences = {
 export const getUserNotificationPreferences = async (uid: string): Promise<UserNotificationPreferences> => {
   if (!uid) return defaultPreferences;
   try {
-    const ref = doc(db, 'users', uid, 'settings', 'notificationPreferences');
+    // Try the new path first
+    const ref = doc(db, 'users', uid, 'notificationPreferences', 'preferences');
     const snap = await getDoc(ref);
     if (snap.exists()) {
       return { ...defaultPreferences, ...snap.data() };
+    }
+
+    // Try legacy path
+    const legacyRef = doc(db, 'users', uid, 'settings', 'notificationPreferences');
+    const legacySnap = await getDoc(legacyRef);
+    if (legacySnap.exists()) {
+      return { ...defaultPreferences, ...legacySnap.data() };
     }
   } catch (err) {
     console.error('Failed to load notification preferences:', err);
@@ -81,6 +113,12 @@ export const updateUserNotificationPreferences = async (
   prefs: Partial<UserNotificationPreferences>
 ): Promise<void> => {
   if (!uid) return;
-  const ref = doc(db, 'users', uid, 'settings', 'notificationPreferences');
-  await setDoc(ref, prefs, { merge: true });
+  // Write to both paths for full compatibility
+  const ref = doc(db, 'users', uid, 'notificationPreferences', 'preferences');
+  const legacyRef = doc(db, 'users', uid, 'settings', 'notificationPreferences');
+  
+  await Promise.all([
+    setDoc(ref, prefs, { merge: true }),
+    setDoc(legacyRef, prefs, { merge: true }),
+  ]);
 };

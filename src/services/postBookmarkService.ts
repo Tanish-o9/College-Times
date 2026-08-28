@@ -39,3 +39,15 @@ export const toggleSavePost = async (
     return true;
   }
 };
+
+export const getUserSavedPosts = async (userId: string): Promise<string[]> => {
+  if (!userId) return [];
+  try {
+    const { collection, getDocs } = await import('firebase/firestore');
+    const colRef = collection(db, 'users', userId, 'savedPosts');
+    const snap = await getDocs(colRef);
+    return snap.docs.map((d) => d.id);
+  } catch (err) {
+    return [];
+  }
+};

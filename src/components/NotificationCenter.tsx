@@ -5,6 +5,7 @@ import {
   getNotificationsPaginated,
   markNotificationAsRead,
   markAllNotificationsAsRead,
+  deleteNotification,
 } from '../services/notificationService';
 import { rankNotifications } from '../services/notificationRankingService';
 import { approveJoinRequest, rejectJoinRequest } from '../services/groupManagementService';
@@ -27,6 +28,7 @@ import {
   X,
   Briefcase,
   ShoppingBag,
+  Trash2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { DocumentSnapshot } from 'firebase/firestore';
@@ -90,6 +92,13 @@ export const NotificationCenter: React.FC = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     await markAllNotificationsAsRead(currentUser.uid);
     toast.success('All notifications marked as read.');
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!currentUser) return;
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+    await deleteNotification(currentUser.uid, id);
+    toast.success('Notification dismissed.');
   };
 
   const handleNotificationClick = async (item: NotificationItem) => {
@@ -348,7 +357,20 @@ export const NotificationCenter: React.FC = () => {
                       )}
                     </div>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-slate-300 transition-colors shrink-0" />
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(item.id);
+                      }}
+                      className="p-1.5 hover:bg-slate-800 rounded-xl text-slate-500 hover:text-rose-450 transition-colors"
+                      title="Dismiss Alert"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                    <ChevronRight className="w-4 h-4 text-slate-650 group-hover:text-slate-300 transition-colors" />
+                  </div>
                 </div>
 
                 {/* Actionable Controls */}

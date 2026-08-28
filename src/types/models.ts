@@ -74,7 +74,7 @@ export interface Post {
   imageUrl?: string;
   images?: PostImageItem[];
   postType: 'news' | 'lost' | 'found';
-  status: 'resolved' | 'active' | 'deleted' | 'hidden';
+  status: 'resolved' | 'active' | 'deleted' | 'hidden' | 'edited' | 'moderated';
   reportCount: number;
   contactInfo?: string;
   location?: string;
@@ -87,6 +87,7 @@ export interface Post {
   sharesCount?: number;
   isEdited?: boolean;
   editedAt?: any;
+  updatedAt?: any;
   groupId?: string;
   poll?: any;
   reactionCounts?: Record<string, number>;
@@ -94,6 +95,7 @@ export interface Post {
   priority?: PostPriority;
   notificationPolicy?: NotificationPolicy;
   savedCount?: number;
+  reference?: any; // PostReference
 }
 
 export interface Comment {
@@ -101,8 +103,12 @@ export interface Comment {
   postId: string;
   authorId: string;
   authorName: string;
+  authorAvatar?: string;
   text: string;
   timestamp: any;
+  parentCommentId?: string;
+  likeCount?: number;
+  reportCount?: number;
 }
 
 export interface Notification {

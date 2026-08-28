@@ -1,17 +1,16 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { Post } from '../../types';
 import { formatTimestamp } from '../../utils/format';
 import { useAuth } from '../../hooks/useAuth';
-import { checkUserLikedPost, togglePostLike } from '../../services/postLikeService';
 import { checkPostIsSaved, toggleSavePost } from '../../services/postBookmarkService';
-import { reportPost } from '../../services/postService';
+import { reportPost, reactToPost } from '../../services/postService';
 import { PostImageGallery } from './PostImageGallery';
 import { CommentSheet } from './CommentSheet';
 import toast from 'react-hot-toast';
 import { 
   Clock, 
   User, 
-  Heart, 
   MessageSquare, 
   AlertTriangle, 
   Calendar, 
@@ -28,13 +27,14 @@ interface PostCardProps {
 }
 
 export const PostCard: React.FC<PostCardProps> = ({ post }) => {
+  const navigate = useNavigate();
   const { currentUser } = useAuth();
 
   // Like state
-  const [liked, setLiked] = useState<boolean>(false);
   const [likeCount, setLikeCount] = useState<number>(post.likeCount ?? 0);
-  const [isLiking, setIsLiking] = useState<boolean>(false);
-  const [likeAnimating, setLikeAnimating] = useState<boolean>(false);
+
+  // Reactions state
+  const [showReactions, setShowReactions] = useState(false);
 
   // Bookmark state
   const [saved, setSaved] = useState<boolean>(false);
@@ -50,13 +50,10 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
     setCommentCount(post.commentCount ?? 0);
   }, [post.likeCount, post.commentCount]);
 
-  // Fetch initial liked & saved status on mount
+  // Fetch initial saved status on mount
   useEffect(() => {
     let mounted = true;
     if (currentUser && post.id) {
-      checkUserLikedPost(post.id, currentUser.uid).then((isLiked) => {
-        if (mounted) setLiked(isLiked);
-      });
       checkPostIsSaved(post.id, currentUser.uid).then((isSaved) => {
         if (mounted) setSaved(isSaved);
       });
@@ -66,33 +63,14 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
     };
   }, [currentUser, post.id]);
 
-  // Optimistic Like Toggle with Failure Rollback
-  const handleLikeToggle = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!currentUser || !post.id || isLiking) return;
-
-    const prevLiked = liked;
-    const prevCount = likeCount;
-
-    const nextLiked = !prevLiked;
-    const nextCount = nextLiked ? prevCount + 1 : Math.max(0, prevCount - 1);
-    setLiked(nextLiked);
-    setLikeCount(nextCount);
-    setLikeAnimating(true);
-    setIsLiking(true);
-
-    setTimeout(() => setLikeAnimating(false), 300);
-
+  const handleReactionSelect = async (reactionType: string) => {
+    if (!currentUser || !post.id) return;
     try {
-      const result = await togglePostLike(post.id, currentUser, post.authorId);
-      setLiked(result.liked);
-      setLikeCount(result.newCount);
-    } catch (err: any) {
-      setLiked(prevLiked);
-      setLikeCount(prevCount);
-      toast.error('Failed to update like state. Rolled back.', { id: 'like-error' });
-    } finally {
-      setIsLiking(false);
+      await reactToPost(post.id, currentUser.uid, reactionType);
+      setLikeCount((prev) => prev + 1);
+      toast.success(`Reacted with ${reactionType}`);
+    } catch (err) {
+      toast.error('Failed to react.');
     }
   };
 
@@ -218,6 +196,22 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
         <div className="my-3 space-y-4 text-slate-300 text-base leading-relaxed">
           <p className="whitespace-pre-line">{post.content}</p>
 
+          {post.reference && (
+            <div
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/${post.reference.type === 'marketplace' ? 'marketplace' : post.reference.type + 's'}/${post.reference.id}`);
+              }}
+              className="p-3.5 bg-slate-950/65 border border-slate-800 rounded-2xl flex items-center justify-between gap-3 hover:border-sky-500/30 cursor-pointer shadow-lg transition-all"
+            >
+              <div className="min-w-0">
+                <span className="text-[10px] uppercase font-bold text-sky-400 font-mono tracking-wider">{post.reference.type} reference</span>
+                <h4 className="text-xs font-bold text-white mt-0.5 truncate">{post.reference.title}</h4>
+              </div>
+              <span className="text-[10px] text-slate-500 font-mono shrink-0">Open →</span>
+            </div>
+          )}
+
           {/* Multi-Image Gallery */}
           <PostImageGallery images={post.images} imageUrl={post.imageUrl} />
         </div>
@@ -238,24 +232,45 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
 
           {/* Action Buttons */}
           <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={handleLikeToggle}
-              disabled={isLiking}
-              title={liked ? 'Unlike Post' : 'Like Post'}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-mono transition-all duration-200 ${
-                liked
-                  ? 'bg-rose-500/10 border-rose-500/30 text-rose-400'
-                  : 'bg-slate-950/80 border-slate-800 hover:border-slate-700 text-slate-400 hover:text-rose-400'
-              }`}
-            >
-              <Heart
-                className={`w-4 h-4 transition-transform duration-200 ${
-                  liked ? 'fill-rose-500 text-rose-500' : 'text-slate-400'
-                } ${likeAnimating ? 'scale-125' : 'scale-100'}`}
-              />
-              <span className="text-xs font-semibold">{likeCount}</span>
-            </button>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowReactions(!showReactions);
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-950/80 border border-slate-800 hover:border-slate-700 rounded-xl text-slate-400 hover:text-sky-400 transition-all font-mono"
+              >
+                <span>React</span>
+                <span className="text-xs font-semibold">{likeCount}</span>
+              </button>
+
+              {showReactions && (
+                <div className="absolute bottom-10 left-0 bg-slate-950 border border-slate-800 p-2 rounded-2xl shadow-2xl flex gap-2 z-40">
+                  {[
+                    { emoji: '👍', type: 'like' },
+                    { emoji: '❤️', type: 'love' },
+                    { emoji: '😂', type: 'laugh' },
+                    { emoji: '😮', type: 'wow' },
+                    { emoji: '🔥', type: 'fire' },
+                  ].map((react) => (
+                    <button
+                      key={react.type}
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleReactionSelect(react.type);
+                        setShowReactions(false);
+                      }}
+                      className="p-2 hover:bg-slate-800 rounded-xl text-base transition-colors"
+                      title={react.type}
+                    >
+                      {react.emoji}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 
             <button
               type="button"

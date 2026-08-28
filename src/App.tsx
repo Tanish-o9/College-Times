@@ -51,6 +51,7 @@ import { CampusHome } from './features/home/CampusHome';
 import { MarketplacePage } from './features/marketplace/MarketplacePage';
 import { ListingDetailPage } from './features/marketplace/ListingDetailPage';
 import { MyApplications } from './features/opportunities/MyApplications';
+import { DiscoverPage } from './features/discover/DiscoverPage';
 
 // Code-split heavy AdminPortal route
 const AdminPage = lazy(() => import('./features/admin/AdminPage').then(module => ({ default: module.AdminPage })));
@@ -90,6 +91,7 @@ export const App: React.FC = () => {
                 <Route path="/events" element={<EventsList />} />
                 <Route path="/events/:eventId" element={<EventDetail />} />
                 <Route path="/opportunities/applications" element={<MyApplications />} />
+                <Route path="/discover" element={<DiscoverPage />} />
                 <Route path="/leaderboard" element={<Leaderboard />} />
                 <Route path="/messages" element={<DirectMessageList />} />
                 <Route path="/messages/:conversationId" element={<DirectMessageRoom />} />

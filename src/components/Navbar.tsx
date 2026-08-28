@@ -208,6 +208,11 @@ export const Navbar: React.FC = () => {
             <span className="hidden sm:inline">Feed</span>
           </NavLink>
 
+          <NavLink to="/discover" className={linkClass}>
+            <Search className="w-4 h-4 text-emerald-400" />
+            <span className="hidden sm:inline">Discover</span>
+          </NavLink>
+
           <NavLink to="/groups" className={linkClass}>
             <Users className="w-4 h-4 text-indigo-400" />
             <span className="hidden sm:inline">Groups</span>

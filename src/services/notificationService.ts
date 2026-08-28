@@ -1,12 +1,12 @@
 import {
   collection,
   doc,
-  setDoc,
   getDocs,
   query,
   limit,
+  where,
   writeBatch,
-  serverTimestamp,
+  serverTimestamp
 } from 'firebase/firestore';
 import { db, logAnalyticsEvent } from '../lib/firebase';
 import type { NotificationCategory, NotificationItem, NotificationPriority, ActionablePayload } from '../types/notification';
@@ -87,38 +87,45 @@ export const createNotification = async (params: CreateNotificationParams): Prom
     }
   }
 
-  // Digest mode check (low/normal priority system updates can be digest-only)
+  // Digest mode check
   if (prefs.digestMode && prefs.digestMode !== 'immediate' && priority !== 'critical' && priority !== 'high') {
-    // If user prefers digests, suppress immediate FCM
     isSuppressed = true;
   }
 
   const notifId = deterministicId || `notif_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   const notifRef = doc(db, 'users', recipientId, 'notifications', notifId);
+  const rootNotifRef = doc(db, 'notifications', notifId);
 
-  await setDoc(
-    notifRef,
-    {
-      id: notifId,
-      recipientId,
-      senderId: actualSender || 'system',
-      senderName: actualSenderName || 'Campus Update',
-      senderAvatar: actualSenderAvatar || '',
-      type,
-      category,
-      priority,
-      message,
-      title: title || '',
-      deepLink: deepLink || '/',
-      read: false,
-      groupKey: groupKey || '',
-      actionable: actionable || null,
-      expiresAt: expiresAt || null,
-      suppressed: isSuppressed,
-      createdAt: serverTimestamp(),
-    },
-    { merge: true }
-  );
+  const payloadData = {
+    id: notifId,
+    recipientId,
+    senderId: actualSender || 'system',
+    senderName: actualSenderName || 'Campus Update',
+    senderAvatar: actualSenderAvatar || '',
+    actorId: actualSender || 'system',
+    actorName: actualSenderName || 'Campus Update',
+    actorAvatar: actualSenderAvatar || '',
+    type,
+    category,
+    priority,
+    message,
+    body: message, // unified model field
+    title: title || '',
+    deepLink: deepLink || '/',
+    read: false,
+    isRead: false, // unified model field
+    groupKey: groupKey || '',
+    actionable: actionable || null,
+    expiresAt: expiresAt || null,
+    suppressed: isSuppressed,
+    createdAt: serverTimestamp(),
+  };
+
+  // Write to both subcollection and root collection
+  const batch = writeBatch(db);
+  batch.set(notifRef, payloadData, { merge: true });
+  batch.set(rootNotifRef, payloadData, { merge: true });
+  await batch.commit();
 
   logAnalyticsEvent('notification_received', { category, priority, suppressed: isSuppressed });
 };
@@ -131,24 +138,29 @@ export const getUserNotificationsPage = async (
   if (!uid) return [];
   const boundedLimit = Math.min(50, Math.max(1, limitCount));
 
-  const notifColRef = collection(db, 'users', uid, 'notifications');
-  const snap = await getDocs(query(notifColRef, limit(boundedLimit)));
+  // Fetch from unified root notifications collection
+  const notifColRef = collection(db, 'notifications');
+  const q = query(notifColRef, where('recipientId', '==', uid), limit(boundedLimit));
+  const snap = await getDocs(q);
 
   const rawList: NotificationItem[] = snap.docs.map((d) => {
     const data = d.data();
     return {
       id: d.id,
       recipientId: data.recipientId,
-      senderId: data.senderId,
-      senderName: data.senderName,
-      senderAvatar: data.senderAvatar,
+      senderId: data.actorId || data.senderId || 'system',
+      senderName: data.actorName || data.senderName || 'Campus Update',
+      senderAvatar: data.actorAvatar || data.senderAvatar || '',
+      actorId: data.actorId,
+      actorName: data.actorName,
+      actorAvatar: data.actorAvatar,
       type: data.type || 'general',
       category: data.category || 'social',
       priority: data.priority || 'normal',
-      message: data.message || '',
+      message: data.body || data.message || '',
       title: data.title || '',
       deepLink: data.deepLink,
-      read: !!data.read,
+      read: !!data.isRead || !!data.read,
       groupKey: data.groupKey,
       actionable: data.actionable || undefined,
       expiresAt: data.expiresAt,
@@ -166,23 +178,46 @@ export const getUserNotificationsPage = async (
 export const markNotificationRead = async (uid: string, notifId: string): Promise<void> => {
   if (!uid || !notifId) return;
   const ref = doc(db, 'users', uid, 'notifications', notifId);
-  await setDoc(ref, { read: true, readAt: serverTimestamp() }, { merge: true });
+  const rootRef = doc(db, 'notifications', notifId);
+
+  const batch = writeBatch(db);
+  batch.set(ref, { read: true, isRead: true, readAt: serverTimestamp() }, { merge: true });
+  batch.set(rootRef, { read: true, isRead: true, readAt: serverTimestamp() }, { merge: true });
+  await batch.commit();
+
   logAnalyticsEvent('notification_marked_read', { notifId });
 };
 
 export const markAllNotificationsRead = async (uid: string): Promise<void> => {
   if (!uid) return;
-  const notifColRef = collection(db, 'users', uid, 'notifications');
-  const snap = await getDocs(query(notifColRef, limit(50)));
+  const notifColRef = collection(db, 'notifications');
+  const q = query(notifColRef, where('recipientId', '==', uid), limit(50));
+  const snap = await getDocs(q);
 
   const batch = writeBatch(db);
   snap.docs.forEach((d) => {
-    if (!d.data().read) {
-      batch.update(d.ref, { read: true, readAt: serverTimestamp() });
+    const data = d.data();
+    if (!data.read && !data.isRead) {
+      const subRef = doc(db, 'users', uid, 'notifications', d.id);
+      batch.update(d.ref, { read: true, isRead: true, readAt: serverTimestamp() });
+      batch.update(subRef, { read: true, isRead: true, readAt: serverTimestamp() });
     }
   });
 
   await batch.commit();
+};
+
+export const deleteNotification = async (uid: string, notifId: string): Promise<void> => {
+  if (!uid || !notifId) return;
+  const ref = doc(db, 'users', uid, 'notifications', notifId);
+  const rootRef = doc(db, 'notifications', notifId);
+
+  const batch = writeBatch(db);
+  batch.delete(ref);
+  batch.delete(rootRef);
+  await batch.commit();
+
+  logAnalyticsEvent('notification_deleted', { notifId });
 };
 
 export const subscribeToNotifications = (_uid: string, callback: (countOrItems: any) => void) => {

@@ -33,6 +33,7 @@ export interface CreatePostPayload {
   audience?: PostAudience;
   priority?: PostPriority;
   notifyAudience?: boolean;
+  reference?: any;
 }
 
 export interface CreateLostFoundPayload {
@@ -142,6 +143,10 @@ export const createPost = async (
 
     if (sanitizedImages.length > 0) {
       newPostData.images = sanitizedImages;
+    }
+
+    if (payload.reference) {
+      newPostData.reference = payload.reference;
     }
 
     let newDocId = '';
@@ -483,6 +488,54 @@ export const togglePostImportant = async (
   const postRef = doc(db, 'posts', postId);
   await updateDoc(postRef, { isImportant });
   logAnalyticsEvent('post_important_toggled', { postId, isImportant });
+};
+
+/**
+ * Idempotently reacts to a post and maintains counts inside reactionCounts subfield.
+ */
+export const reactToPost = async (
+  postId: string,
+  userId: string,
+  reactionType: string
+): Promise<void> => {
+  if (!postId || !userId || !reactionType) return;
+  const reactRef = doc(db, 'posts', postId, 'reactions', userId);
+  const postRef = doc(db, 'posts', postId);
+
+  await runTransaction(db, async (tx) => {
+    const reactSnap = await tx.get(reactRef);
+    const postSnap = await tx.get(postRef);
+    if (!postSnap.exists()) return;
+
+    const postData = postSnap.data() as Post;
+    const currentCounts = postData.reactionCounts || {};
+    const prevReaction = reactSnap.exists() ? reactSnap.data().type : null;
+
+    if (prevReaction === reactionType) {
+      tx.delete(reactRef);
+      const newCounts = { ...currentCounts };
+      newCounts[reactionType] = Math.max(0, (newCounts[reactionType] || 0) - 1);
+      tx.update(postRef, {
+        reactionCounts: newCounts,
+        likeCount: increment(-1),
+      });
+    } else {
+      tx.set(reactRef, { type: reactionType, reactedAt: serverTimestamp() });
+      const newCounts = { ...currentCounts };
+      if (prevReaction) {
+        newCounts[prevReaction] = Math.max(0, (newCounts[prevReaction] || 0) - 1);
+      }
+      newCounts[reactionType] = (newCounts[reactionType] || 0) + 1;
+      
+      const likeDiff = prevReaction ? 0 : 1;
+      tx.update(postRef, {
+        reactionCounts: newCounts,
+        likeCount: increment(likeDiff),
+      });
+    }
+  });
+
+  logAnalyticsEvent('post_reacted', { postId, reactionType });
 };
 
 

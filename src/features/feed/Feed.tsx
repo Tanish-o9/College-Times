@@ -3,7 +3,6 @@ import toast from 'react-hot-toast';
 import type { Post } from '../../types';
 import type { FeedMode, UserFeedPreferences } from '../../types/feed';
 import { getPostsPage } from '../../services/postService';
-import { rankPosts } from '../../services/feedRankingService';
 import { getUserFeedPreferences } from '../../services/feedPreferenceService';
 import type { QueryDocumentSnapshot } from 'firebase/firestore';
 import { StoryBar } from '../stories/StoryBar';
@@ -28,7 +27,9 @@ import {
   CheckCircle2,
   Flame,
   Sliders,
-  Star
+  Star,
+  Bookmark,
+  Users,
 } from 'lucide-react';
 
 import { useSearchParams } from 'react-router-dom';
@@ -36,8 +37,6 @@ import { collection, query, orderBy, limit, onSnapshot, doc, getDoc } from 'fire
 import { db } from '../../lib/firebase';
 
 type CategoryFilter = 'All' | 'General' | 'Event' | 'Mishap' | 'LostFound';
-
-const PAGE_SIZE = 10;
 
 export const Feed: React.FC = () => {
   const { currentUser } = useAuth();
@@ -164,21 +163,46 @@ export const Feed: React.FC = () => {
       if (mode === 'events') targetCategory = 'Event';
       if (mode === 'lost_found') targetCategory = 'LostFound';
 
-      const result = await getPostsPage(PAGE_SIZE, targetCategory, null);
-      let fetched = result.posts;
+      let fetched: Post[] = [];
+
+      if (mode === 'saved') {
+        const { getUserSavedPosts } = await import('../../services/postBookmarkService');
+        const savedIds = await getUserSavedPosts(currentUser?.uid || '');
+        if (savedIds.length > 0) {
+          const docsPromise = savedIds.slice(0, 40).map((id) => getDoc(doc(db, 'posts', id)));
+          const snaps = await Promise.all(docsPromise);
+          fetched = snaps
+            .filter((s) => s.exists())
+            .map((s) => ({ id: s.id, ...(s.data() as Post) }))
+            .filter((p) => p.status !== 'deleted' && p.status !== 'hidden' && p.status !== 'moderated');
+        }
+        setHasMore(false);
+      } else {
+        const result = await getPostsPage(20, targetCategory, null);
+        fetched = result.posts;
+        setLastDoc(result.lastDoc);
+        if (result.posts.length < 20) {
+          setHasMore(false);
+        }
+      }
 
       // Apply mode specific transformations
       if (mode === 'important') {
         fetched = fetched.filter((p) => p.isImportant || p.isOfficial);
-      } else if (mode === 'personalized' || mode === 'trending') {
-        fetched = rankPosts(fetched, userPrefs || undefined);
+      } else if (mode === 'trending') {
+        fetched = fetched.sort((a, b) => ((b.likeCount || 0) + (b.commentCount || 0)) - ((a.likeCount || 0) + (a.commentCount || 0)));
+      } else if (mode === 'personalized') {
+        const { rankPostsPersonalized } = await import('../../services/feedRankingService');
+        fetched = rankPostsPersonalized(fetched, userPrefs || undefined);
+      } else if (mode === 'following') {
+        const { getFollowingPage } = await import('../../services/followService');
+        const { uids } = await getFollowingPage(currentUser?.uid || '');
+        fetched = fetched.filter((p) => uids.includes(p.authorId));
+      } else if (mode === 'groups') {
+        fetched = fetched.filter((p) => !!p.groupId);
       }
 
       setPosts(fetched);
-      setLastDoc(result.lastDoc);
-      if (result.posts.length < PAGE_SIZE) {
-        setHasMore(false);
-      }
     } catch (err: any) {
       console.error('Failed to load feed:', err);
       setError(err.message || 'Failed to load posts.');
@@ -189,7 +213,7 @@ export const Feed: React.FC = () => {
 
   // Fetch next page via cursor pagination
   const fetchNextPage = async () => {
-    if (!hasMore || loadingMore || loadingInitial || !lastDoc) return;
+    if (!hasMore || loadingMore || loadingInitial || !lastDoc || feedMode === 'saved') return;
 
     setLoadingMore(true);
     try {
@@ -197,7 +221,7 @@ export const Feed: React.FC = () => {
       if (feedMode === 'events') targetCategory = 'Event';
       if (feedMode === 'lost_found') targetCategory = 'LostFound';
 
-      const result = await getPostsPage(PAGE_SIZE, targetCategory, lastDoc);
+      const result = await getPostsPage(20, targetCategory, lastDoc);
       let nextBatch = result.posts;
 
       if (feedMode === 'important') {
@@ -208,11 +232,16 @@ export const Feed: React.FC = () => {
         const existingIds = new Set(prevPosts.map((p) => p.id));
         const newPosts = nextBatch.filter((p) => p.id && !existingIds.has(p.id));
         const combined = [...prevPosts, ...newPosts];
-        return feedMode === 'personalized' ? rankPosts(combined, userPrefs || undefined) : combined;
+
+        if (feedMode === 'personalized') {
+          const sorted = [...combined].sort((a, b) => ((b.likeCount || 0) + (b.commentCount || 0)) - ((a.likeCount || 0) + (a.commentCount || 0)));
+          return sorted;
+        }
+        return combined;
       });
 
       setLastDoc(result.lastDoc);
-      if (result.posts.length < PAGE_SIZE) {
+      if (result.posts.length < 20) {
         setHasMore(false);
       }
     } catch (err: any) {
@@ -243,12 +272,11 @@ export const Feed: React.FC = () => {
   };
 
   const feedModes: { mode: FeedMode; label: string; icon: React.ReactNode }[] = [
-    { mode: 'latest', label: 'Latest', icon: <Sparkles className="w-3 h-3" /> },
     { mode: 'personalized', label: 'For You', icon: <Star className="w-3 h-3 text-amber-400" /> },
+    { mode: 'following', label: 'Following', icon: <Sparkles className="w-3 h-3 text-sky-400" /> },
     { mode: 'trending', label: 'Trending', icon: <Flame className="w-3 h-3 text-amber-500" /> },
-    { mode: 'events', label: 'Events', icon: <Calendar className="w-3 h-3 text-purple-400" /> },
-    { mode: 'lost_found', label: 'Lost & Found', icon: <Search className="w-3 h-3 text-amber-400" /> },
-    { mode: 'important', label: 'Important', icon: <AlertTriangle className="w-3 h-3 text-rose-400" /> },
+    { mode: 'groups', label: 'Groups', icon: <Users className="w-3 h-3 text-indigo-400" /> },
+    { mode: 'saved', label: 'Saved', icon: <Bookmark className="w-3 h-3 text-amber-400" /> },
   ];
 
   const categories: { label: CategoryFilter; icon?: React.ReactNode }[] = [

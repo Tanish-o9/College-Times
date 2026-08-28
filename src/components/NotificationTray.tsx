@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useOverlayBackHandler } from '../hooks/useOverlayBackHandler';
 import { getNotificationsPaginated, markAllAsRead } from '../services/notificationService';
@@ -12,6 +13,7 @@ interface NotificationTrayProps {
 }
 
 export const NotificationTray: React.FC<NotificationTrayProps> = ({ isOpen, onClose }) => {
+  const navigate = useNavigate();
   const { currentUser } = useAuth();
   useOverlayBackHandler(isOpen, onClose);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -101,6 +103,18 @@ export const NotificationTray: React.FC<NotificationTrayProps> = ({ isOpen, onCl
             <NotificationCard key={n.id} notification={n} />
           ))
         )}
+      </div>
+
+      <div className="px-5 py-3 border-t border-slate-800 bg-slate-950/80 text-center">
+        <button
+          onClick={() => {
+            onClose();
+            navigate('/notifications');
+          }}
+          className="text-xs text-sky-400 font-bold hover:underline"
+        >
+          View all notifications
+        </button>
       </div>
     </div>
   );

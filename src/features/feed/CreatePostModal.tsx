@@ -61,6 +61,11 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   const [priority, setPriority] = useState<PostPriority>('normal');
   const [notifyAudience, setNotifyAudience] = useState(false);
 
+  // Reference entity state
+  const [refType, setRefType] = useState<'group' | 'event' | 'opportunity' | 'marketplace' | null>(null);
+  const [refId, setRefId] = useState('');
+  const [refTitle, setRefTitle] = useState('');
+
   // Reset state when modal opens
   useEffect(() => {
     if (isOpen) {
@@ -77,6 +82,9 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       setSubmitting(false);
       setUploadStep('idle');
       setShowConfirmClose(false);
+      setRefType(null);
+      setRefId('');
+      setRefTitle('');
     }
   }, [isOpen]);
 
@@ -220,6 +228,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
         audience: { type: audienceType },
         priority,
         notifyAudience,
+        reference: refType ? { type: refType, id: refId, title: refTitle } : null,
       };
 
       const newPost = await createPost(payload, currentUser, userProfile);
@@ -506,6 +515,54 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                 </div>
               </div>
             )}
+          {/* Reference Entity Selector */}
+          <div className="p-4 bg-slate-950/40 border border-slate-800 rounded-2xl space-y-3">
+            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider">
+              Attach Reference Link <span className="text-slate-500 font-normal">(Optional)</span>
+            </label>
+            <div className="flex gap-2">
+              {[
+                { type: 'group', label: 'Group' },
+                { type: 'event', label: 'Event' },
+                { type: 'opportunity', label: 'Opportunity' },
+                { type: 'marketplace', label: 'Marketplace' },
+              ].map((opt) => (
+                <button
+                  key={opt.type}
+                  type="button"
+                  onClick={() => setRefType(refType === opt.type ? null : opt.type as any)}
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${
+                    refType === opt.type
+                      ? 'bg-sky-500 text-slate-950 border-sky-400'
+                      : 'bg-slate-900 text-slate-400 border-slate-850'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+
+            {refType && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <input
+                  type="text"
+                  value={refId}
+                  onChange={(e) => setRefId(e.target.value)}
+                  placeholder={`${refType.toUpperCase()} ID...`}
+                  required
+                  className="px-3 py-2 bg-slate-950/80 border border-slate-800 focus:border-sky-500 rounded-xl text-white text-xs focus:outline-none"
+                />
+                <input
+                  type="text"
+                  value={refTitle}
+                  onChange={(e) => setRefTitle(e.target.value)}
+                  placeholder={`${refType.toUpperCase()} Title or Name...`}
+                  required
+                  className="px-3 py-2 bg-slate-950/80 border border-slate-800 focus:border-sky-500 rounded-xl text-white text-xs focus:outline-none"
+                />
+              </div>
+            )}
+          </div>
           </div>
 
           {/* Action Footer */}

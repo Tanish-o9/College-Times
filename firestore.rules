@@ -6,18 +6,13 @@ service cloud.firestore {
      * CANONICAL FIRESTORE SECURITY RULES - PHASE 8 MODERATION HARDENED
      * -------------------------------------------------------------------------- */
 
-    // Open read and write for campus platform collections
-    match /{document=**} {
-      allow read, write: if true;
-    }
-
     // Helper functions
     function isAuthenticated() {
-      return true;
+      return request.auth != null;
     }
 
     function isOwner(userId) {
-      return true;
+      return isAuthenticated() && request.auth.uid == userId;
     }
 
     function isAdmin() {
@@ -217,6 +212,15 @@ service cloud.firestore {
       match /savedPosts/{postId} {
         allow read, create, update, delete: if isOwner(userId);
       }
+    }
+
+    // Unified Centralized Notifications Collection
+    match /notifications/{notificationId} {
+      allow read, delete: if isAuthenticated() && resource.data.recipientId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.actorId == request.auth.uid && request.resource.data.recipientId != request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.recipientId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read', 'isRead', 'readAt'])
+        && request.resource.data.recipientId == resource.data.recipientId;
     }
 
     // Campus Emergency Incidents Collection & Updates Sub-collection
