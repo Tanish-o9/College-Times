@@ -3,7 +3,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useOverlayBackHandler } from '../../hooks/useOverlayBackHandler';
 import { createGroup } from '../../services/groupService';
 import type { CampusGroup, CampusGroupType } from '../../types/group';
-import { X, Users, Plus, RefreshCw, Globe, Lock } from 'lucide-react';
+import { X, Users, Plus, RefreshCw, Globe, Lock, Key } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface CreateGroupModalProps {
