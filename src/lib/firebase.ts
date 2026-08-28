@@ -9,14 +9,21 @@ import { getDatabase } from 'firebase/database';
 import { getFunctions } from 'firebase/functions';
 import { getAnalytics, logEvent, isSupported } from 'firebase/analytics';
 
+const cleanEnvVar = (val: any): string | undefined => {
+  if (typeof val === 'string') {
+    return val.replace(/^["']|["']$/g, '').trim();
+  }
+  return val;
+};
+
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL || `https://${import.meta.env.VITE_FIREBASE_PROJECT_ID || 'college-times-9f395'}-default-rtdb.firebaseio.com`,
+  apiKey: cleanEnvVar(import.meta.env.VITE_FIREBASE_API_KEY),
+  authDomain: cleanEnvVar(import.meta.env.VITE_FIREBASE_AUTH_DOMAIN),
+  projectId: cleanEnvVar(import.meta.env.VITE_FIREBASE_PROJECT_ID),
+  storageBucket: cleanEnvVar(import.meta.env.VITE_FIREBASE_STORAGE_BUCKET),
+  messagingSenderId: cleanEnvVar(import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID),
+  appId: cleanEnvVar(import.meta.env.VITE_FIREBASE_APP_ID),
+  databaseURL: cleanEnvVar(import.meta.env.VITE_FIREBASE_DATABASE_URL) || `https://${cleanEnvVar(import.meta.env.VITE_FIREBASE_PROJECT_ID) || 'college-times-9f395'}-default-rtdb.firebaseio.com`,
 };
 
 // Initialize Firebase App (Singleton pattern)
