@@ -187,6 +187,19 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   const contentUsagePercent = (content.length / CONTENT_MAX) * 100;
 
   // Submit Handler: Multi-stage image upload then post creation
+  // Prevent page refresh / tab close while submitting
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (submitting) {
+        e.preventDefault();
+        e.returnValue = 'Publishing your post. Please do not close this page.';
+        return e.returnValue;
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [submitting]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isFormValid || !currentUser) return;
@@ -203,50 +216,33 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     }
 
     setSubmitting(true);
+    setUploadStep('uploading_image');
+    setUploadProgresses(selectedFiles.map(() => 0));
 
-    // --- OPTIMISTIC POST: show instantly in feed while uploading/writing ---
-    const optimisticId = `optimistic_${Date.now()}`;
-    const optimisticPost = {
-      id: optimisticId,
-      title: title.trim(),
-      content: content.trim(),
-      category,
-      authorId: currentUser.uid,
-      authorName: userProfile?.displayName || currentUser.displayName || 'Campus Student',
-      authorAvatar: userProfile?.photoURL || currentUser.photoURL || undefined,
-      timestamp: new Date(),
-      likeCount: 0,
-      commentCount: 0,
-      reportCount: 0,
-      status: 'active' as const,
-      postType: 'news' as const,
-      // Show local preview for selected files
-      imageUrl: selectedFiles.length > 0 ? URL.createObjectURL(selectedFiles[0]) : safeImageUrl || undefined,
-      audience: { type: audienceType },
-      priority,
-    };
-
-    // Inject optimistic post and close modal immediately
-    onPostCreated(optimisticPost as any);
-    onClose();
-
-    toast.loading(selectedFiles.length > 0 ? 'Uploading & publishing...' : 'Publishing...', { id: 'post-upload-status' });
+    toast.loading(selectedFiles.length > 0 ? 'Uploading images...' : 'Publishing post...', { id: 'post-upload-status' });
 
     try {
       let uploadedImages: { storagePath: string; downloadUrl: string }[] = [];
 
-      // Stage 1: Upload images (in background after modal closed)
+      // Stage 1: Upload images in parallel
       if (selectedFiles.length > 0) {
         const { uploadPostImages } = await import('../../services/postMediaService');
         uploadedImages = await uploadPostImages(
           selectedFiles,
           `post_${Date.now()}`,
           currentUser.uid,
-          () => {}
+          (fileIdx, pct) => {
+            setUploadProgresses((prev) => {
+              const copy = [...prev];
+              copy[fileIdx] = pct;
+              return copy;
+            });
+          }
         );
       }
 
       // Stage 2: Write to Firestore
+      setUploadStep('publishing');
       const payload: CreatePostPayload = {
         title: title.trim(),
         content: content.trim(),
@@ -262,18 +258,20 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
 
       const newPost = await createPost(payload, currentUser, userProfile);
 
-      // Replace optimistic post with real post in feed
-      onPostCreated({ ...newPost, _replaceOptimisticId: optimisticId } as any);
       toast.success('Posted to campus feed! 🎉', { id: 'post-upload-status' });
+      onPostCreated(newPost);
+      onClose();
     } catch (err: any) {
-      // Remove the optimistic post on failure
-      onPostCreated({ _removeOptimisticId: optimisticId } as any);
       toast.error(err.message || 'Failed to publish post.', { id: 'post-upload-status' });
     } finally {
       setSubmitting(false);
       setUploadStep('idle');
     }
   };
+
+  const averageProgress = uploadProgresses.length > 0
+    ? Math.round(uploadProgresses.reduce((a, b) => a + b, 0) / uploadProgresses.length)
+    : 0;
 
   if (!isOpen) return null;
 
@@ -296,6 +294,57 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       <div className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden z-10 my-auto">
         {/* Glow Effects */}
         <div className="absolute top-0 right-0 w-48 h-48 bg-sky-500/10 rounded-full blur-3xl -z-10 pointer-events-none" />
+
+        {submitting && (
+          <div className="absolute inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center space-y-6 animate-in fade-in duration-300">
+            <div className="relative w-24 h-24 flex items-center justify-center">
+              {/* Outer pulsing ring */}
+              <div className="absolute inset-0 rounded-full border-4 border-sky-500/20 animate-pulse" />
+              {/* Spinning progress loader */}
+              <svg className="w-full h-full -rotate-90">
+                <circle
+                  cx="48"
+                  cy="48"
+                  r="40"
+                  className="stroke-slate-800 stroke-[6] fill-none"
+                />
+                <circle
+                  cx="48"
+                  cy="48"
+                  r="40"
+                  className="stroke-sky-500 stroke-[6] fill-none transition-all duration-300"
+                  strokeDasharray="251.2"
+                  strokeDashoffset={251.2 - (251.2 * (uploadStep === 'uploading_image' ? averageProgress : 100)) / 100}
+                />
+              </svg>
+              <span className="absolute text-sm font-bold text-white font-mono">
+                {uploadStep === 'uploading_image' ? `${averageProgress}%` : '99%'}
+              </span>
+            </div>
+            
+            <div className="space-y-2">
+              <h3 className="text-lg font-bold text-white tracking-wide">
+                {uploadStep === 'uploading_image' ? 'Uploading Campus Media' : 'Publishing Update'}
+              </h3>
+              <p className="text-xs text-slate-400 max-w-xs leading-relaxed">
+                {uploadStep === 'uploading_image' 
+                  ? 'Optimizing and sending your image files to campus storage. Please keep this screen open.'
+                  : 'Verifying permissions and broadcasting to the campus feed. Almost there...'}
+              </p>
+            </div>
+
+            {/* Simulated progress step timeline */}
+            <div className="flex items-center justify-center gap-2 text-[10px] font-mono tracking-wider uppercase text-slate-500 font-bold">
+              <span className={uploadStep === 'uploading_image' ? 'text-sky-400 animate-pulse' : 'text-emerald-400'}>
+                [1] Upload
+              </span>
+              <span className="text-slate-800">•</span>
+              <span className={uploadStep === 'publishing' ? 'text-sky-400 animate-pulse' : ''}>
+                [2] Publish
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between">

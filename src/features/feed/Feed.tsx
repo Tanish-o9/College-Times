@@ -64,6 +64,9 @@ export const Feed: React.FC = () => {
   // Ref to the scroll container for programmatic scroll-to-top
   const feedScrollRef = useRef<HTMLDivElement>(null);
 
+  // Keep a stable ref of current post IDs so the realtime listener doesn't need posts in deps
+  const postIdsRef = useRef<Set<string>>(new Set());
+
   // Load user feed preferences
   const loadUserPrefs = async () => {
     if (!currentUser) return;
@@ -79,20 +82,55 @@ export const Feed: React.FC = () => {
     loadUserPrefs();
   }, [currentUser]);
 
-  // Bounded Realtime Listener for Recent Posts (limit: 5)
+  // Keep postIdsRef in sync with posts so the stable realtime listener can deduplicate
+  useEffect(() => {
+    postIdsRef.current = new Set(posts.map((p) => p.id).filter(Boolean) as string[]);
+  }, [posts]);
+
+  // Bounded Realtime Listener — auto-merges new posts at the top (limit 5, no pill needed)
   useEffect(() => {
     const postsRef = collection(db, 'posts');
-    const q = query(postsRef, orderBy('timestamp', 'desc'), limit(5));
+    // Order by timestamp desc only to avoid composite index requirements
+    const q = query(
+      postsRef,
+      orderBy('timestamp', 'desc'),
+      limit(5)
+    );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const recent = snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as Post) }));
-      const activeIds = new Set(posts.map((p) => p.id));
-      const newUnseen = recent.filter((r) => r.id && !activeIds.has(r.id));
-      setPendingRecentPosts(newUnseen);
-    });
+      // Filter in-memory to only include active posts
+      const recent = snapshot.docs
+        .map((d) => ({ id: d.id, ...(d.data() as Post) }))
+        .filter((p) => p.status === 'active');
+      // Use stable ref — no stale closure issue, no listener recreation
+      const newPosts = recent.filter((r) => r.id && !postIdsRef.current.has(r.id));
+      if (newPosts.length > 0) {
+        // Auto-merge directly into the top of the feed — no pill needed
+        setPosts((prev) => {
+          const existingIds = new Set(prev.map((p) => p.id));
+          const toAdd = newPosts.filter((p) => !existingIds.has(p.id!));
+          if (toAdd.length === 0) return prev;
+          return [...toAdd, ...prev];
+        });
+        // Only scroll to top if user is near the top (within 200px)
+        if ((feedScrollRef.current?.scrollTop ?? 0) < 200) {
+          requestAnimationFrame(() => {
+            feedScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+          });
+        } else {
+          // Show pill for users further down the feed
+          setPendingRecentPosts((prev) => [
+            ...newPosts.filter((p) => !prev.some((x) => x.id === p.id)),
+            ...prev,
+          ]);
+        }
+      }
+    }, (err) => console.error('Feed listener error:', err));
 
     return () => unsubscribe();
-  }, [posts]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Stable — never recreated
+
 
   const mergeNewPosts = () => {
     if (pendingRecentPosts.length === 0) return;

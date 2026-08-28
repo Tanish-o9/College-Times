@@ -24,11 +24,7 @@ export const uploadPostImages = async (
     throw new Error('Maximum of 5 images allowed per post.');
   }
 
-  const results: PostImageItem[] = [];
-
-  for (let idx = 0; idx < files.length; idx++) {
-    const file = files[idx];
-
+  const uploadPromises = files.map(async (file, idx) => {
     if (file.size > 10 * 1024 * 1024) {
       throw new Error(`File '${file.name}' exceeds the 10MB limit.`);
     }
@@ -50,7 +46,7 @@ export const uploadPostImages = async (
       });
     };
 
-    const item = await new Promise<PostImageItem>((resolve) => {
+    return new Promise<PostImageItem>((resolve) => {
       let isDone = false;
       const timeoutTimer = setTimeout(async () => {
         if (!isDone) {
@@ -101,11 +97,9 @@ export const uploadPostImages = async (
         }
       );
     });
+  });
 
-    results.push(item);
-  }
-
-  return results;
+  return Promise.all(uploadPromises);
 };
 
 /**
