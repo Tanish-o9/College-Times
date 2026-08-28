@@ -6,6 +6,7 @@ import {
   sendDirectMessage, 
   updateConversationStatus, 
   blockUser,
+  unblockUser,
   toggleDMReaction,
   uploadDMMedia
 } from '../../services/directMessageService';
@@ -58,6 +59,7 @@ export const DirectMessageRoom: React.FC = () => {
 
   const isPendingRequest = conversation?.status === 'pending' && conversation?.lastMessageSenderId !== currentUser?.uid;
   const isBlocked = conversation?.status === 'blocked';
+  const blockedByMe = conversation?.blockedBy === currentUser?.uid;
 
   // Listen to active conversation doc in realtime
   useEffect(() => {
@@ -203,6 +205,16 @@ export const DirectMessageRoom: React.FC = () => {
     }
   };
 
+  const handleUnblockUser = async () => {
+    if (!currentUser || !targetUid) return;
+    try {
+      await unblockUser(targetUid, currentUser);
+      toast.success(`Unblocked ${targetName}.`);
+    } catch (err) {
+      toast.error('Failed to unblock user.');
+    }
+  };
+
   return (
     <div className="max-w-3xl mx-auto h-[calc(100vh-5rem)] flex flex-col py-4 px-3 sm:px-4">
       {/* Header Bar */}
@@ -229,7 +241,16 @@ export const DirectMessageRoom: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          {!isBlocked && (
+          {isBlocked ? (
+            blockedByMe && (
+              <button
+                onClick={handleUnblockUser}
+                className="px-3 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 hover:text-indigo-300 rounded-xl border border-indigo-500/30 text-xs font-bold transition-all"
+              >
+                Unblock
+              </button>
+            )
+          ) : (
             <button
               onClick={handleBlockUser}
               className="p-2 bg-slate-950 hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 rounded-xl border border-slate-800"
@@ -434,10 +455,25 @@ export const DirectMessageRoom: React.FC = () => {
 
       {/* Bottom Composer Bar */}
       {isBlocked ? (
-        <div className="p-3 bg-slate-900 border border-slate-800 rounded-2xl text-center text-xs text-rose-400 font-semibold flex items-center justify-center gap-1.5 shrink-0">
-          <Lock className="w-4 h-4" />
-          <span>Messaging is disabled for blocked conversations.</span>
-        </div>
+        blockedByMe ? (
+          <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl flex flex-col items-center justify-center gap-2.5 shrink-0 shadow-lg">
+            <div className="flex items-center gap-1.5 text-xs text-rose-400 font-semibold">
+              <Lock className="w-4 h-4" />
+              <span>You blocked this user.</span>
+            </div>
+            <button
+              onClick={handleUnblockUser}
+              className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white text-xs font-bold rounded-xl shadow-md transition-all"
+            >
+              Unblock {targetName}
+            </button>
+          </div>
+        ) : (
+          <div className="p-3 bg-slate-900 border border-slate-800 rounded-2xl text-center text-xs text-rose-400 font-semibold flex items-center justify-center gap-1.5 shrink-0">
+            <Lock className="w-4 h-4" />
+            <span>Messaging is disabled for blocked conversations.</span>
+          </div>
+        )
       ) : (
         <div className="flex flex-col gap-2 pt-2 border-t border-slate-800 shrink-0">
           {uploading && (

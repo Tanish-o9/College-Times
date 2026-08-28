@@ -73,6 +73,30 @@ export const blockUser = async (targetUid: string, targetName: string | undefine
 };
 
 /**
+ * Unblocks a target user.
+ */
+export const unblockUser = async (targetUid: string, currentUser: FirebaseUser): Promise<void> => {
+  if (!currentUser || !targetUid) throw new Error('Authentication required.');
+  const uid = currentUser.uid;
+
+  const blockRef = doc(db, 'users', uid, 'blockedUsers', targetUid);
+  await deleteDoc(blockRef);
+
+  const conversationId = getConversationId(uid, targetUid);
+  const convRef = doc(db, 'conversations', conversationId);
+  const convSnap = await getDoc(convRef);
+
+  if (convSnap.exists()) {
+    const convData = convSnap.data() as DirectConversation;
+    if (convData.status === 'blocked' && convData.blockedBy === uid) {
+      await setDoc(convRef, { status: 'active', blockedBy: null }, { merge: true });
+    }
+  }
+
+  logAnalyticsEvent('dm_user_unblocked', { targetUid });
+};
+
+/**
  * Retrieves or creates a 1-on-1 private conversation between currentUser and targetUid.
  */
 export const getOrCreateConversation = async (
