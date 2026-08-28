@@ -4,7 +4,7 @@ import type { DirectConversation } from '../../types/directMessage';
 import { useAuth } from '../../hooks/useAuth';
 import { getOrCreateConversation } from '../../services/directMessageService';
 import { NewDirectMessageModal } from './NewDirectMessageModal';
-import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
+import { collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import toast from 'react-hot-toast';
 import { 
@@ -27,36 +27,33 @@ export const DirectMessageList: React.FC = () => {
   const [selectedTab, setSelectedTab] = useState<ListTab>('All');
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
 
-  const fetchConversations = async () => {
+  // Listen to conversations in realtime
+  useEffect(() => {
     if (!currentUser) return;
     setLoading(true);
 
-    try {
-      const convsRef = collection(db, 'conversations');
-      const q = query(
-        convsRef,
-        where('participantIds', 'array-contains', currentUser.uid),
-        orderBy('updatedAt', 'desc'),
-        limit(30)
-      );
+    const convsRef = collection(db, 'conversations');
+    const q = query(
+      convsRef,
+      where('participantIds', 'array-contains', currentUser.uid),
+      orderBy('updatedAt', 'desc'),
+      limit(30)
+    );
 
-      const snap = await getDocs(q);
-      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as DirectConversation[];
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const list = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as DirectConversation[];
       setConversations(list);
-    } catch (err) {
-      console.error('Error loading conversations:', err);
-    } finally {
       setLoading(false);
-    }
-  };
+    }, (err) => {
+      console.error('Error listening to conversations:', err);
+      setLoading(false);
+    });
 
-  useEffect(() => {
-    fetchConversations();
-    if (currentUser) {
-      import('../../services/activityStateService').then(({ markScopeAsRead }) => {
-        markScopeAsRead(currentUser.uid, 'messages').catch(() => {});
-      });
-    }
+    import('../../services/activityStateService').then(({ markScopeAsRead }) => {
+      markScopeAsRead(currentUser.uid, 'messages').catch(() => {});
+    });
+
+    return () => unsubscribe();
   }, [currentUser]);
 
   const handleUserSelected = async (targetUid: string, targetName: string) => {
