@@ -19,9 +19,7 @@ const getFirebaseAdmin = () => {
     });
     console.log('[FIREBASE ADMIN] Initialized via Service Account credentials.');
   } else {
-    // Fallback to ADC / Environment default initialization
-    admin.initializeApp();
-    console.log('[FIREBASE ADMIN] Initialized via default ADC.');
+    throw new Error('Server configuration error: Firebase Admin credentials (FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY) are missing in environment variables.');
   }
 
   return admin;
