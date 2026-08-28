@@ -13,7 +13,7 @@ import {
   type RecommendedOpportunity,
   type RecommendedListing,
 } from '../../services/discoveryRankingService';
-import { collection, getDocs, limit, query, where, doc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, limit, query, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { getFollowRequests } from '../../services/followService';
 import {

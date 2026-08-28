@@ -11,6 +11,10 @@ export interface User {
   joinedChannelIds?: string[];
   departmentId?: string;
   batchYear?: number;
+  username?: string;
+  bio?: string;
+  department?: string;
+  profileVisibility?: 'public' | 'private';
   createdAt: Timestamp | FieldValue;
   lastLoginAt?: Timestamp | FieldValue;
 }

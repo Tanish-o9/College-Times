@@ -11,11 +11,9 @@ import {
   Sparkles,
   LogOut,
   Trophy,
-  User,
   AtSign,
   GraduationCap,
   Calendar,
-  FileText,
   ExternalLink,
   Edit2
 } from 'lucide-react';
