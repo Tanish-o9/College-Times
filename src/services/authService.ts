@@ -7,6 +7,8 @@ import {
   signInAnonymously,
   updateProfile,
   signOut,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
   type ConfirmationResult, 
   type User 
 } from 'firebase/auth';
@@ -14,6 +16,7 @@ import { httpsCallable } from 'firebase/functions';
 import { doc, getDoc, setDoc, runTransaction, increment, serverTimestamp } from 'firebase/firestore';
 
 import { auth, db, functions, logAnalyticsEvent } from '../lib/firebase';
+import { isUsernameAvailable } from './usernameService';
 import toast from 'react-hot-toast';
 
 declare global {
@@ -346,6 +349,114 @@ export const verifyEmailOtp = async (email: string, otp: string): Promise<User> 
     logAnalyticsEvent('auth_otp_failed', { provider: 'email_otp', stage: 'verify' });
     throw new Error(msg);
   }
+};
+
+/**
+ * Sign up a user using standard Email & Password.
+ * Pre-checks username availability, registers the user in Auth, creates Firestore doc with full details,
+ * claims username, and auto-joins default launch channels.
+ */
+export const signUpWithEmailPassword = async (
+  email: string,
+  password: string,
+  displayName: string,
+  username: string,
+  department: string,
+  batchYear: number,
+  bio?: string,
+  photoURL?: string
+): Promise<User> => {
+  const normUsername = username.trim().toLowerCase();
+  
+  // 1. Check username availability
+  const isAvailable = await isUsernameAvailable(normUsername);
+  if (!isAvailable) {
+    throw new Error(`Username @${normUsername} is already taken.`);
+  }
+
+  // 2. Create the user in Firebase Auth
+  const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+  const firebaseUser = userCredential.user;
+
+  // 3. Update profile displayName and photoURL
+  await updateProfile(firebaseUser, {
+    displayName,
+    ...(photoURL ? { photoURL } : {}),
+  });
+
+  // 4. Create User Document in Firestore
+  const userRef = doc(db, 'users', firebaseUser.uid);
+  const defaultChannels = ['general', 'admin-announcements'];
+
+  const userData = {
+    uid: firebaseUser.uid,
+    displayName,
+    email,
+    username: normUsername,
+    role: 'student',
+    points: 0,
+    joinedChannelIds: defaultChannels,
+    department,
+    batchYear,
+    bio: bio || '',
+    photoURL: photoURL || '',
+    createdAt: serverTimestamp(),
+    lastLoginAt: serverTimestamp(),
+  };
+
+  await setDoc(userRef, userData);
+
+  // Claim username in usernames collection
+  const usernameRef = doc(db, 'usernames', normUsername);
+  await setDoc(usernameRef, {
+    uid: firebaseUser.uid,
+    username: normUsername,
+    createdAt: serverTimestamp(),
+  });
+
+  // 5. Join default channels
+  for (const channelId of defaultChannels) {
+    try {
+      const memberRef = doc(db, 'channels', channelId, 'members', firebaseUser.uid);
+      const channelRef = doc(db, 'channels', channelId);
+
+      await runTransaction(db, async (tx) => {
+        const memberSnap = await tx.get(memberRef);
+        if (!memberSnap.exists()) {
+          tx.set(memberRef, {
+            channelId,
+            userId: firebaseUser.uid,
+            role: 'member',
+            joinedAt: serverTimestamp(),
+            lastReadAt: serverTimestamp(),
+            muted: false,
+          });
+
+          const channelSnap = await tx.get(channelRef);
+          if (channelSnap.exists()) {
+            tx.update(channelRef, { memberCount: increment(1) });
+          }
+        }
+      });
+    } catch (e) {
+      // Ignore
+    }
+  }
+
+  logAnalyticsEvent('auth_signup_email_password', { uid: firebaseUser.uid });
+  toast.success('Account created successfully! 🎉');
+  return firebaseUser;
+};
+
+/**
+ * Sign in a user using standard Email & Password.
+ */
+export const signInWithEmailPassword = async (email: string, password: string): Promise<User> => {
+  const userCredential = await signInWithEmailAndPassword(auth, email, password);
+  await ensureUserDocument(userCredential.user);
+  logAnalyticsEvent('auth_login_email_password', { uid: userCredential.user.uid });
+  toast.success('Logged in successfully! 👋');
+  return userCredential.user;
 };
 
 

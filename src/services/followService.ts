@@ -140,3 +140,85 @@ export const getFollowingPage = async (
 
   return { uids, lastDoc };
 };
+
+/**
+ * Fetches pending follow requests for a user.
+ */
+export const getFollowRequests = async (
+  uid: string
+): Promise<{ uids: string[] }> => {
+  if (!uid) return { uids: [] };
+  try {
+    const colRef = collection(db, 'users', uid, 'followRequests');
+    const snap = await getDocs(colRef);
+    const uids = snap.docs.map((d) => d.id);
+    return { uids };
+  } catch (err) {
+    console.error('Error fetching follow requests:', err);
+    return { uids: [] };
+  }
+};
+
+/**
+ * Accepts a follow request:
+ * Adds requesterUid to targetUid's followers collection and targetUid to requesterUid's following collection.
+ * Increments counters, deletes the follow request.
+ */
+export const acceptFollowRequest = async (
+  targetUid: string,
+  requesterUid: string
+): Promise<void> => {
+  if (!targetUid || !requesterUid) return;
+
+  const requestRef = doc(db, 'users', targetUid, 'followRequests', requesterUid);
+  const followingRef = doc(db, 'users', requesterUid, 'following', targetUid);
+  const followerRef = doc(db, 'users', targetUid, 'followers', requesterUid);
+  const requesterUserRef = doc(db, 'users', requesterUid);
+  const targetUserRef = doc(db, 'users', targetUid);
+
+  await runTransaction(db, async (tx) => {
+    const requestSnap = await tx.get(requestRef);
+    if (!requestSnap.exists()) {
+      throw new Error('Follow request does not exist or has already been processed.');
+    }
+
+    tx.set(followingRef, { uid: targetUid, createdAt: serverTimestamp() });
+    tx.set(followerRef, { uid: requesterUid, createdAt: serverTimestamp() });
+
+    const reqSnap = await tx.get(requesterUserRef);
+    const reqFollowingCount = reqSnap.exists() ? reqSnap.data()?.followingCount || 0 : 0;
+    tx.set(requesterUserRef, { followingCount: reqFollowingCount + 1 }, { merge: true });
+
+    const tarSnap = await tx.get(targetUserRef);
+    const tarFollowersCount = tarSnap.exists() ? tarSnap.data()?.followersCount || 0 : 0;
+    tx.set(targetUserRef, { followersCount: tarFollowersCount + 1 }, { merge: true });
+
+    tx.delete(requestRef);
+  });
+
+  createNotification({
+    recipientId: requesterUid,
+    senderId: targetUid,
+    message: 'accepted your follow request.',
+  });
+
+  logAnalyticsEvent('follow_request_accepted', { targetUid, requesterUid });
+};
+
+/**
+ * Rejects a follow request:
+ * Simply deletes the request document.
+ */
+export const rejectFollowRequest = async (
+  targetUid: string,
+  requesterUid: string
+): Promise<void> => {
+  if (!targetUid || !requesterUid) return;
+
+  const requestRef = doc(db, 'users', targetUid, 'followRequests', requesterUid);
+  await runTransaction(db, async (tx) => {
+    tx.delete(requestRef);
+  });
+
+  logAnalyticsEvent('follow_request_rejected', { targetUid, requesterUid });
+};

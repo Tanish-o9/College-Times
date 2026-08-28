@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useOverlayBackHandler } from '../../hooks/useOverlayBackHandler';
 import { getCommentsPage, addComment, deleteComment, reactToComment } from '../../services/commentService';
@@ -22,6 +23,7 @@ export const CommentSheet: React.FC<CommentSheetProps> = ({
   onClose,
 }) => {
   const { currentUser, userProfile } = useAuth();
+  const navigate = useNavigate();
   useOverlayBackHandler(isOpen, onClose);
 
   const [comments, setComments] = useState<Comment[]>([]);
@@ -227,7 +229,13 @@ export const CommentSheet: React.FC<CommentSheetProps> = ({
                     {/* Parent Comment */}
                     <div className="p-3.5 bg-slate-950/40 border border-slate-850 rounded-2xl space-y-1.5 relative group">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
+                        <div 
+                          onClick={() => {
+                            navigate(`/profile/${c.authorId}`);
+                            onClose();
+                          }}
+                          className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+                        >
                           {c.authorAvatar ? (
                             <img src={c.authorAvatar} className="w-6 h-6 rounded-full object-cover border border-slate-800" alt="" />
                           ) : (
@@ -279,7 +287,13 @@ export const CommentSheet: React.FC<CommentSheetProps> = ({
                         <CornerDownRight className="w-4 h-4 text-slate-700 shrink-0 mt-2" />
                         <div className="flex-1 p-3 bg-slate-950/60 border border-slate-850 rounded-2xl space-y-1.5 relative group">
                           <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
+                            <div 
+                              onClick={() => {
+                                navigate(`/profile/${r.authorId}`);
+                                onClose();
+                              }}
+                              className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+                            >
                               {r.authorAvatar ? (
                                 <img src={r.authorAvatar} className="w-5 h-5 rounded-full object-cover border border-slate-800" alt="" />
                               ) : (

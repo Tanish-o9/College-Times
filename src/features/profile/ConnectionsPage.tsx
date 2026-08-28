@@ -1,12 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { getFollowersPage, getFollowingPage } from '../../services/followService';
-import { Users, UserCheck, UserPlus, ArrowLeft, RefreshCw, MessageSquare } from 'lucide-react';
+import { 
+  getFollowersPage, 
+  getFollowingPage, 
+  getFollowRequests, 
+  acceptFollowRequest, 
+  rejectFollowRequest 
+} from '../../services/followService';
+import { Users, UserCheck, UserPlus, ArrowLeft, RefreshCw, MessageSquare, ShieldAlert } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
+import toast from 'react-hot-toast';
 
-type ConnectionsTab = 'following' | 'followers';
+type ConnectionsTab = 'following' | 'followers' | 'requests';
 
 interface ConnectedUserPreview {
   uid: string;
@@ -26,28 +33,68 @@ export const ConnectionsPage: React.FC = () => {
     if (!currentUser) return;
     setLoading(true);
     try {
-      const res = activeTab === 'following'
-        ? await getFollowingPage(currentUser.uid, 20)
-        : await getFollowersPage(currentUser.uid, 20);
+      let detailedUsers: ConnectedUserPreview[] = [];
+      
+      if (activeTab === 'requests') {
+        const res = await getFollowRequests(currentUser.uid);
+        for (const targetUid of res.uids) {
+          const uSnap = await getDoc(doc(db, 'users', targetUid));
+          if (uSnap.exists()) {
+            const d = uSnap.data();
+            detailedUsers.push({
+              uid: uSnap.id,
+              displayName: d.displayName || 'Campus Student',
+              username: d.username,
+              photoURL: d.photoURL,
+            });
+          }
+        }
+      } else {
+        const res = activeTab === 'following'
+          ? await getFollowingPage(currentUser.uid, 20)
+          : await getFollowersPage(currentUser.uid, 20);
 
-      const detailedUsers: ConnectedUserPreview[] = [];
-      for (const targetUid of res.uids) {
-        const uSnap = await getDoc(doc(db, 'users', targetUid));
-        if (uSnap.exists()) {
-          const d = uSnap.data();
-          detailedUsers.push({
-            uid: uSnap.id,
-            displayName: d.displayName || 'Campus Student',
-            username: d.username,
-            photoURL: d.photoURL,
-          });
+        for (const targetUid of res.uids) {
+          const uSnap = await getDoc(doc(db, 'users', targetUid));
+          if (uSnap.exists()) {
+            const d = uSnap.data();
+            detailedUsers.push({
+              uid: uSnap.id,
+              displayName: d.displayName || 'Campus Student',
+              username: d.username,
+              photoURL: d.photoURL,
+            });
+          }
         }
       }
+      
       setUserList(detailedUsers);
     } catch (err) {
       console.error('Failed to load connections:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAccept = async (requesterUid: string) => {
+    if (!currentUser) return;
+    try {
+      await acceptFollowRequest(currentUser.uid, requesterUid);
+      toast.success('Follow request accepted! 🎉');
+      setUserList((prev) => prev.filter((u) => u.uid !== requesterUid));
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to accept request.');
+    }
+  };
+
+  const handleReject = async (requesterUid: string) => {
+    if (!currentUser) return;
+    try {
+      await rejectFollowRequest(currentUser.uid, requesterUid);
+      toast.success('Follow request deleted.');
+      setUserList((prev) => prev.filter((u) => u.uid !== requesterUid));
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to reject request.');
     }
   };
 
@@ -103,6 +150,18 @@ export const ConnectionsPage: React.FC = () => {
             <UserPlus className="w-4 h-4" />
             <span>Followers</span>
           </button>
+
+          <button
+            onClick={() => setActiveTab('requests')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+              activeTab === 'requests'
+                ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <ShieldAlert className="w-4 h-4" />
+            <span>Requests</span>
+          </button>
         </div>
 
         {/* User List */}
@@ -135,19 +194,38 @@ export const ConnectionsPage: React.FC = () => {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => navigate(`/profile/${u.username || u.uid}`)}
-                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl"
-                  >
-                    View Profile
-                  </button>
-                  <button
-                    onClick={() => navigate(`/direct/${u.uid}`)}
-                    className="px-3 py-1.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 text-xs font-semibold rounded-xl flex items-center gap-1"
-                  >
-                    <MessageSquare className="w-3.5 h-3.5" />
-                    <span>Message</span>
-                  </button>
+                  {activeTab === 'requests' ? (
+                    <>
+                      <button
+                        onClick={() => handleAccept(u.uid)}
+                        className="px-3.5 py-1.5 bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs rounded-xl transition-all"
+                      >
+                        Confirm
+                      </button>
+                      <button
+                        onClick={() => handleReject(u.uid)}
+                        className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs rounded-xl transition-all"
+                      >
+                        Delete
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => navigate(`/profile/${u.username || u.uid}`)}
+                        className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl"
+                      >
+                        View Profile
+                      </button>
+                      <button
+                        onClick={() => navigate(`/direct/${u.uid}`)}
+                        className="px-3 py-1.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 text-xs font-semibold rounded-xl flex items-center gap-1"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        <span>Message</span>
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             ))}

@@ -279,10 +279,17 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
 
         {/* Card Footer: Author & Interactive Buttons */}
         <div className="pt-4 border-t border-slate-800/90 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400 shrink-0">
-          <div className="flex items-center gap-2 font-medium text-slate-200 min-w-0">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-sky-500 to-indigo-600 border border-sky-400/30 flex items-center justify-center text-white font-bold text-xs shrink-0">
-              {post.authorName ? post.authorName.charAt(0).toUpperCase() : <User className="w-4 h-4" />}
-            </div>
+          <div 
+            onClick={() => navigate(`/profile/${post.authorId}`)}
+            className="flex items-center gap-2 font-medium text-slate-200 min-w-0 cursor-pointer hover:opacity-80 transition-opacity"
+          >
+            {post.authorAvatar ? (
+              <img src={post.authorAvatar} alt={post.authorName} className="w-8 h-8 rounded-full object-cover border border-sky-400/30 shrink-0" />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-sky-500 to-indigo-600 border border-sky-400/30 flex items-center justify-center text-white font-bold text-xs shrink-0">
+                {post.authorName ? post.authorName.charAt(0).toUpperCase() : <User className="w-4 h-4" />}
+              </div>
+            )}
             <div className="flex flex-col min-w-0">
               <span className="font-semibold text-white truncate max-w-[130px] sm:max-w-[170px]">
                 {post.authorName || 'Campus Student'}
