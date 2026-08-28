@@ -141,6 +141,7 @@ export const approveJoinRequest = async (
       role: 'member',
       status: 'active',
       joinedAt: serverTimestamp(),
+      points: 0,
     });
 
     tx.set(userMembershipRef, {

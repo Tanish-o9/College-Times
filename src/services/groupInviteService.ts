@@ -11,6 +11,7 @@ import type { User as FirebaseUser } from 'firebase/auth';
 import { db, logAnalyticsEvent } from '../lib/firebase';
 import type { User } from '../types/models';
 import type { CampusGroup, GroupMember, UserGroupMembership, GroupInviteCodeDoc } from '../types/group';
+import { logGroupActivityEvent } from './groupActivityService';
 
 const MAX_GROUP_CAPACITY = 10000;
 
@@ -162,6 +163,7 @@ export const joinGroupWithPassCode = async (
       uid,
       role: 'member',
       joinedAt: serverTimestamp(),
+      points: 0,
       ...(userProfile?.displayName ? { displayName: userProfile.displayName } : {}),
       ...(userProfile?.photoURL ? { photoURL: userProfile.photoURL } : {}),
     };
@@ -178,6 +180,17 @@ export const joinGroupWithPassCode = async (
       updatedAt: serverTimestamp(),
     });
   });
+
+  await logGroupActivityEvent(
+    groupId,
+    'membership_change',
+    currentUser.uid,
+    userProfile?.displayName || currentUser.displayName || 'Student',
+    userProfile?.photoURL || currentUser.photoURL || undefined,
+    undefined,
+    undefined,
+    'joined the group via passcode'
+  );
 
   logAnalyticsEvent('group_invite_code_used', { groupId });
   logAnalyticsEvent('group_joined', { groupId });
