@@ -345,14 +345,23 @@ service cloud.firestore {
     // Posts Collection & Sub-collections (Likes, Comments, Reports)
     match /posts/{postId} {
       // Auto-hide moderation (single doc get vs list query compatibility)
-      allow get: if isAuthenticated() && 
-        (!('reportCount' in resource.data) || resource.data.reportCount < 5 || isAdmin());
+      allow get: if isAuthenticated() && (
+        !('groupId' in resource.data) ||
+        get(/databases/$(database)/documents/groups/$(resource.data.groupId)).data.visibility != 'private' ||
+        exists(/databases/$(database)/documents/groups/$(resource.data.groupId)/members/$(request.auth.uid)) ||
+        isAdmin()
+      ) && (!('reportCount' in resource.data) || resource.data.reportCount < 5 || isAdmin());
       allow list: if isAuthenticated();
 
       // Field-level data validation & author ownership on create
       allow create: if isAuthenticated() 
         && request.resource.data.keys().hasAll(['title', 'content', 'authorId', 'authorName', 'category', 'timestamp', 'likeCount', 'commentCount', 'reportCount', 'status', 'postType'])
         && request.resource.data.authorId == request.auth.uid
+        && (
+          !('groupId' in request.resource.data) ||
+          exists(/databases/$(database)/documents/groups/$(request.resource.data.groupId)/members/$(request.auth.uid)) ||
+          isAdmin()
+        )
         && request.resource.data.category in ['Mishap', 'Event', 'General', 'LostFound']
         && request.resource.data.postType in ['news', 'lost', 'found']
         && request.resource.data.title is string
@@ -367,8 +376,8 @@ service cloud.firestore {
       // Update: admin bypass, user counter increments, or author status/title/content/images resolve
       allow update: if isAuthenticated() && (
         isAdmin() ||
-        request.resource.data.diff(resource.data).affectedKeys().hasAny(['likeCount', 'commentCount', 'reportCount']) ||
-        (resource.data.authorId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'images', 'imageUrl', 'title', 'content', 'category', 'isEdited', 'editedAt']))
+        request.resource.data.diff(resource.data).affectedKeys().hasAny(['likeCount', 'commentCount', 'reportCount', 'poll']) ||
+        (resource.data.authorId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'images', 'imageUrl', 'title', 'content', 'category', 'isEdited', 'editedAt', 'poll']))
       );
 
       // Delete: post author or admin only
@@ -438,9 +447,19 @@ service cloud.firestore {
 
     // Campus Events Collection
     match /events/{eventId} {
-      allow read: if isAuthenticated();
+      allow read: if isAuthenticated() && (
+        !('groupId' in resource.data) ||
+        get(/databases/$(database)/documents/groups/$(resource.data.groupId)).data.visibility != 'private' ||
+        exists(/databases/$(database)/documents/groups/$(resource.data.groupId)/members/$(request.auth.uid)) ||
+        isAdmin()
+      );
       allow create: if isAuthenticated()
-        && request.resource.data.keys().hasAll(['title', 'description', 'location', 'eventDate', 'createdBy', 'rsvpCount', 'createdAt']);
+        && request.resource.data.keys().hasAll(['title', 'description', 'location', 'eventDate', 'createdBy', 'rsvpCount', 'createdAt'])
+        && (
+          !('groupId' in request.resource.data) ||
+          get(/databases/$(database)/documents/groups/$(request.resource.data.groupId)/members/$(request.auth.uid)).data.role in ['owner', 'admin', 'moderator'] ||
+          isAdmin()
+        );
       allow update: if isAuthenticated() && (
         isAdmin() ||
         resource.data.createdBy == request.auth.uid ||
@@ -608,9 +627,17 @@ service cloud.firestore {
 
     // Community Channels & Scalable Chat Sub-collections
     match /channels/{channelId} {
-      allow read: if isAuthenticated();
-      allow create: if isAdmin()
-        && request.resource.data.keys().hasAll(['name', 'description', 'category', 'type', 'createdAt', 'createdBy', 'memberCount', 'isArchived']);
+      allow read: if isAuthenticated() && (
+        !channelId.startsWith('group-') ||
+        exists(/databases/$(database)/documents/groups/$(channelId.replace('group-', ''))/members/$(request.auth.uid)) ||
+        isAdmin()
+      );
+      allow create: if isAdmin() || (
+        isAuthenticated() &&
+        channelId.startsWith('group-') &&
+        exists(/databases/$(database)/documents/groups/$(channelId.replace('group-', ''))/members/$(request.auth.uid)) &&
+        request.resource.data.keys().hasAll(['name', 'description', 'category', 'type', 'createdAt', 'createdBy', 'memberCount', 'isArchived'])
+      );
       allow update: if isAdmin() || (
         isAuthenticated() && 
         request.resource.data.diff(resource.data).affectedKeys().hasAny(['memberCount', 'lastMessageAt']) &&
@@ -639,7 +666,11 @@ service cloud.firestore {
 
       // Messages Sub-collection: Bounded content length, member & mute check
       match /messages/{messageId} {
-        allow read: if isAuthenticated();
+        allow read: if isAuthenticated() && (
+          !channelId.startsWith('group-') ||
+          exists(/databases/$(database)/documents/groups/$(channelId.replace('group-', ''))/members/$(request.auth.uid)) ||
+          isAdmin()
+        );
         allow create: if isAuthenticated()
           && request.resource.data.keys().hasAll(['channelId', 'senderId', 'senderName', 'senderRole', 'status', 'createdAt'])
           && request.resource.data.senderId == request.auth.uid
@@ -756,68 +787,171 @@ service cloud.firestore {
 
     // Phase 32: Campus Groups Collection & Sub-collections
     match /groups/{groupId} {
-      allow read: if isAuthenticated();
-      allow create, update, delete: if isAuthenticated();
+      allow read: if isAuthenticated() && (
+        resource.data.visibility != 'private' ||
+        exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)) ||
+        isAdmin()
+      );
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && (
+        get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['owner', 'admin'] ||
+        isAdmin()
+      );
 
       match /members/{memberUid} {
         allow read: if isAuthenticated();
-        allow create, update, delete: if isAuthenticated();
+        allow create: if isAuthenticated() && (
+          (memberUid == request.auth.uid && get(/databases/$(database)/documents/groups/$(groupId)).data.visibility != 'private') ||
+          get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['owner', 'admin', 'moderator'] ||
+          isAdmin()
+        );
+        allow update: if isAuthenticated() && (
+          get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['owner', 'admin'] ||
+          isAdmin()
+        );
+        allow delete: if isAuthenticated() && (
+          memberUid == request.auth.uid ||
+          get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['owner', 'admin', 'moderator'] ||
+          isAdmin()
+        );
       }
 
       // Phase 34, 36A & 37: Group Instants / Permanent Moments Sub-collection
       match /instants/{instantId} {
-        allow read, create, update, delete: if isAuthenticated();
+        allow read: if isAuthenticated() && (
+          exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)) ||
+          get(/databases/$(database)/documents/groups/$(groupId)).data.visibility != 'private' ||
+          isAdmin()
+        );
+        allow create: if isAuthenticated() && (
+          exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)) ||
+          isAdmin()
+        );
+        allow update, delete: if isAuthenticated() && (
+          resource.data.creatorId == request.auth.uid ||
+          get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['owner', 'admin', 'moderator'] ||
+          isAdmin()
+        );
 
         match /media/{mediaId} {
-          allow read, create, update, delete: if isAuthenticated();
+          allow read: if isAuthenticated();
+          allow create, update, delete: if isAuthenticated() && (
+            exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)) ||
+            isAdmin()
+          );
         }
 
         match /comments/{commentId} {
-          allow read, create, update, delete: if isAuthenticated();
+          allow read: if isAuthenticated();
+          allow create, update, delete: if isAuthenticated() && (
+            exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)) ||
+            isAdmin()
+          );
         }
 
         match /reports/{reporterId} {
-          allow read, create, update, delete: if isAuthenticated();
+          allow read: if isAuthenticated();
+          allow create, update, delete: if isAuthenticated() && reporterId == request.auth.uid;
         }
       }
 
       // Phase 35: Group Join Requests Sub-collection
       match /joinRequests/{uid} {
-        allow read, create, update, delete: if isAuthenticated();
+        allow read: if isAuthenticated() && (
+          uid == request.auth.uid ||
+          get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['owner', 'admin', 'moderator'] ||
+          isAdmin()
+        );
+        allow create: if isAuthenticated() && uid == request.auth.uid;
+        allow delete: if isAuthenticated() && (
+          uid == request.auth.uid ||
+          get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['owner', 'admin', 'moderator'] ||
+          isAdmin()
+        );
+        allow update: if isAuthenticated() && (
+          get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['owner', 'admin', 'moderator'] ||
+          isAdmin()
+        );
       }
 
       // Phase 35: Group Announcements Sub-collection
       match /announcements/{announcementId} {
-        allow read, create, update, delete: if isAuthenticated();
+        allow read: if isAuthenticated() && (
+          exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)) ||
+          get(/databases/$(database)/documents/groups/$(groupId)).data.visibility != 'private' ||
+          isAdmin()
+        );
+        allow create, update, delete: if isAuthenticated() && (
+          get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['owner', 'admin', 'moderator'] ||
+          isAdmin()
+        );
       }
 
       // Phase 35 & 37: Group Member Reports & Moderation Logs
       match /memberReports/{reportId} {
-        allow read, create, update, delete: if isAuthenticated();
+        allow read, create, update, delete: if isAuthenticated() && (
+          get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['owner', 'admin', 'moderator'] ||
+          isAdmin()
+        );
       }
 
       match /moderationLogs/{logId} {
-        allow read, create, update, delete: if isAuthenticated();
+        allow read: if isAuthenticated() && (
+          get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['owner', 'admin', 'moderator'] ||
+          isAdmin()
+        );
+        allow create, update, delete: if isAuthenticated() && (
+          get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['owner', 'admin', 'moderator'] ||
+          isAdmin()
+        );
       }
 
       // Phase 35 & 37: Group Banned Members Sub-collection
       match /bannedMembers/{uid} {
-        allow read, create, update, delete: if isAuthenticated();
+        allow read: if isAuthenticated() && (
+          exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)) ||
+          isAdmin()
+        );
+        allow create, update, delete: if isAuthenticated() && (
+          get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['owner', 'admin', 'moderator'] ||
+          isAdmin()
+        );
       }
 
       // Phase 35: Group Audit Logs Sub-collection
       match /auditLogs/{logId} {
-        allow read, create, update, delete: if isAuthenticated();
+        allow read: if isAuthenticated() && (
+          get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['owner', 'admin', 'moderator'] ||
+          isAdmin()
+        );
+        allow create, update, delete: if isAdmin();
       }
 
       // Phase 39: Group Activity Timeline Sub-collection
       match /activity/{activityId} {
-        allow read, create, update, delete: if isAuthenticated();
+        allow read: if isAuthenticated() && (
+          exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)) ||
+          get(/databases/$(database)/documents/groups/$(groupId)).data.visibility != 'private' ||
+          isAdmin()
+        );
+        allow create: if isAuthenticated() && (
+          request.resource.data.actorId == request.auth.uid ||
+          isAdmin()
+        );
+        allow update, delete: if isAdmin();
       }
 
       // Phase 39: Group Pinned Content Sub-collection
       match /pinnedItems/{pinId} {
-        allow read, create, update, delete: if isAuthenticated();
+        allow read: if isAuthenticated() && (
+          exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)) ||
+          get(/databases/$(database)/documents/groups/$(groupId)).data.visibility != 'private' ||
+          isAdmin()
+        );
+        allow create, update, delete: if isAuthenticated() && (
+          get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['owner', 'admin', 'moderator'] ||
+          isAdmin()
+        );
       }
     }
   }

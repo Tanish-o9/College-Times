@@ -75,6 +75,7 @@ export const GroupDetailPage: React.FC = () => {
   const [userRole, setUserRole] = useState<GroupRole>('member');
   const [loading, setLoading] = useState<boolean>(true);
   const [actionBusy, setActionBusy] = useState<boolean>(false);
+  const [ownerName, setOwnerName] = useState<string>('Campus Peer');
 
   // Tab State
   const initialTab = (searchParams.get('tab') as GroupTab) || 'overview';
@@ -96,6 +97,14 @@ export const GroupDetailPage: React.FC = () => {
 
       setGroup(g);
       setIsMember(memberStatus);
+
+      if (g && g.createdBy) {
+        getDoc(doc(db, 'users', g.createdBy)).then((userSnap) => {
+          if (userSnap.exists()) {
+            setOwnerName(userSnap.data().displayName || 'Campus Peer');
+          }
+        }).catch((err) => console.warn('Failed to fetch group owner name:', err));
+      }
 
       // Fetch user role
       const memberRef = doc(db, 'groups', groupId, 'members', currentUser.uid);
@@ -267,7 +276,7 @@ export const GroupDetailPage: React.FC = () => {
                 <div>
                   <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">{group.name}</h2>
                   <p className="text-xs text-slate-400 font-mono mt-1">
-                    Group Pass Code ID: <span className="text-sky-300 font-bold">{group.inviteCodePlaintext || 'CT-PUBLIC'}</span>
+                    Group Pass Code ID: <span className="text-sky-300 font-bold">{group.inviteCodePlaintext || 'CT-PUBLIC'}</span> • Created by <span className="text-indigo-300 font-semibold">{ownerName}</span>
                   </p>
                 </div>
 

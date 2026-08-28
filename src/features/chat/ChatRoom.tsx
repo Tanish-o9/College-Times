@@ -85,10 +85,12 @@ export const ChatRoom: React.FC = () => {
 
   // 1. Channel Metadata & Real-Time Listener (Scoped per channelId)
   useEffect(() => {
-    if (!channelId || !isEligible) return;
+    if (!channelId || !isEligible || !currentUser) return;
 
     const currentChannelId = channelId;
     let isSubscribed = true;
+    let unsubTyping: (() => void) | null = null;
+    let unsubscribeMessages: (() => void) | null = null;
 
     setReplyingToMessage(null);
     setTypingUsers([]);
@@ -110,63 +112,88 @@ export const ChatRoom: React.FC = () => {
     setError(null);
     initialScrollDoneRef.current = false;
 
-    // Fetch Channel Metadata
-    getChannelById(currentChannelId)
-      .then((c) => {
-        if (isSubscribed && channelId === currentChannelId) setChannel(c);
-      })
-      .catch(() => {
-        if (isSubscribed && channelId === currentChannelId) setError('Channel not found or inaccessible.');
-      });
+    const initChannel = async () => {
+      try {
+        let activeChannel: any = null;
+        if (currentChannelId.startsWith('group-')) {
+          const actualGroupId = currentChannelId.replace('group-', '');
+          const { isUserGroupChatMember, ensureGroupChannel } = await import('../../services/groupChatService');
+          const isMember = await isUserGroupChatMember(actualGroupId, currentUser.uid);
+          
+          if (!isMember) {
+            if (isSubscribed && channelId === currentChannelId) {
+              setError('Access denied: You must be a member of this campus group to access its chat.');
+              setLoadingInitial(false);
+            }
+            return;
+          }
 
-    // Real-Time Bounded Listener for Typing Users (Excluding Current User)
-    const unsubTyping = subscribeToTypingUsers(
-      currentChannelId,
-      currentUser?.uid,
-      (activeTypers) => {
-        if (isSubscribed && channelId === currentChannelId) {
-          setTypingUsers(activeTypers);
+          // Ensure group channel document and membership exist
+          activeChannel = await ensureGroupChannel(actualGroupId, currentUser, userProfile);
+        } else {
+          activeChannel = await getChannelById(currentChannelId);
         }
-      }
-    );
 
-    // Real-Time Bounded Listener (50 latest messages)
-    const unsubscribe = subscribeToRecentMessages(
-      currentChannelId,
-      50,
-      (liveMessages) => {
         if (!isSubscribed || channelId !== currentChannelId) return;
+        setChannel(activeChannel);
 
-        setMessages((prevMessages) => {
-          const liveIds = new Set(liveMessages.map((m) => m.id));
-          const historyMessages = prevMessages.filter((m) => m.id && !liveIds.has(m.id));
-          const updatedMessages = [...historyMessages, ...liveMessages];
+        // Start typing listener
+        unsubTyping = subscribeToTypingUsers(
+          currentChannelId,
+          currentUser.uid,
+          (activeTypers) => {
+            if (isSubscribed && channelId === currentChannelId) {
+              setTypingUsers(activeTypers);
+            }
+          }
+        );
 
-          setChannelCache(currentChannelId, {
-            messages: updatedMessages,
-            lastDoc: lastVisibleDoc,
-            hasMore: hasMoreHistory,
-          });
+        // Start recent messages listener
+        unsubscribeMessages = subscribeToRecentMessages(
+          currentChannelId,
+          50,
+          (liveMessages) => {
+            if (!isSubscribed || channelId !== currentChannelId) return;
 
-          return updatedMessages;
-        });
+            setMessages((prevMessages) => {
+              const liveIds = new Set(liveMessages.map((m) => m.id));
+              const historyMessages = prevMessages.filter((m) => m.id && !liveIds.has(m.id));
+              const updatedMessages = [...historyMessages, ...liveMessages];
 
-        setLoadingInitial(false);
-      },
-      (err) => {
+              setChannelCache(currentChannelId, {
+                messages: updatedMessages,
+                lastDoc: lastVisibleDoc,
+                hasMore: hasMoreHistory,
+              });
+
+              return updatedMessages;
+            });
+
+            setLoadingInitial(false);
+          },
+          (err) => {
+            if (isSubscribed && channelId === currentChannelId) {
+              setError(err.message || 'Failed to connect to real-time chat.');
+              setLoadingInitial(false);
+            }
+          }
+        );
+      } catch (err: any) {
         if (isSubscribed && channelId === currentChannelId) {
-          setError(err.message || 'Failed to connect to real-time chat.');
+          setError(err.message || 'Channel not found or inaccessible.');
           setLoadingInitial(false);
         }
       }
-    );
+    };
+
+    initChannel();
 
     return () => {
       isSubscribed = false;
-      unsubTyping();
-      unsubscribe();
+      if (unsubTyping) unsubTyping();
+      if (unsubscribeMessages) unsubscribeMessages();
     };
-  }, [channelId, currentUser]);
+  }, [channelId, currentUser, isEligible, userProfile]);
 
   // 2. Adjust Scroll Position After Ingesting Older Messages (Scroll Preservation)
   useLayoutEffect(() => {
