@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { DirectConversation } from '../../types/directMessage';
 import { useAuth } from '../../hooks/useAuth';
-import { getOrCreateConversation } from '../../services/directMessageService';
+import { getOrCreateConversation, deleteConversation } from '../../services/directMessageService';
 import { NewDirectMessageModal } from './NewDirectMessageModal';
 import { collection, query, where, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -12,7 +12,8 @@ import {
   Search, 
   Plus, 
   RefreshCw, 
-  User 
+  User,
+  Trash2
 } from 'lucide-react';
 
 type ListTab = 'All' | 'Requests' | 'Archived';
@@ -208,12 +209,31 @@ export const DirectMessageList: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="text-[10px] text-slate-500 font-mono shrink-0">
-                  {conv.updatedAt
-                    ? typeof conv.updatedAt.toDate === 'function'
-                      ? conv.updatedAt.toDate().toLocaleDateString()
-                      : new Date(conv.updatedAt).toLocaleDateString()
-                    : ''}
+                <div className="flex items-center gap-3 shrink-0">
+                  <div className="text-[10px] text-slate-500 font-mono">
+                    {conv.updatedAt
+                      ? typeof conv.updatedAt.toDate === 'function'
+                        ? conv.updatedAt.toDate().toLocaleDateString()
+                        : new Date(conv.updatedAt).toLocaleDateString()
+                      : ''}
+                  </div>
+                  <button
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      if (window.confirm(`Delete chat with ${targetName}?`)) {
+                        try {
+                          await deleteConversation(conv.id, currentUser!);
+                          toast.success('Chat deleted.');
+                        } catch (err) {
+                          toast.error('Failed to delete chat.');
+                        }
+                      }
+                    }}
+                    className="p-2 text-slate-500 hover:text-rose-400 bg-slate-950 hover:bg-rose-500/10 border border-slate-800 hover:border-rose-500/20 rounded-xl transition-all"
+                    title="Delete Chat"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
             );

@@ -9,7 +9,8 @@ import {
   orderBy, 
   limit, 
   runTransaction, 
-  serverTimestamp 
+  serverTimestamp,
+  deleteDoc
 } from 'firebase/firestore';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { db, logAnalyticsEvent } from '../lib/firebase';
@@ -301,4 +302,14 @@ export const searchCampusUsers = async (
     console.error('Error searching campus users for DM:', err);
     return [];
   }
+};
+
+/**
+ * Deletes a conversation document.
+ */
+export const deleteConversation = async (conversationId: string, currentUser: FirebaseUser): Promise<void> => {
+  if (!currentUser || !conversationId) throw new Error('Authentication required.');
+  const convRef = doc(db, 'conversations', conversationId);
+  await deleteDoc(convRef);
+  logAnalyticsEvent('dm_conversation_deleted', { conversationId });
 };
