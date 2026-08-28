@@ -3,7 +3,7 @@
 
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getDatabase } from 'firebase/database';
 import { getFunctions } from 'firebase/functions';
@@ -25,7 +25,9 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 // Export Firebase service instances
 export { app };
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+export const db = initializeFirestore(app, {
+  ignoreUndefinedProperties: true,
+});
 export const storage = getStorage(app);
 export const rtdb = getDatabase(app);
 export const functions = getFunctions(app, 'us-central1');

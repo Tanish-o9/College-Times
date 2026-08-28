@@ -28,6 +28,7 @@ export const ProfilePage: React.FC = () => {
   const [profile, setProfile] = useState<UserProfile2 | null>(null);
   const [isFollowing, setIsFollowing] = useState(false);
   const [isRequested, setIsRequested] = useState(false);
+  const [isFollower, setIsFollower] = useState(false);
   const [loading, setLoading] = useState(true);
   const [actionBusy, setActionBusy] = useState(false);
 
@@ -80,6 +81,10 @@ export const ProfilePage: React.FC = () => {
           } else {
             setIsRequested(false);
           }
+
+          // Check if target is following current user
+          const followerStatus = await isFollowingUser(targetUid, currentUser.uid);
+          setIsFollower(followerStatus);
         }
       } else {
         setProfile(null);
@@ -244,7 +249,7 @@ export const ProfilePage: React.FC = () => {
                         ) : (
                           <>
                             <UserPlus className="w-4 h-4" />
-                            <span>Follow</span>
+                            <span>{isFollower ? 'Follow Back' : 'Follow'}</span>
                           </>
                         )}
                       </button>
