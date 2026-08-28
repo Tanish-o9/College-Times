@@ -432,26 +432,7 @@ export const signUpWithEmailPassword = async (
         'Email/Password Sign-In Method is NOT enabled in your Firebase Console! Please go to Firebase Console -> Authentication -> Sign-in method -> Email/Password and Enable it.'
       );
     }
-    // If the email is already in use, it might be a half-created account (Auth exists but Firestore doc failed in previous attempt).
-    // Try to sign in the user to authenticate them and check if their Firestore profile exists.
-    if (err.code === 'auth/email-already-in-use') {
-      try {
-        userCredential = await signInWithEmailAndPassword(auth, email, password);
-        const tempUser = userCredential.user;
-        const userRef = doc(db, 'users', tempUser.uid);
-        const snap = await getDoc(userRef);
-        if (snap.exists()) {
-          // If the profile already exists, sign them out and throw the original "email-already-in-use" error
-          await signOut(auth);
-          throw err;
-        }
-      } catch (signInErr: any) {
-        // If sign-in fails or check fails, throw the original email-already-in-use error
-        throw err;
-      }
-    } else {
-      throw err;
-    }
+    throw err;
   }
   const firebaseUser = userCredential.user;
 
