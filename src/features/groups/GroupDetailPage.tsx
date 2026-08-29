@@ -14,6 +14,7 @@ import { PollCard } from './PollCard';
 import { CreatePollModal } from './CreatePollModal';
 import { GroupInviteManager } from './GroupInviteManager';
 import { JoinGroupByCodeModal } from './JoinGroupByCodeModal';
+import { JoinGroupWithPasswordModal } from './JoinGroupWithPasswordModal';
 import { GroupInstantCarousel } from './GroupInstantCarousel';
 import { GroupHomeDashboard } from './GroupHomeDashboard';
 import { GroupAnnouncements } from './GroupAnnouncements';
@@ -236,7 +237,9 @@ export const GroupDetailPage: React.FC = () => {
     }
   };
 
-  const isPrivateAndNonMember = group?.visibility === 'private' && !isMember;
+  const isOwner = Boolean(currentUser && (group?.createdBy === currentUser.uid || (group as any)?.ownerId === currentUser.uid));
+  const isAuthorized = isMember || isOwner || userProfile?.role === 'admin';
+  const isPrivateAndNonMember = Boolean(group && (group.visibility === 'private' || group.hasPassword) && !isAuthorized);
 
   return (
     <div className="min-h-screen bg-slate-950 text-white flex flex-col">
@@ -256,7 +259,7 @@ export const GroupDetailPage: React.FC = () => {
 
         <div className="flex items-center gap-2">
           {/* Group Moderation & Settings Triggers for Admin/Owner */}
-          {isMember && (userRole === 'owner' || userRole === 'admin' || userRole === 'moderator') && (
+          {isAuthorized && (userRole === 'owner' || userRole === 'admin' || userRole === 'moderator' || isOwner) && (
             <button
               onClick={() => navigate(`/groups/${groupId}/moderation`)}
               className="p-2 text-rose-400 hover:bg-slate-900 border border-slate-800 rounded-xl"
@@ -266,7 +269,7 @@ export const GroupDetailPage: React.FC = () => {
             </button>
           )}
 
-          {isMember && (userRole === 'owner' || userRole === 'admin') && (
+          {isAuthorized && (userRole === 'owner' || userRole === 'admin' || isOwner) && (
             <button
               onClick={() => navigate(`/groups/${groupId}/settings`)}
               className="p-2 text-slate-400 hover:text-white hover:bg-slate-900 border border-slate-800 rounded-xl"
@@ -277,7 +280,7 @@ export const GroupDetailPage: React.FC = () => {
           )}
 
           {/* Quick Group Chat Channel Navigation */}
-          {isMember && (
+          {isAuthorized && (
             <button
               onClick={() => navigate(`/chat/group-${groupId}`)}
               className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-sky-400 border border-slate-800 rounded-xl text-xs font-semibold flex items-center gap-1.5 shrink-0"
@@ -315,21 +318,28 @@ export const GroupDetailPage: React.FC = () => {
                 <div>
                   <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">{group.name}</h2>
                   <p className="text-xs text-slate-400 font-mono mt-1">
-                    Group Pass Code ID: <span className="text-sky-300 font-bold">{group.inviteCodePlaintext || 'CT-PUBLIC'}</span> • Created by <span className="text-indigo-300 font-semibold">{ownerName}</span>
+                    Group Pass Code ID: <span className="text-sky-300 font-bold">{isAuthorized ? (group.inviteCodePlaintext || 'CT-PUBLIC') : '••••••••'}</span> • Created by <span className="text-indigo-300 font-semibold">{ownerName}</span>
                   </p>
                 </div>
 
                 <button
                   onClick={handleToggleMembership}
-                  disabled={actionBusy}
+                  disabled={actionBusy || isOwner}
                   className={`px-5 py-2.5 rounded-xl font-bold text-xs shadow-md transition-all flex items-center gap-1.5 ${
-                    isMember
+                    isOwner
+                      ? 'bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 cursor-default'
+                      : isMember
                       ? 'bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-300 border border-slate-700'
                       : 'bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-slate-950'
                   }`}
                 >
                   {actionBusy ? (
                     <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : isOwner ? (
+                    <>
+                      <ShieldAlert className="w-4 h-4 text-indigo-400" />
+                      <span>Owner (Admin)</span>
+                    </>
                   ) : isMember ? (
                     <>
                       <Check className="w-4 h-4 text-emerald-400" />
@@ -338,7 +348,7 @@ export const GroupDetailPage: React.FC = () => {
                   ) : (
                     <>
                       <Plus className="w-4 h-4" />
-                      <span>{group.visibility === 'private' ? 'Enter Pass Code' : 'Join Group'}</span>
+                      <span>{group.hasPassword || group.visibility === 'private' ? 'Enter Pass Code' : 'Join Group'}</span>
                     </>
                   )}
                 </button>
@@ -382,7 +392,7 @@ export const GroupDetailPage: React.FC = () => {
             {/* Group Moments Carousel */}
             {!isPrivateAndNonMember && (
               <div className="p-4 bg-slate-900 border border-slate-800 rounded-3xl">
-                <GroupInstantCarousel groupId={group.id} groupName={group.name} isMember={isMember} />
+                <GroupInstantCarousel groupId={group.id} groupName={group.name} isMember={isAuthorized} />
               </div>
             )}
 
@@ -727,6 +737,20 @@ export const GroupDetailPage: React.FC = () => {
           onClose={() => setIsJoinCodeModalOpen(false)}
           onJoined={() => {
             setIsJoinCodeModalOpen(false);
+            setIsMember(true);
+            loadGroupDetails();
+          }}
+        />
+      )}
+
+      {group && (
+        <JoinGroupWithPasswordModal
+          isOpen={isJoinCodeModalOpen}
+          onClose={() => setIsJoinCodeModalOpen(false)}
+          group={group}
+          onJoined={() => {
+            setIsJoinCodeModalOpen(false);
+            setIsMember(true);
             loadGroupDetails();
           }}
         />

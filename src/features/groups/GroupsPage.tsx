@@ -305,7 +305,8 @@ export const GroupsPage: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {groups.map((group) => {
-            const isJoined = joinedGroupIds.has(group.id);
+            const isOwner = Boolean(currentUser && (group.createdBy === currentUser.uid || (group as any).ownerId === currentUser.uid));
+            const isJoined = joinedGroupIds.has(group.id) || isOwner;
             const badge = getGroupTypeBadge(group.type);
             const isPrivate = group.visibility === 'private';
 
@@ -362,7 +363,18 @@ export const GroupsPage: React.FC = () => {
                     <span>members</span>
                   </div>
 
-                  {isJoined ? (
+                  {isOwner ? (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/groups/${group.id}`);
+                      }}
+                      className="px-3.5 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 rounded-xl text-xs font-bold flex items-center gap-1 transition-all"
+                    >
+                      <span>Open (Owner)</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  ) : isJoined ? (
                     <div className="flex items-center gap-1.5">
                       <button
                         onClick={(e) => handleLeave(group, e)}

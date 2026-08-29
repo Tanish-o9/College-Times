@@ -111,7 +111,18 @@ export const isUserGroupChatMember = async (groupId: string, uid: string): Promi
   try {
     const memberRef = doc(db, 'groups', actualGroupId, 'members', uid);
     const snap = await getDoc(memberRef);
-    return snap.exists();
+    if (snap.exists()) return true;
+
+    const groupRef = doc(db, 'groups', actualGroupId);
+    const groupSnap = await getDoc(groupRef);
+    if (groupSnap.exists()) {
+      const gData = groupSnap.data();
+      if (gData?.createdBy === uid || (gData as any)?.ownerId === uid) {
+        return true;
+      }
+    }
+
+    return false;
   } catch (err) {
     return false;
   }
