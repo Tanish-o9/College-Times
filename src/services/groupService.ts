@@ -343,6 +343,9 @@ export const joinGroup = async (
   const memberRef = doc(db, 'groups', groupId, 'members', uid);
   const userMembershipRef = doc(db, 'users', uid, 'groupMemberships', groupId);
 
+  const trimmedPasscode = enteredPasscode?.trim() || '';
+  const enteredPasscodeHash = trimmedPasscode ? await hashStringSHA256(trimmedPasscode) : '';
+
   let groupType: CampusGroupType = 'community';
 
   await runTransaction(db, async (transaction) => {
@@ -364,11 +367,10 @@ export const joinGroup = async (
 
     // Verify passcode/password if enabled
     if (groupData.hasPassword && groupData.passcodeHash) {
-      if (!enteredPasscode) {
+      if (!trimmedPasscode) {
         throw new Error('This group is password-protected. Please enter the passcode.');
       }
-      const hashed = await hashStringSHA256(enteredPasscode);
-      if (hashed !== groupData.passcodeHash) {
+      if (enteredPasscodeHash !== groupData.passcodeHash) {
         throw new Error('Incorrect group password.');
       }
     } else if (groupData.visibility === 'private') {

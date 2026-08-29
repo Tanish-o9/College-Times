@@ -850,32 +850,38 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated();
       allow update: if isAuthenticated() && (
-        get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['owner', 'admin'] ||
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberCount', 'updatedAt']) ||
-        (request.resource.data.diff(resource.data).affectedKeys().hasAny(['memberCount', 'updatedAt', 'inviteCodePlaintext', 'inviteCodeHash', 'inviteCodeVersion', 'inviteEnabled']) && exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid))) ||
-        isAdmin()
+        isAdmin() ||
+        (exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['owner', 'admin']) ||
+        (exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)) &&
+         request.resource.data.diff(resource.data).affectedKeys().hasAny(['memberCount', 'updatedAt', 'inviteCodePlaintext', 'inviteCodeHash', 'inviteCodeVersion', 'inviteEnabled']))
       );
       allow delete: if isAuthenticated() && (
-        get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['owner', 'admin'] ||
-        isAdmin()
+        isAdmin() ||
+        (exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['owner', 'admin'])
       );
 
       match /members/{memberUid} {
         allow read: if isAuthenticated();
         allow create: if isAuthenticated() && (
           memberUid == request.auth.uid ||
-          get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['owner', 'admin', 'moderator'] ||
-          isAdmin()
+          isAdmin() ||
+          (exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)) &&
+           get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['owner', 'admin', 'moderator'])
         );
         allow update: if isAuthenticated() && (
-          get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['owner', 'admin'] ||
           (memberUid == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['points', 'weeklyPoints', 'monthlyPoints', 'lastPointsUpdateWeek', 'lastPointsUpdateMonth', 'updatedAt'])) ||
-          isAdmin()
+          isAdmin() ||
+          (exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)) &&
+           get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['owner', 'admin'])
         );
         allow delete: if isAuthenticated() && (
           memberUid == request.auth.uid ||
-          get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['owner', 'admin', 'moderator'] ||
-          isAdmin()
+          isAdmin() ||
+          (exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)) &&
+           get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['owner', 'admin', 'moderator'])
         );
       }
 
