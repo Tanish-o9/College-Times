@@ -40,6 +40,16 @@ export interface PollVoteRecord2 {
   votedAt: any;
 }
 
+export const getPollExpiresMs = (expiresAt: any): number => {
+  if (!expiresAt) return Date.now() + 3 * 24 * 60 * 60 * 1000;
+  if (typeof expiresAt === 'number') return expiresAt;
+  if (typeof expiresAt.toMillis === 'function') return expiresAt.toMillis();
+  if (typeof expiresAt.toDate === 'function') return expiresAt.toDate().getTime();
+  if (expiresAt.seconds) return expiresAt.seconds * 1000;
+  const parsed = new Date(expiresAt).getTime();
+  return isNaN(parsed) ? Date.now() + 3 * 24 * 60 * 60 * 1000 : parsed;
+};
+
 /**
  * Creates a new voting poll.
  */
@@ -76,11 +86,12 @@ export const createVotingPoll = async (
   const docRef = await addDoc(colRef, {
     question: params.question.trim(),
     options: pollOptions,
-    allowMultiple: params.allowMultiple,
-    anonymous: params.anonymous,
-    isPublic: params.isPublic,
+    allowMultiple: params.allowMultiple ?? false,
+    anonymous: params.anonymous ?? false,
+    isPublic: params.isPublic ?? true,
     groupId: params.groupId || null,
     expiresAt,
+    status: 'active',
     createdBy: currentUser.uid,
     creatorName,
     totalVotes: 0,
@@ -107,14 +118,15 @@ export const subscribeActiveCampusPolls = (
     colRef,
     (snapshot) => {
       const activePolls = snapshot.docs
-        .map((docSnap) => ({
-          id: docSnap.id,
-          ...docSnap.data(),
-        } as VotingPoll))
+        .map((docSnap) => {
+          const data = docSnap.data();
+          return {
+            id: docSnap.id,
+            ...data,
+            expiresAt: getPollExpiresMs(data.expiresAt),
+          } as VotingPoll;
+        })
         .filter((poll) => {
-          // Must be public or campus-wide
-          if (poll.isPublic === false) return false;
-          // Must not be deleted or manually closed
           if ((poll as any).status === 'closed') return false;
           return true;
         })
@@ -149,11 +161,15 @@ export const getActiveCampusPolls = async (): Promise<VotingPoll[]> => {
     const colRef = collection(db, 'polls');
     const snap = await getDocs(colRef);
     return snap.docs
-      .map((d) => ({
-        id: d.id,
-        ...d.data(),
-      } as VotingPoll))
-      .filter((poll) => poll.isPublic !== false && (poll as any).status !== 'closed')
+      .map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          ...data,
+          expiresAt: getPollExpiresMs(data.expiresAt),
+        } as VotingPoll;
+      })
+      .filter((poll) => (poll as any).status !== 'closed')
       .sort((a, b) => {
         const aTime = a.createdAt?.toMillis
           ? a.createdAt.toMillis()

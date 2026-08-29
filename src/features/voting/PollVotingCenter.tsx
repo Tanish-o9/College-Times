@@ -4,6 +4,7 @@ import {
   createVotingPoll,
   subscribeActiveCampusPolls,
   getUserVoteRecord,
+  getPollExpiresMs,
   castVote,
   type VotingPoll,
   type PollVoteRecord2
@@ -284,7 +285,7 @@ export const PollVotingCenter: React.FC = () => {
         ) : (
           polls.map((poll) => {
             const hasVoted = !!userVotes[poll.id!];
-            const isClosed = Date.now() >= poll.expiresAt;
+            const isClosed = Date.now() >= getPollExpiresMs(poll.expiresAt);
             const currentSelected = selectedOptionsMap[poll.id!] || [];
             const userVoteRecord = userVotes[poll.id!];
 
