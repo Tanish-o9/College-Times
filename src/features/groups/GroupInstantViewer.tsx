@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useOverlayBackHandler } from '../../hooks/useOverlayBackHandler';
@@ -44,7 +44,7 @@ interface GroupInstantViewerProps {
   instants: GroupInstant[];
   initialIndex?: number;
   groupId: string;
-  onInstantViewed?: (instantId: string) => void;
+  onInstantViewed?: (viewedIds: string[]) => void;
 }
 
 const EMOJI_LIST = [
@@ -70,6 +70,9 @@ export const GroupInstantViewer: React.FC<GroupInstantViewerProps> = ({
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
   const [subcollectionMedia, setSubcollectionMedia] = useState<GroupInstantMedia[]>([]);
 
+  // Track moments viewed during current story session
+  const sessionViewedIdsRef = useRef<Set<string>>(new Set());
+
   // Saved State & Comments Drawer
   const [saved, setSaved] = useState<boolean>(false);
   const [showComments, setShowComments] = useState<boolean>(false);
@@ -77,7 +80,15 @@ export const GroupInstantViewer: React.FC<GroupInstantViewerProps> = ({
   const [commentText, setCommentText] = useState<string>('');
   const [submittingComment, setSubmittingComment] = useState<boolean>(false);
 
-  useOverlayBackHandler(isOpen, onClose);
+  const handleClose = useCallback(() => {
+    if (onInstantViewed && sessionViewedIdsRef.current.size > 0) {
+      onInstantViewed(Array.from(sessionViewedIdsRef.current));
+      sessionViewedIdsRef.current.clear();
+    }
+    onClose();
+  }, [onClose, onInstantViewed]);
+
+  useOverlayBackHandler(isOpen, handleClose);
 
   useEffect(() => {
     setCurrentIndex(initialIndex);
@@ -93,12 +104,12 @@ export const GroupInstantViewer: React.FC<GroupInstantViewerProps> = ({
     const targetGroupId = groupId || currentInstant.groupId;
     if (!targetGroupId) return;
 
-    // Record view idempotently
+    // Track in session
+    sessionViewedIdsRef.current.add(currentInstant.id);
+
+    // Record view in Firestore idempotently
     if (currentUser?.uid) {
       recordMomentView(targetGroupId, currentInstant.id, currentUser.uid);
-      if (onInstantViewed) {
-        onInstantViewed(currentInstant.id);
-      }
       isMomentSaved(currentInstant.id, currentUser.uid).then(setSaved);
     }
 
@@ -107,7 +118,7 @@ export const GroupInstantViewer: React.FC<GroupInstantViewerProps> = ({
         setSubcollectionMedia(mediaDocs && mediaDocs.length > 0 ? mediaDocs : []);
       })
       .catch(() => setSubcollectionMedia([]));
-  }, [isOpen, groupId, currentInstant?.id, currentUser, onInstantViewed]);
+  }, [isOpen, groupId, currentInstant?.id, currentUser]);
 
   // Fetch comments when comments drawer is opened
   useEffect(() => {
@@ -331,7 +342,7 @@ export const GroupInstantViewer: React.FC<GroupInstantViewerProps> = ({
                   <Flag className="w-4 h-4" />
                 </button>
               )}
-              <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-white transition-colors" title="Close">
+              <button onClick={handleClose} className="p-1.5 text-slate-400 hover:text-white transition-colors" title="Close">
                 <X className="w-5 h-5" />
               </button>
             </div>

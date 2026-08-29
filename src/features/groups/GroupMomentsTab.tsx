@@ -119,11 +119,21 @@ export const GroupMomentsTab: React.FC<GroupMomentsTabProps> = ({
     }
   });
 
-  const markAsViewed = (id: string) => {
+  const markAsViewed = (ids: string | string[]) => {
+    const idList = Array.isArray(ids) ? ids : [ids];
+    if (idList.length === 0) return;
+
     setViewedIds((prev) => {
-      if (prev.has(id)) return prev;
+      let changed = false;
       const next = new Set(prev);
-      next.add(id);
+      idList.forEach((id) => {
+        if (!next.has(id)) {
+          next.add(id);
+          changed = true;
+        }
+      });
+      if (!changed) return prev;
+
       try {
         const storageKey = `ct_viewed_moments_${currentUser?.uid || 'guest'}`;
         localStorage.setItem(storageKey, JSON.stringify(Array.from(next)));
