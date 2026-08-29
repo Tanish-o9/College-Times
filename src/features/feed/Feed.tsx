@@ -14,6 +14,7 @@ import { FAB } from '../../components/FAB';
 import { useIsVisible } from '../../hooks/useIsVisible';
 import { Skeleton } from '../../components/Skeleton';
 import { useAuth } from '../../hooks/useAuth';
+import { useScrollRestoration } from '../../hooks/useScrollRestoration';
 import { 
   Sparkles, 
   RefreshCw, 
@@ -49,6 +50,8 @@ export const Feed: React.FC = () => {
   const [loadingInitial, setLoadingInitial] = useState<boolean>(true);
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+
+  useScrollRestoration('feed', !loadingInitial);
 
   const [feedMode, setFeedMode] = useState<FeedMode>('latest');
   const [isPrefModalOpen, setIsPrefModalOpen] = useState<boolean>(false);

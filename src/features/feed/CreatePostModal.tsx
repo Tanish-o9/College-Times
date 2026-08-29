@@ -40,9 +40,6 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
 }) => {
   const { currentUser, userProfile } = useAuth();
   
-  // Intercept back button when modal is open
-  useOverlayBackHandler(isOpen, onClose);
-  
   // Controlled form state
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -112,6 +109,8 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     setShowConfirmClose(false);
     onClose();
   };
+
+  useOverlayBackHandler(isOpen, handleAttemptClose);
 
   // Keyboard Escape listener
   useEffect(() => {

@@ -14,6 +14,7 @@ import {
   PackageCheck,
   AlertCircle
 } from 'lucide-react';
+import { useScrollRestoration } from '../../hooks/useScrollRestoration';
 
 type TabFilter = 'All' | 'Closing Soon' | 'Official' | OpportunityType;
 
@@ -34,6 +35,8 @@ export const OpportunitiesPage: React.FC = () => {
   const [selectedTab, setSelectedTab] = useState<TabFilter>('All');
   const [selectedMode, setSelectedMode] = useState<'All' | OpportunityMode>('All');
   const [isFormOpen, setIsFormOpen] = useState<boolean>(false);
+
+  useScrollRestoration('opportunities', !loading);
 
   // Debounce search query by 300ms
   useEffect(() => {

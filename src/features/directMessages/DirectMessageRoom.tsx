@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { BackButton } from '../../components/BackButton';
 import type { DirectMessage, DirectConversation } from '../../types/directMessage';
 import { useAuth } from '../../hooks/useAuth';
 import { 
@@ -22,7 +23,6 @@ import { doc, onSnapshot, collection, query, orderBy, limit, getDocs, where } fr
 import { db } from '../../lib/firebase';
 import toast from 'react-hot-toast';
 import { 
-  ArrowLeft, 
   Send, 
   RefreshCw, 
   ShieldAlert, 
@@ -363,12 +363,7 @@ export const DirectMessageRoom: React.FC = () => {
       {/* Header Bar */}
       <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-3 sm:p-4 flex items-center justify-between gap-3 shadow-lg shrink-0">
         <div className="flex items-center gap-3 truncate">
-          <button
-            onClick={() => navigate('/messages')}
-            className="p-1.5 bg-slate-950 hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl border border-slate-800"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </button>
+          <BackButton customFallback="/messages" />
 
           <div className="truncate">
             <h2 className="text-sm font-bold text-white truncate flex items-center gap-2">

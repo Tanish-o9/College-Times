@@ -6,6 +6,7 @@ import { EventCard } from './EventCard';
 import { CreateEventForm } from './CreateEventForm';
 import { FAB } from '../../components/FAB';
 import { Calendar, RefreshCw, AlertCircle, Inbox, Shield, Search } from 'lucide-react';
+import { useScrollRestoration } from '../../hooks/useScrollRestoration';
 
 const CATEGORIES = [
   'All',
@@ -33,6 +34,8 @@ export const EventsList: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState<boolean>(false);
+
+  useScrollRestoration('events', !loading);
 
   const isAdmin = userProfile?.role === 'admin';
 

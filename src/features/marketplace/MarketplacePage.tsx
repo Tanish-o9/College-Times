@@ -17,6 +17,7 @@ import { collection, query, limit, getDocs, where } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../hooks/useAuth';
 import { getSavedListings } from '../../services/marketplaceService';
+import { useScrollRestoration } from '../../hooks/useScrollRestoration';
 
 const categories: (MarketplaceCategory | 'All')[] = [
   'All',
@@ -48,6 +49,8 @@ export const MarketplacePage: React.FC = () => {
   const [sortBy, setSortBy] = useState<'newest' | 'price_asc' | 'price_desc'>('newest');
   const [viewSaved, setViewSaved] = useState(false);
   const [viewMyListings, setViewMyListings] = useState(false);
+
+  useScrollRestoration('marketplace', !loading);
 
   const loadListings = async () => {
     setLoading(true);

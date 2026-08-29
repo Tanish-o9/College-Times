@@ -7,6 +7,7 @@ import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../../lib/firebase';
 import { editListing } from '../../services/marketplaceService';
+import { useOverlayBackHandler } from '../../hooks/useOverlayBackHandler';
 
 interface CreateListingModalProps {
   isOpen: boolean;
@@ -64,6 +65,8 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({
       onClose();
     }
   };
+
+  useOverlayBackHandler(isOpen, handleCloseSafe);
 
   useEffect(() => {
     if (isOpen) {

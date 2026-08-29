@@ -28,7 +28,22 @@ export const CreateGroupInstantModal: React.FC<CreateGroupInstantModalProps> = (
   const [previews, setPreviews] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
-  useOverlayBackHandler(isOpen, onClose);
+  const hasChanges = (
+    caption.trim().length > 0 ||
+    selectedFiles.length > 0
+  );
+
+  const handleCloseSafe = () => {
+    if (hasChanges) {
+      if (window.confirm('Discard unsaved changes?')) {
+        onClose();
+      }
+    } else {
+      onClose();
+    }
+  };
+
+  useOverlayBackHandler(isOpen, handleCloseSafe);
 
   if (!isOpen) return null;
 
@@ -103,7 +118,7 @@ export const CreateGroupInstantModal: React.FC<CreateGroupInstantModalProps> = (
           </div>
 
           <button
-            onClick={onClose}
+            onClick={handleCloseSafe}
             className="p-1.5 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-colors"
           >
             <X className="w-5 h-5" />

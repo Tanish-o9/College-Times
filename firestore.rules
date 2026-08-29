@@ -375,17 +375,7 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // Campus Groups Collection & Members Sub-collection
-    match /groups/{groupId} {
-      allow read: if isAuthenticated();
-      allow create, update, delete: if isAdmin();
 
-      match /members/{memberUid} {
-        allow read: if isAuthenticated();
-        allow create, delete: if (isAuthenticated() && memberUid == request.auth.uid) || isAdmin();
-        allow update: if false;
-      }
-    }
 
     // Posts Collection & Sub-collections (Likes, Comments, Reports)
     match /posts/{postId} {
@@ -857,13 +847,15 @@ service cloud.firestore {
 
     // Phase 32: Campus Groups Collection & Sub-collections
     match /groups/{groupId} {
-      allow read: if isAuthenticated() && (
-        resource.data.visibility != 'private' ||
-        exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)) ||
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (
+        get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['owner', 'admin'] ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberCount', 'updatedAt']) ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasAny(['memberCount', 'updatedAt', 'inviteCodePlaintext', 'inviteCodeHash', 'inviteCodeVersion', 'inviteEnabled']) && exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid))) ||
         isAdmin()
       );
-      allow create: if isAuthenticated();
-      allow update, delete: if isAuthenticated() && (
+      allow delete: if isAuthenticated() && (
         get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['owner', 'admin'] ||
         isAdmin()
       );
@@ -871,7 +863,7 @@ service cloud.firestore {
       match /members/{memberUid} {
         allow read: if isAuthenticated();
         allow create: if isAuthenticated() && (
-          (memberUid == request.auth.uid && get(/databases/$(database)/documents/groups/$(groupId)).data.visibility != 'private') ||
+          memberUid == request.auth.uid ||
           get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['owner', 'admin', 'moderator'] ||
           isAdmin()
         );

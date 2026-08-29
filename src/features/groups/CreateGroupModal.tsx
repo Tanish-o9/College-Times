@@ -44,7 +44,6 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
   onGroupCreated,
 }) => {
   const { currentUser, userProfile } = useAuth();
-  useOverlayBackHandler(isOpen, onClose);
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -57,6 +56,27 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
   const [iconUrl, setIconUrl] = useState('');
   const [passcode, setPasscode] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  const hasChanges = (
+    name.trim().length > 0 ||
+    description.trim().length > 0 ||
+    departmentId !== '' ||
+    batchYear !== '' ||
+    rules.trim().length > 0 ||
+    passcode.trim().length > 0
+  );
+
+  const handleCloseSafe = () => {
+    if (hasChanges) {
+      if (window.confirm('Discard unsaved changes?')) {
+        onClose();
+      }
+    } else {
+      onClose();
+    }
+  };
+
+  useOverlayBackHandler(isOpen, handleCloseSafe);
 
   if (!isOpen) return null;
 
@@ -111,7 +131,7 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
-      <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm" onClick={handleCloseSafe} />
 
       <div className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden z-10 my-auto p-6 space-y-5 max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between border-b border-slate-800 pb-4 shrink-0">
@@ -121,7 +141,7 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
             </div>
             <h2 className="text-base font-bold text-white">Create Campus Community Group</h2>
           </div>
-          <button onClick={onClose} className="p-1 text-slate-400 hover:text-white rounded-lg">
+          <button onClick={handleCloseSafe} className="p-1 text-slate-400 hover:text-white rounded-lg">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -300,7 +320,7 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
           <div className="pt-3 flex items-center justify-end gap-3 border-t border-slate-800 shrink-0">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleCloseSafe}
               className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold"
             >
               Cancel

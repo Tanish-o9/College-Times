@@ -16,48 +16,54 @@ export const useSmartBack = () => {
       navigate(-1);
     } else {
       const currentPath = location.pathname;
+      const search = location.search || '';
+      const state = location.state;
+
+      const navigateFallback = (targetPath: string) => {
+        navigate(targetPath + search, { state });
+      };
 
       if (customFallback) {
-        navigate(customFallback);
+        navigateFallback(customFallback);
         return;
       }
 
       // Logical parent fallback mappings
       if (currentPath.includes('/members')) {
-        navigate(currentPath.replace('/members', ''));
+        navigateFallback(currentPath.replace('/members', ''));
       } else if (currentPath.includes('/settings')) {
-        navigate(currentPath.split('/settings')[0] || '/settings');
+        navigateFallback(currentPath.split('/settings')[0] || '/settings');
       } else if (currentPath.includes('/moderation')) {
-        navigate(currentPath.replace('/moderation', ''));
+        navigateFallback(currentPath.replace('/moderation', ''));
       } else if (currentPath.includes('/dashboard')) {
-        navigate(currentPath.replace('/dashboard', ''));
+        navigateFallback(currentPath.replace('/dashboard', ''));
       } else if (currentPath.includes('/insights')) {
-        navigate(currentPath.replace('/insights', ''));
+        navigateFallback(currentPath.replace('/insights', ''));
       } else if (currentPath.startsWith('/groups/')) {
-        navigate('/groups');
+        navigateFallback('/groups');
       } else if (currentPath.startsWith('/clubs/')) {
-        navigate('/clubs');
+        navigateFallback('/clubs');
       } else if (currentPath.startsWith('/marketplace/')) {
-        navigate('/marketplace');
+        navigateFallback('/marketplace');
       } else if (currentPath.startsWith('/events/')) {
-        navigate('/events');
+        navigateFallback('/events');
       } else if (currentPath.startsWith('/incidents/')) {
-        navigate('/my-reports');
+        navigateFallback('/my-reports');
       } else if (currentPath.startsWith('/my-reports/')) {
-        navigate('/my-reports');
+        navigateFallback('/my-reports');
       } else if (currentPath.includes('/questions/')) {
         const subjectPath = currentPath.split('/questions/')[0];
-        navigate(subjectPath || '/academic');
+        navigateFallback(subjectPath || '/academic');
       } else if (currentPath.startsWith('/academic/subjects/')) {
-        navigate('/academic');
+        navigateFallback('/academic');
       } else if (currentPath.startsWith('/chat/')) {
-        navigate('/channels');
+        navigateFallback('/channels');
       } else if (currentPath.startsWith('/messages/')) {
-        navigate('/messages');
+        navigateFallback('/messages');
       } else if (currentPath.startsWith('/profile/')) {
-        navigate('/discover');
+        navigateFallback('/discover');
       } else {
-        navigate('/');
+        navigateFallback('/');
       }
     }
   };

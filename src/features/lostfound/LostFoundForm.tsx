@@ -28,8 +28,6 @@ export const LostFoundForm: React.FC<LostFoundFormProps> = ({
   onPostCreated,
 }) => {
   const { currentUser, userProfile } = useAuth();
-  useOverlayBackHandler(isOpen, onClose);
-
   const [postType, setPostType] = useState<'lost' | 'found'>('lost');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -39,6 +37,25 @@ export const LostFoundForm: React.FC<LostFoundFormProps> = ({
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
+
+  const hasChanges = (
+    title.trim().length > 0 ||
+    content.trim().length > 0 ||
+    contactInfo.trim().length > 0 ||
+    selectedFile !== null
+  );
+
+  const handleCloseSafe = () => {
+    if (hasChanges) {
+      if (window.confirm('Discard unsaved changes?')) {
+        onClose();
+      }
+    } else {
+      onClose();
+    }
+  };
+
+  useOverlayBackHandler(isOpen, handleCloseSafe);
   const [uploadStep, setUploadStep] = useState<'idle' | 'uploading' | 'publishing'>('idle');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -127,7 +144,7 @@ export const LostFoundForm: React.FC<LostFoundFormProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
-      <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm" onClick={handleCloseSafe} />
 
       <div className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden z-10 my-auto">
         <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
@@ -137,7 +154,7 @@ export const LostFoundForm: React.FC<LostFoundFormProps> = ({
             </div>
             <h2 className="text-lg font-bold text-white">Post Lost & Found Notice</h2>
           </div>
-          <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-white rounded-xl">
+          <button onClick={handleCloseSafe} className="p-1.5 text-slate-400 hover:text-white rounded-xl">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -266,7 +283,7 @@ export const LostFoundForm: React.FC<LostFoundFormProps> = ({
           <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-3">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleCloseSafe}
               className="px-4 py-2.5 bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold"
             >
               Cancel

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import {
   rankPeople,
@@ -46,10 +46,17 @@ import toast from 'react-hot-toast';
 
 export const DiscoverPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { currentUser } = useAuth();
 
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'people' | 'requests' | 'suggested_friends' | 'suggested_groups' | 'trending_posts' | 'trending_events'>('people');
+  
+  type DiscoverTab = 'people' | 'requests' | 'suggested_friends' | 'suggested_groups' | 'trending_posts' | 'trending_events';
+  const activeTab = (searchParams.get('tab') as DiscoverTab) || 'people';
+  const setActiveTab = (tab: DiscoverTab) => {
+    setSearchParams({ tab }, { replace: true });
+  };
+
   const [loadingTab, setLoadingTab] = useState(false);
   
   const [people, setPeople] = useState<RecommendedPerson[]>([]);

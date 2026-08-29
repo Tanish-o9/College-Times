@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { BackButton } from '../../components/BackButton';
 import {
@@ -72,7 +72,11 @@ export const ProfilePage: React.FC = () => {
 
   // Tabs
   type ProfileTab = 'posts' | 'friends' | 'groups' | 'achievements' | 'saved';
-  const [activeTab, setActiveTab] = useState<ProfileTab>('posts');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = (searchParams.get('tab') as ProfileTab) || 'posts';
+  const setActiveTab = (tab: ProfileTab) => {
+    setSearchParams({ tab }, { replace: true });
+  };
 
   // Tab Data States
   const [posts, setPosts] = useState<Post[]>([]);

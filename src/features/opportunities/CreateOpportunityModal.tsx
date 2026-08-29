@@ -4,6 +4,7 @@ import { createOpportunity, editOpportunity } from '../../services/opportunitySe
 import type { OpportunityType, OpportunityMode, Opportunity } from '../../types/opportunity';
 import toast from 'react-hot-toast';
 import { Briefcase, RefreshCw, X, Plus } from 'lucide-react';
+import { useOverlayBackHandler } from '../../hooks/useOverlayBackHandler';
 
 interface CreateOpportunityModalProps {
   isOpen: boolean;
@@ -57,6 +58,8 @@ export const CreateOpportunityModal: React.FC<CreateOpportunityModalProps> = ({
       onClose();
     }
   };
+
+  useOverlayBackHandler(isOpen, handleCloseSafe);
 
   useEffect(() => {
     if (isOpen) {

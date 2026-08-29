@@ -12,6 +12,7 @@ import { uploadChatImage, uploadChatFile, deleteChatFile } from '../../services/
 import { getChannelCache, setChannelCache } from '../../services/chatCacheService';
 import { subscribeToMemberPresence } from '../../services/presenceService';
 import { useChatHistorySentinel } from '../../hooks/useChatHistorySentinel';
+import { useSmartBack } from '../../hooks/useSmartBack';
 import type { Channel, ChatMessage, TypingUser, ChatFileAttachment } from '../../types/chat';
 import { doc, onSnapshot, type QueryDocumentSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -42,6 +43,7 @@ export const ChatRoom: React.FC = () => {
   const { channelId } = useParams<{ channelId: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const goBack = useSmartBack();
   const { currentUser, userProfile } = useAuth();
   const { isEligible, loading: accessLoading } = useChatAccess();
 
@@ -477,7 +479,7 @@ export const ChatRoom: React.FC = () => {
       <div className="sticky top-0 z-30 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3 min-w-0">
           <button
-            onClick={() => navigate('/')}
+            onClick={() => goBack('/channels')}
             className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors shrink-0"
             title="Back"
           >

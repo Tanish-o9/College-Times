@@ -29,6 +29,7 @@ import toast from 'react-hot-toast';
 import { CreateGroupModal } from './CreateGroupModal';
 import { JoinGroupByCodeModal } from './JoinGroupByCodeModal';
 import { JoinGroupWithPasswordModal } from './JoinGroupWithPasswordModal';
+import { useScrollRestoration } from '../../hooks/useScrollRestoration';
 
 type FilterTab = 'all' | 'campus' | 'department' | 'batch' | 'community' | 'my_groups';
 
@@ -43,6 +44,8 @@ export const GroupsPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [actionGroupId, setActionGroupId] = useState<string | null>(null);
+
+  useScrollRestoration('groups', !loading);
 
   // Modals
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);

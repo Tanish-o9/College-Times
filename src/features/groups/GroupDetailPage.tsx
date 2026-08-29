@@ -204,7 +204,7 @@ export const GroupDetailPage: React.FC = () => {
       return;
     }
     setActiveTab(tab);
-    setSearchParams({ tab });
+    setSearchParams({ tab }, { replace: true });
   };
 
   const handleToggleMembership = async () => {

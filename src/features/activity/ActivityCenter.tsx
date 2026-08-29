@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { formatTimestamp } from '../../utils/format';
 import toast from 'react-hot-toast';
+import { useScrollRestoration } from '../../hooks/useScrollRestoration';
 
 export const ActivityCenter: React.FC = () => {
   const { currentUser } = useAuth();
@@ -32,6 +33,8 @@ export const ActivityCenter: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  useScrollRestoration('activity', !loading);
 
   const loadActivities = async (reset: boolean = false) => {
     if (!currentUser) return;
