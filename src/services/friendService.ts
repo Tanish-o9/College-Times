@@ -15,6 +15,7 @@ import {
 } from 'firebase/firestore';
 import { db, logAnalyticsEvent } from '../lib/firebase';
 import { createNotification } from './notificationService';
+import { isUserBlocked } from './directMessageService';
 
 export type RelationshipStatus = 'NONE' | 'OUTGOING_PENDING' | 'INCOMING_PENDING' | 'FRIENDS';
 
@@ -77,6 +78,13 @@ export const sendFriendRequest = async (
   if (!currentUid || !targetUid) return false;
   if (currentUid === targetUid) {
     throw new Error('You cannot send a friend request to yourself.');
+  }
+
+  // Check blocking
+  const blockedA = await isUserBlocked(currentUid, targetUid);
+  const blockedB = await isUserBlocked(targetUid, currentUid);
+  if (blockedA || blockedB) {
+    throw new Error('Action restricted by user privacy/block settings.');
   }
 
   // Check relationship status first

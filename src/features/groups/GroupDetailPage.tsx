@@ -23,6 +23,8 @@ import { GroupActivityTimeline } from './GroupActivityTimeline';
 import { RealtimeGroupActivity } from './RealtimeGroupActivity';
 import { GroupPosts } from './GroupPosts';
 import { GroupEvents } from './GroupEvents';
+import { GroupResources } from './GroupResources';
+import { GroupAnalyticsDashboard } from './GroupAnalyticsDashboard';
 import {
   ArrowLeft,
   Users,
@@ -45,6 +47,7 @@ import {
   ShieldAlert,
   Calendar,
   FileText,
+  BookOpen,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { doc, getDoc, collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
@@ -62,6 +65,8 @@ export type GroupTab =
   | 'leaderboard'
   | 'search'
   | 'invites'
+  | 'resources'
+  | 'analytics'
   | 'chat';
 
 export const GroupDetailPage: React.FC = () => {
@@ -472,6 +477,30 @@ export const GroupDetailPage: React.FC = () => {
                     <span>Leaderboard</span>
                   </button>
 
+                   <button
+                    onClick={() => handleTabChange('resources')}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+                      activeTab === 'resources'
+                        ? 'bg-sky-500/10 text-sky-400 border border-sky-500/30'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <BookOpen className="w-4 h-4" />
+                    <span>Resources</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleTabChange('analytics')}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+                      activeTab === 'analytics'
+                        ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/30'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <BarChart3 className="w-4 h-4" />
+                    <span>Analytics</span>
+                  </button>
+
                   <button
                     onClick={() => handleTabChange('search')}
                     className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
@@ -499,7 +528,7 @@ export const GroupDetailPage: React.FC = () => {
                 )}
 
                 {activeTab === 'posts' && (
-                  <GroupPosts groupId={group.id} isMember={isMember} />
+                  <GroupPosts groupId={group.id} isMember={isMember} userRole={userRole} />
                 )}
 
                 {activeTab === 'moments' && (
@@ -575,6 +604,14 @@ export const GroupDetailPage: React.FC = () => {
 
                 {activeTab === 'invites' && isMember && (
                   <GroupInviteManager group={group} onGroupUpdated={(updated) => setGroup(updated)} />
+                )}
+
+                {activeTab === 'resources' && (
+                  <GroupResources groupId={group.id} isMember={isMember} userRole={userRole} />
+                )}
+
+                {activeTab === 'analytics' && (
+                  <GroupAnalyticsDashboard groupId={group.id} />
                 )}
               </>
             )}

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { DirectMessage, DirectConversation } from '../../types/directMessage';
 import { useAuth } from '../../hooks/useAuth';
@@ -8,8 +8,14 @@ import {
   blockUser,
   unblockUser,
   toggleDMReaction,
-  uploadDMMedia
+  uploadDMMedia,
+  setTypingIndicator,
+  subscribeToTypingIndicators,
+  deleteDirectMessage,
+  updateConversationReadState,
+  getDirectMessagesPaginated,
 } from '../../services/directMessageService';
+import { subscribeToMemberPresence } from '../../services/presenceService';
 import { doc, onSnapshot, collection, query, orderBy, limit, getDocs, where } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import toast from 'react-hot-toast';
@@ -28,7 +34,9 @@ import {
   CornerUpLeft,
   Forward,
   File,
-  User
+  User,
+  Trash2,
+  ChevronUp,
 } from 'lucide-react';
 
 export const DirectMessageRoom: React.FC = () => {
@@ -50,6 +58,16 @@ export const DirectMessageRoom: React.FC = () => {
   const [forwardChats, setForwardChats] = useState<DirectConversation[]>([]);
   const [activeReactionPickerMsgId, setActiveReactionPickerMsgId] = useState<string | null>(null);
   const [uploading, setUploading] = useState<boolean>(false);
+
+  // Typing indicator state
+  const [typingUids, setTypingUids] = useState<string[]>([]);
+  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Pagination for older messages
+  const [olderLastDoc, setOlderLastDoc] = useState<any>(null);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [hasOlderMessages, setHasOlderMessages] = useState(false);
+  const [isTargetOnline, setIsTargetOnline] = useState<boolean>(false);
 
   // Derive target participant UID & Name
   const targetUid = conversation?.participantIds.find((id) => id !== currentUser?.uid);
@@ -74,6 +92,16 @@ export const DirectMessageRoom: React.FC = () => {
 
     return () => unsubscribe();
   }, [conversationId, currentUser]);
+
+  // Subscribe to target user presence
+  useEffect(() => {
+    if (!currentUser || !targetUid) return;
+    const unsubscribe = subscribeToMemberPresence([targetUid], (statusMap) => {
+      setIsTargetOnline(statusMap[targetUid] || false);
+    });
+    return () => unsubscribe();
+  }, [currentUser, targetUid]);
+
 
   // Listen to messages in realtime
   useEffect(() => {
@@ -103,6 +131,23 @@ export const DirectMessageRoom: React.FC = () => {
     return () => unsubscribe();
   }, [conversationId, currentUser]);
 
+  // Subscribe to typing indicators via RTDB
+  useEffect(() => {
+    if (!conversationId || !currentUser) return;
+    const unsub = subscribeToTypingIndicators(conversationId, currentUser.uid, setTypingUids);
+    return () => {
+      unsub();
+      // Clear our own typing indicator on unmount
+      setTypingIndicator(conversationId, currentUser.uid, false);
+    };
+  }, [conversationId, currentUser]);
+
+  // Mark conversation as read when entering
+  useEffect(() => {
+    if (!conversationId || !currentUser) return;
+    updateConversationReadState(conversationId, currentUser).catch(() => {});
+  }, [conversationId, currentUser]);
+
   // Load other chats for forwarding when modal opens
   useEffect(() => {
     if (!currentUser || !forwardingMsg) return;
@@ -130,6 +175,10 @@ export const DirectMessageRoom: React.FC = () => {
     e.preventDefault();
     if (!currentUser || !conversationId || !inputContent.trim() || sending) return;
 
+    // Clear typing indicator immediately on send
+    setTypingIndicator(conversationId, currentUser.uid, false);
+    if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+
     setSending(true);
     try {
       await sendDirectMessage(conversationId, inputContent, currentUser, {
@@ -143,6 +192,18 @@ export const DirectMessageRoom: React.FC = () => {
     } finally {
       setSending(false);
     }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInputContent(e.target.value);
+    if (!conversationId || !currentUser) return;
+    // Set typing indicator
+    setTypingIndicator(conversationId, currentUser.uid, true);
+    // Auto-clear after 3 seconds of inactivity
+    if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+    typingTimerRef.current = setTimeout(() => {
+      setTypingIndicator(conversationId, currentUser.uid, false);
+    }, 3000);
   };
 
   const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -215,6 +276,35 @@ export const DirectMessageRoom: React.FC = () => {
     }
   };
 
+  const handleDeleteMessage = async (msg: DirectMessage) => {
+    if (!currentUser || !conversationId) return;
+    if (!window.confirm('Delete this message?')) return;
+    try {
+      await deleteDirectMessage(conversationId, msg.id, currentUser);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete message.');
+    }
+  };
+
+  const handleLoadOlder = useCallback(async () => {
+    if (!conversationId || loadingOlder) return;
+    setLoadingOlder(true);
+    try {
+      const res = await getDirectMessagesPaginated(conversationId, 30, olderLastDoc);
+      if (res.messages.length > 0) {
+        setMessages((prev) => [...res.messages, ...prev]);
+        setOlderLastDoc(res.lastDoc);
+        setHasOlderMessages(res.messages.length === 30);
+      } else {
+        setHasOlderMessages(false);
+      }
+    } catch (err) {
+      toast.error('Failed to load older messages.');
+    } finally {
+      setLoadingOlder(false);
+    }
+  }, [conversationId, olderLastDoc, loadingOlder]);
+
   return (
     <div className="max-w-3xl mx-auto h-[calc(100vh-5rem)] flex flex-col py-4 px-3 sm:px-4">
       {/* Header Bar */}
@@ -236,7 +326,10 @@ export const DirectMessageRoom: React.FC = () => {
                 </span>
               )}
             </h2>
-            <p className="text-[11px] text-slate-500 truncate">Campus Peer (Private 1-on-1)</p>
+            <p className="text-[11px] text-slate-400 truncate flex items-center gap-1.5 mt-0.5">
+              <span className={`w-1.5 h-1.5 rounded-full ${isTargetOnline ? 'bg-emerald-500 animate-pulse' : 'bg-slate-600'}`} />
+              <span>{isTargetOnline ? 'Online' : 'Offline'}</span>
+            </p>
           </div>
         </div>
 
@@ -293,6 +386,19 @@ export const DirectMessageRoom: React.FC = () => {
 
       {/* Main Messages List */}
       <div className="flex-1 overflow-y-auto py-4 space-y-4 px-1">
+        {/* Load Earlier Button */}
+        {hasOlderMessages && (
+          <div className="flex justify-center py-2">
+            <button
+              onClick={handleLoadOlder}
+              disabled={loadingOlder}
+              className="flex items-center gap-1.5 px-4 py-2 bg-slate-900 border border-slate-800 hover:border-slate-700 text-xs text-slate-400 hover:text-white rounded-xl transition-all"
+            >
+              {loadingOlder ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <ChevronUp className="w-3.5 h-3.5" />}
+              <span>Load earlier messages</span>
+            </button>
+          </div>
+        )}
         {loading ? (
           <div className="py-16 flex items-center justify-center gap-2 text-slate-400 text-xs">
             <RefreshCw className="w-5 h-5 animate-spin text-indigo-400" />
@@ -397,6 +503,15 @@ export const DirectMessageRoom: React.FC = () => {
                       >
                         <Forward className="w-3.5 h-3.5" />
                       </button>
+                      {isMe && (
+                        <button
+                          onClick={() => handleDeleteMessage(msg)}
+                          className="p-1 text-slate-400 hover:text-rose-400 rounded-lg transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -431,6 +546,25 @@ export const DirectMessageRoom: React.FC = () => {
           })
         )}
         <div ref={messagesEndRef} />
+
+        {/* Typing Indicator */}
+        {typingUids.length > 0 && (
+          <div className="flex items-start gap-2 animate-in fade-in slide-in-from-bottom-2 px-1">
+            <div className="w-6 h-6 rounded-full bg-slate-800 border border-slate-700 text-slate-400 flex items-center justify-center shrink-0">
+              <User className="w-3 h-3" />
+            </div>
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl rounded-bl-none px-4 py-3">
+              <div className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+              </div>
+            </div>
+            <span className="text-[10px] text-slate-500 self-end pb-1">
+              {targetName} is typing...
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Replying Status Strip */}
@@ -504,7 +638,7 @@ export const DirectMessageRoom: React.FC = () => {
             <input
               type="text"
               value={inputContent}
-              onChange={(e) => setInputContent(e.target.value)}
+              onChange={handleInputChange}
               placeholder="Type a private message..."
               disabled={sending || uploading}
               className="flex-1 bg-slate-900 border border-slate-800 rounded-2xl px-4 py-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 font-medium"

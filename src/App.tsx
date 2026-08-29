@@ -53,6 +53,9 @@ import { ListingDetailPage } from './features/marketplace/ListingDetailPage';
 import { MyApplications } from './features/opportunities/MyApplications';
 import { DiscoverPage } from './features/discover/DiscoverPage';
 import { SettingsHub } from './features/settings/SettingsHub';
+import { SavedPage } from './features/saved/SavedPage';
+import { ActivityPage } from './features/profile/ActivityPage';
+import { ReportsPage } from './features/profile/ReportsPage';
 
 // Code-split heavy AdminPortal route
 const AdminPage = lazy(() => import('./features/admin/AdminPage').then(module => ({ default: module.AdminPage })));
@@ -116,10 +119,13 @@ export const App: React.FC = () => {
                 <Route path="/settings/notifications" element={<NotificationPreferences />} />
                 <Route path="/settings" element={<SettingsHub />} />
                 <Route path="/settings/:tab" element={<SettingsHub />} />
+                <Route path="/settings/activity" element={<ActivityPage />} />
+                <Route path="/settings/reports" element={<ReportsPage />} />
                 <Route path="/profile/:username" element={<ProfilePage />} />
                 <Route path="/connections" element={<ConnectionsPage />} />
                 <Route path="/privacy" element={<PrivacyPage />} />
                 <Route path="/account" element={<AccountPage />} />
+                <Route path="/saved" element={<SavedPage />} />
                 <Route element={<RequireAdmin />}>
                   <Route 
                     path="/admin-portal" 

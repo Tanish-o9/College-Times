@@ -250,11 +250,13 @@ export const unmuteGroupMember = async (
  */
 export const getGroupLeaderboard = async (
   groupId: string,
-  limitCount: number = 10
+  limitCount: number = 10,
+  timeframe: 'all-time' | 'weekly' | 'monthly' = 'all-time'
 ): Promise<GroupMember[]> => {
   if (!groupId) return [];
   const colRef = collection(db, 'groups', groupId, 'members');
-  const q = query(colRef, orderBy('points', 'desc'), limit(limitCount));
+  const sortField = timeframe === 'weekly' ? 'weeklyPoints' : timeframe === 'monthly' ? 'monthlyPoints' : 'points';
+  const q = query(colRef, orderBy(sortField, 'desc'), limit(limitCount));
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({
     ...(d.data() as GroupMember),

@@ -15,6 +15,11 @@ export interface User {
   bio?: string;
   department?: string;
   profileVisibility?: 'public' | 'private';
+  profileStatus?: 'active' | 'suspended';
+  friendListVisibility?: 'public' | 'friends' | 'private';
+  postVisibility?: 'public' | 'friends';
+  storyVisibility?: 'public' | 'friends';
+  messagePermissions?: 'everyone' | 'friends';
   createdAt: Timestamp | FieldValue;
   lastLoginAt?: Timestamp | FieldValue;
 }
@@ -94,6 +99,7 @@ export interface Post {
   updatedAt?: any;
   groupId?: string;
   poll?: any;
+  pinned?: boolean;
   reactionCounts?: Record<string, number>;
   audience?: PostAudience;
   priority?: PostPriority;
@@ -113,6 +119,7 @@ export interface Comment {
   parentCommentId?: string;
   likeCount?: number;
   reportCount?: number;
+  mentions?: { userId: string; username: string }[];
 }
 
 export interface Notification {
@@ -147,6 +154,7 @@ export interface CampusEvent {
   capacity?: number;
   registrationRequired?: boolean;
   registrationDeadline?: any;
+  pinned?: boolean;
   isCancelled?: boolean;
   cancellationReason?: string;
   createdAt?: any;

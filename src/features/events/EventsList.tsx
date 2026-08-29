@@ -26,7 +26,7 @@ const CATEGORIES = [
 export const EventsList: React.FC = () => {
   const { currentUser, userProfile } = useAuth();
   const [events, setEvents] = useState<CampusEvent[]>([]);
-  const [activeTab, setActiveTab] = useState<'upcoming' | 'today' | 'this_week' | 'my_events' | 'past'>('upcoming');
+  const [activeTab, setActiveTab] = useState<'upcoming' | 'today' | 'this_week' | 'this_month' | 'my_events' | 'past'>('upcoming');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState<string>('');
   
@@ -104,6 +104,7 @@ export const EventsList: React.FC = () => {
             { id: 'upcoming', label: 'Upcoming' },
             { id: 'today', label: 'Today' },
             { id: 'this_week', label: 'This Week' },
+            { id: 'this_month', label: 'This Month' },
             { id: 'my_events', label: 'My Events' },
             { id: 'past', label: 'Past' },
           ].map((tab) => (

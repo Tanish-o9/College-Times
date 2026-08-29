@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import type { Post } from '../../types';
-import type { FeedMode, UserFeedPreferences } from '../../types/feed';
+import type { FeedMode } from '../../types/feed';
 import { getPostsPage } from '../../services/postService';
-import { getUserFeedPreferences } from '../../services/feedPreferenceService';
+import { getForYouFeed, getFollowingFeed } from '../../services/feedPersonalizationService';
 import type { QueryDocumentSnapshot } from 'firebase/firestore';
 import { StoryBar } from '../stories/StoryBar';
 import { PostCard } from './PostCard';
@@ -51,7 +51,6 @@ export const Feed: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   const [feedMode, setFeedMode] = useState<FeedMode>('latest');
-  const [userPrefs, setUserPrefs] = useState<UserFeedPreferences | null>(null);
   const [isPrefModalOpen, setIsPrefModalOpen] = useState<boolean>(false);
 
   const [pendingRecentPosts, setPendingRecentPosts] = useState<Post[]>([]);
@@ -67,20 +66,6 @@ export const Feed: React.FC = () => {
   // Keep a stable ref of current post IDs so the realtime listener doesn't need posts in deps
   const postIdsRef = useRef<Set<string>>(new Set());
 
-  // Load user feed preferences
-  const loadUserPrefs = async () => {
-    if (!currentUser) return;
-    try {
-      const prefs = await getUserFeedPreferences(currentUser.uid);
-      setUserPrefs(prefs);
-    } catch (err) {
-      console.error('Failed to load user feed preferences:', err);
-    }
-  };
-
-  useEffect(() => {
-    loadUserPrefs();
-  }, [currentUser]);
 
   // Keep postIdsRef in sync with posts so the stable realtime listener can deduplicate
   useEffect(() => {
@@ -211,7 +196,15 @@ export const Feed: React.FC = () => {
 
       let fetched: Post[] = [];
 
-      if (mode === 'saved') {
+      if (mode === 'personalized') {
+        // Use feedPersonalizationService for personalised For You feed
+        fetched = await getForYouFeed(currentUser?.uid || '', 20);
+        setHasMore(false); // Personalized feed is fully scored in one call
+      } else if (mode === 'following') {
+        // Use feedPersonalizationService for friends-only Following feed
+        fetched = await getFollowingFeed(currentUser?.uid || '', 20);
+        setHasMore(false);
+      } else if (mode === 'saved') {
         const { getUserSavedPosts } = await import('../../services/postBookmarkService');
         const savedIds = await getUserSavedPosts(currentUser?.uid || '');
         if (savedIds.length > 0) {
@@ -232,18 +225,13 @@ export const Feed: React.FC = () => {
         }
       }
 
-      // Apply mode specific transformations
+      // Apply mode-specific transformations for standard modes
       if (mode === 'important') {
         fetched = fetched.filter((p) => p.isImportant || p.isOfficial);
       } else if (mode === 'trending') {
-        fetched = fetched.sort((a, b) => ((b.likeCount || 0) + (b.commentCount || 0)) - ((a.likeCount || 0) + (a.commentCount || 0)));
-      } else if (mode === 'personalized') {
-        const { rankPostsPersonalized } = await import('../../services/feedRankingService');
-        fetched = rankPostsPersonalized(fetched, userPrefs || undefined);
-      } else if (mode === 'following') {
-        const { getFollowingPage } = await import('../../services/followService');
-        const { uids } = await getFollowingPage(currentUser?.uid || '');
-        fetched = fetched.filter((p) => uids.includes(p.authorId));
+        const { getTrendingPosts } = await import('../../services/trendingService');
+        fetched = await getTrendingPosts(20);
+        setHasMore(false);
       } else if (mode === 'groups') {
         fetched = fetched.filter((p) => !!p.groupId);
       }
@@ -573,7 +561,6 @@ export const Feed: React.FC = () => {
         isOpen={isPrefModalOpen}
         onClose={() => setIsPrefModalOpen(false)}
         onPreferencesUpdated={() => {
-          loadUserPrefs();
           fetchInitialPosts(feedMode, selectedCategory);
         }}
       />

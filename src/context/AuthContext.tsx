@@ -5,6 +5,7 @@ import { auth, db } from '../lib/firebase';
 import { ensureUserDocument, signOutUser } from '../services/authService';
 import { initUserPresence } from '../services/presenceService';
 import type { User } from '../types';
+import toast from 'react-hot-toast';
 
 export interface AuthContextType {
   currentUser: FirebaseUser | null;
@@ -59,7 +60,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const userRef = doc(db, 'users', uid);
       const snap = await getDoc(userRef);
       if (snap.exists()) {
-        setUserProfile(snap.data() as User);
+        const data = snap.data() as User;
+        if (data.profileStatus === 'suspended') {
+          await signOutUser();
+          setCurrentUser(null);
+          setUserProfile(null);
+          localStorage.removeItem('college_times_dev_session');
+          toast.error('Your account has been suspended by campus administration.');
+          return;
+        }
+        setUserProfile(data);
       } else {
         setUserProfile(null);
       }

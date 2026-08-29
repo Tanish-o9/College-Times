@@ -48,6 +48,20 @@ export const clearRecentSearches = (): void => {
 };
 
 /**
+ * Helper to fetch list of blocked users.
+ */
+const getBlockedUserIds = async (uid: string): Promise<string[]> => {
+  if (!uid) return [];
+  try {
+    const colRef = collection(db, 'users', uid, 'blockedUsers');
+    const snap = await getDocs(colRef);
+    return snap.docs.map((docSnap) => docSnap.id);
+  } catch {
+    return [];
+  }
+};
+
+/**
  * Ranks search results deterministically based on match precision and recency.
  */
 const calculateResultScore = (title: string = '', text: string = '', queryLower: string): number => {
@@ -71,7 +85,7 @@ export const searchUnifiedCampus = async (
   queryStr: string,
   category: SearchCategory = 'all',
   limitCount: number = 10,
-  _currentUser?: FirebaseUser | null
+  currentUser?: FirebaseUser | null
 ): Promise<UnifiedSearchResult> => {
   const cleanQuery = queryStr.trim().toLowerCase();
 
@@ -79,12 +93,13 @@ export const searchUnifiedCampus = async (
     return { items: [], suggestions: [], totalMatches: 0, query: queryStr };
   }
 
-  const cacheKey = `${category}:${limitCount}:${cleanQuery}`;
+  const cacheKey = `${category}:${limitCount}:${cleanQuery}:${currentUser?.uid || 'anon'}`;
   if (SEARCH_CACHE.has(cacheKey)) {
     return SEARCH_CACHE.get(cacheKey)!;
   }
 
   const searchResults: SearchResultItem[] = [];
+  const blockedUserIds = currentUser ? await getBlockedUserIds(currentUser.uid) : [];
 
   try {
     // 1. Search People (Users)
@@ -95,6 +110,8 @@ export const searchUnifiedCampus = async (
         const snap = await getDocs(q);
 
         snap.docs.forEach((docSnap) => {
+          if (blockedUserIds.includes(docSnap.id)) return; // Filter blocked users
+          
           const data = docSnap.data();
           const name = data.displayName || data.username || 'Campus User';
           const dept = data.department || '';
@@ -126,14 +143,17 @@ export const searchUnifiedCampus = async (
       try {
         const groups = await searchGroups(cleanQuery, 'all', 20);
         groups.forEach((g) => {
+          if (g.createdBy && blockedUserIds.includes(g.createdBy)) return; // Filter if creator is blocked
+
           const score = calculateResultScore(g.name, g.description, cleanQuery);
+          const catName = g.category || g.type || 'community';
           searchResults.push({
             id: g.id,
             type: 'group',
             title: g.name,
-            subtitle: `${g.type} • ${g.visibility} • ${g.memberCount} members`,
-            description: g.description,
-            avatar: g.iconUrl,
+            subtitle: `${catName.toUpperCase()} • ${g.memberCount || 1} Members`,
+            description: g.description?.slice(0, 120),
+            imageUrl: g.iconUrl,
             url: `/groups/${g.id}`,
             category: 'Groups',
             score,
@@ -154,22 +174,20 @@ export const searchUnifiedCampus = async (
         snap.docs.forEach((docSnap) => {
           const post = docSnap.data() as Post;
           if (post.groupId) return; // Skip private group posts in global search
+          if (post.authorId && blockedUserIds.includes(post.authorId)) return; // Filter blocked posts
 
-          const title = post.title || post.content.slice(0, 50);
-          const content = post.content || '';
-          const textMatch = `${title} ${content}`.toLowerCase();
-
+          const textMatch = `${post.title || ''} ${post.content || ''}`.toLowerCase();
           if (textMatch.includes(cleanQuery)) {
-            const score = calculateResultScore(title, content, cleanQuery);
+            const score = calculateResultScore(post.title || 'Feed Post', post.content, cleanQuery);
             searchResults.push({
-              id: docSnap.id!,
+              id: docSnap.id || '',
               type: 'post',
-              title,
-              subtitle: `By ${post.authorName || 'Student'} • ${post.category || 'Feed'}`,
-              description: content.slice(0, 120),
-              imageUrl: post.imageUrl || post.images?.[0]?.downloadUrl,
-              url: `/?postId=${docSnap.id}`,
-              category: 'Posts',
+              title: post.title || 'Campus Update',
+              subtitle: `By ${post.authorName || 'Student'}`,
+              description: post.content?.slice(0, 120),
+              imageUrl: post.imageUrl,
+              url: `/posts/${docSnap.id}`,
+              category: 'Feed Posts',
               score,
             });
           }
@@ -188,16 +206,16 @@ export const searchUnifiedCampus = async (
 
         snap.docs.forEach((docSnap) => {
           const event = docSnap.data() as CampusEvent;
-          const organizer = event.organizerName || 'Campus';
-          const textMatch = `${event.title} ${event.description || ''} ${organizer}`.toLowerCase();
+          if (event.createdBy && blockedUserIds.includes(event.createdBy)) return; // Filter blocked event creators
 
+          const textMatch = `${event.title} ${event.description || ''} ${event.location || ''} ${event.category || ''}`.toLowerCase();
           if (textMatch.includes(cleanQuery)) {
             const score = calculateResultScore(event.title, event.description, cleanQuery);
             searchResults.push({
               id: docSnap.id,
               type: 'event',
               title: event.title,
-              subtitle: `Organizer: ${organizer} • ${event.category || 'Event'}`,
+              subtitle: `${event.category} • ${event.location}`,
               description: event.description?.slice(0, 120),
               url: `/events/${docSnap.id}`,
               category: 'Events',
@@ -210,7 +228,7 @@ export const searchUnifiedCampus = async (
       }
     }
 
-    // 5. Search Lost & Found Items
+    // 5. Search Lost & Found Items (Skip for now, keep code compatible)
     if (category === 'all' || category === 'lost_found') {
       try {
         const itemsRef = collection(db, 'lostFoundItems');
@@ -218,22 +236,19 @@ export const searchUnifiedCampus = async (
         const snap = await getDocs(q);
 
         snap.docs.forEach((docSnap) => {
-          const data = docSnap.data();
-          const title = data.title || '';
-          const description = data.description || '';
-          const cat = data.category || 'Item';
-          const location = data.location || '';
-          const textMatch = `${title} ${description} ${cat}`.toLowerCase();
+          const data = docSnap.data() as any;
+          if (data.createdBy && blockedUserIds.includes(data.createdBy)) return;
 
+          const textMatch = `${data.title} ${data.description || ''} ${data.location || ''} ${data.type || ''}`.toLowerCase();
           if (textMatch.includes(cleanQuery)) {
-            const score = calculateResultScore(title, description, cleanQuery);
+            const score = calculateResultScore(data.title, data.description, cleanQuery);
             searchResults.push({
               id: docSnap.id,
               type: 'lost_found',
-              title,
-              subtitle: `${cat} • ${location}`,
-              description: description.slice(0, 120),
-              imageUrl: data.imageUrl || data.images?.[0],
+              title: data.title,
+              subtitle: `${data.type.toUpperCase()} • Location: ${data.location}`,
+              description: data.description?.slice(0, 120),
+              imageUrl: data.mediaUrls?.[0],
               url: `/lost-found`,
               category: 'Lost & Found',
               score,
@@ -248,14 +263,16 @@ export const searchUnifiedCampus = async (
     // 6. Search Marketplace Listings
     if (category === 'all' || category === 'marketplace') {
       try {
-        const itemsRef = collection(db, 'marketplaceItems');
+        // Fix: Use correct collection name 'marketplaceListings' instead of 'marketplaceItems'
+        const itemsRef = collection(db, 'marketplaceListings');
         const q = fsQuery(itemsRef, fsLimit(20));
         const snap = await getDocs(q);
 
         snap.docs.forEach((docSnap) => {
           const item = docSnap.data() as MarketplaceListing;
-          const textMatch = `${item.title} ${item.description || ''} ${item.category || ''}`.toLowerCase();
+          if (item.sellerId && blockedUserIds.includes(item.sellerId)) return; // Filter blocked sellers
 
+          const textMatch = `${item.title} ${item.description || ''} ${item.category || ''}`.toLowerCase();
           if (textMatch.includes(cleanQuery)) {
             const score = calculateResultScore(item.title, item.description, cleanQuery);
             searchResults.push({
@@ -265,7 +282,7 @@ export const searchUnifiedCampus = async (
               subtitle: `₹${item.price} • ${item.category} • Seller: ${item.sellerName || 'Student'}`,
               description: item.description?.slice(0, 120),
               imageUrl: item.images?.[0],
-              url: `/marketplace`,
+              url: `/marketplace/${docSnap.id}`,
               category: 'Marketplace',
               score,
             });
@@ -285,8 +302,9 @@ export const searchUnifiedCampus = async (
 
         snap.docs.forEach((docSnap) => {
           const opp = docSnap.data() as Opportunity;
-          const textMatch = `${opp.title} ${opp.organizationName || ''} ${opp.description || ''}`.toLowerCase();
+          if (opp.createdBy && blockedUserIds.includes(opp.createdBy)) return; // Filter blocked creators
 
+          const textMatch = `${opp.title} ${opp.organizationName || ''} ${opp.description || ''}`.toLowerCase();
           if (textMatch.includes(cleanQuery)) {
             const score = calculateResultScore(opp.title, opp.description, cleanQuery);
             searchResults.push({
@@ -303,6 +321,38 @@ export const searchUnifiedCampus = async (
         });
       } catch (e) {
         console.error('Error searching opportunities:', e);
+      }
+    }
+
+    // 8. Search Group Resources
+    if (category === 'all' || category === 'resources') {
+      try {
+        const { collectionGroup } = await import('firebase/firestore');
+        const resourcesRef = collectionGroup(db, 'resources');
+        const q = fsQuery(resourcesRef, fsLimit(20));
+        const snap = await getDocs(q);
+
+        snap.docs.forEach((docSnap) => {
+          const res = docSnap.data();
+          if (res.createdBy && blockedUserIds.includes(res.createdBy)) return; // Filter blocked creators
+
+          const textMatch = `${res.title} ${res.description || ''} ${res.creatorName || ''}`.toLowerCase();
+          if (textMatch.includes(cleanQuery)) {
+            const score = calculateResultScore(res.title, res.description || '', cleanQuery);
+            searchResults.push({
+              id: docSnap.id,
+              type: 'resource',
+              title: res.title,
+              subtitle: `Resource • Created by ${res.creatorName || 'Student'}`,
+              description: res.description?.slice(0, 120),
+              url: `/groups/${res.groupId}`,
+              category: 'Resources',
+              score,
+            });
+          }
+        });
+      } catch (e) {
+        console.error('Error searching group resources:', e);
       }
     }
 

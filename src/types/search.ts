@@ -6,11 +6,12 @@ export type SearchCategory =
   | 'events'
   | 'lost_found'
   | 'marketplace'
-  | 'opportunities';
+  | 'opportunities'
+  | 'resources';
 
 export interface SearchResultItem {
   id: string;
-  type: 'user' | 'group' | 'post' | 'event' | 'lost_found' | 'marketplace' | 'opportunity';
+  type: 'user' | 'group' | 'post' | 'event' | 'lost_found' | 'marketplace' | 'opportunity' | 'resource';
   title: string;
   subtitle?: string;
   description?: string;

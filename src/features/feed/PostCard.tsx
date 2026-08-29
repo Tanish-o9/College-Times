@@ -4,11 +4,13 @@ import type { Post } from '../../types';
 import { formatTimestamp } from '../../utils/format';
 import { useAuth } from '../../hooks/useAuth';
 import { checkPostIsSaved, toggleSavePost } from '../../services/postBookmarkService';
-import { reportPost, reactToPost } from '../../services/postService';
+import { reportPost, deletePost, editPost } from '../../services/postService';
+import { toggleReaction, getUserReaction } from '../../services/likeService';
+import type { ReactionType } from '../../services/likeService';
 import { PostImageGallery } from './PostImageGallery';
 import { CommentSheet } from './CommentSheet';
 import { db } from '../../lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import { 
   Clock, 
@@ -23,13 +25,18 @@ import {
   Flag,
   Shield,
   RefreshCw,
+  Edit2,
+  Trash2,
+  X,
 } from 'lucide-react';
 
 interface PostCardProps {
   post: Post;
+  showPinButton?: boolean;
+  onPinToggle?: () => void;
 }
 
-export const PostCard: React.FC<PostCardProps> = ({ post }) => {
+export const PostCard: React.FC<PostCardProps> = ({ post, showPinButton, onPinToggle }) => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
 
@@ -38,24 +45,23 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
 
   // Reactions state
   const [showReactions, setShowReactions] = useState(false);
-  const [userReaction, setUserReaction] = useState<string | null>(null); // current user's reaction type
+  const [userReaction, setUserReaction] = useState<ReactionType | null>(null);
   const [reactBusy, setReactBusy] = useState(false);
 
-  // Fetch current user's existing reaction on mount
+  // Fetch current user's existing reaction on mount using likeService
   useEffect(() => {
     if (!currentUser || !post.id) return;
     let mounted = true;
-    getDoc(doc(db, 'posts', post.id, 'reactions', currentUser.uid))
-      .then((snap) => {
+    getUserReaction(post.id, currentUser.uid)
+      .then((reaction) => {
         if (!mounted) return;
-        if (snap.exists()) setUserReaction(snap.data().type as string);
-        else setUserReaction(null);
+        setUserReaction(reaction);
       })
       .catch(() => {});
     return () => { mounted = false; };
   }, [currentUser, post.id]);
 
-  const handleReactionSelect = async (reactionType: string) => {
+  const handleReactionSelect = async (reactionType: ReactionType) => {
     if (!currentUser || !post.id || reactBusy) return;
     setReactBusy(true);
     setShowReactions(false);
@@ -63,20 +69,17 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
     // Optimistic UI update
     const prev = userReaction;
     if (prev === reactionType) {
-      // Toggle off — same reaction clicked again
       setUserReaction(null);
       setLikeCount((c) => Math.max(0, c - 1));
     } else if (prev) {
-      // Switch reaction — count stays the same
       setUserReaction(reactionType);
     } else {
-      // New reaction
       setUserReaction(reactionType);
       setLikeCount((c) => c + 1);
     }
 
     try {
-      await reactToPost(post.id, currentUser.uid, reactionType);
+      await toggleReaction(post.id, currentUser.uid, reactionType, post.authorId, null);
     } catch {
       // Rollback optimistic update on error
       setUserReaction(prev);
@@ -97,11 +100,27 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
   const [isCommentSheetOpen, setIsCommentSheetOpen] = useState<boolean>(false);
   const [commentCount, setCommentCount] = useState<number>(post.commentCount ?? 0);
 
-  // Sync post prop counts
+  // Edit/delete state
+  const [isEditing, setIsEditing] = useState<boolean>(false);
+  const [editTitle, setEditTitle] = useState<string>(post.title);
+  const [editContent, setEditContent] = useState<string>(post.content);
+  const [editCategory, setEditCategory] = useState<string>(post.category);
+  const [isDeleted, setIsDeleted] = useState<boolean>(false);
+
+  // Real-time listener for counts and doc status
   useEffect(() => {
-    setLikeCount(post.likeCount ?? 0);
-    setCommentCount(post.commentCount ?? 0);
-  }, [post.likeCount, post.commentCount]);
+    if (!post.id) return;
+    const unsub = onSnapshot(doc(db, 'posts', post.id), (snap) => {
+      if (!snap.exists()) {
+        setIsDeleted(true);
+      } else {
+        const data = snap.data();
+        setLikeCount(data.likeCount ?? 0);
+        setCommentCount(data.commentCount ?? 0);
+      }
+    });
+    return () => unsub();
+  }, [post.id]);
 
   // Fetch initial saved status on mount
   useEffect(() => {
@@ -115,6 +134,33 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
       mounted = false;
     };
   }, [currentUser, post.id]);
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser || !post.id) return;
+    try {
+      await editPost(post.id, currentUser.uid, {
+        title: editTitle,
+        content: editContent,
+        category: editCategory as any,
+      });
+      setIsEditing(false);
+      toast.success('Post updated!');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update post.');
+    }
+  };
+
+  const handleDeletePost = async () => {
+    if (!currentUser || !post.id) return;
+    if (!window.confirm('Delete this post permanently? This cannot be undone.')) return;
+    try {
+      await deletePost(post.id);
+      toast.success('Post deleted successfully.');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete post.');
+    }
+  };
 
 
 
@@ -199,6 +245,8 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
 
   const isOptimistic = post.id?.startsWith('optimistic_');
 
+  if (isDeleted) return null;
+
   return (
     <>
       <article
@@ -242,9 +290,33 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
               )}
             </div>
 
-            <div className="flex items-center gap-1.5 text-xs text-slate-400 shrink-0 font-mono">
+            <div className="flex items-center gap-2 text-xs text-slate-400 shrink-0 font-mono">
               <Clock className="w-3.5 h-3.5 text-slate-500" />
               <span>{formatTimestamp(post.timestamp)}</span>
+              {currentUser?.uid === post.authorId && (
+                <div className="flex items-center gap-1 ml-2 border-l border-slate-850 pl-2">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsEditing(true);
+                    }}
+                    className="p-1 text-slate-500 hover:text-sky-400 hover:bg-slate-850 rounded-lg transition-colors"
+                    title="Edit Post"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeletePost();
+                    }}
+                    className="p-1 text-slate-500 hover:text-rose-400 hover:bg-slate-850 rounded-lg transition-colors"
+                    title="Delete Post"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -321,7 +393,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
               >
                 <span>
                   {userReaction
-                    ? ({ like: '👍', love: '❤️', laugh: '😂', wow: '😮', fire: '🔥' } as Record<string, string>)[userReaction] ?? 'React'
+                    ? ({ like: '👍', love: '❤️', celebrate: '🎉', support: '🤝', insightful: '💡' } as Record<string, string>)[userReaction] ?? '👍'
                     : 'React'}
                 </span>
                 <span className="text-xs font-semibold">{likeCount}</span>
@@ -330,11 +402,11 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
               {showReactions && !userReaction && (
                 <div className="absolute bottom-10 left-0 bg-slate-950 border border-slate-800 p-2 rounded-2xl shadow-2xl flex gap-2 z-40">
                   {[
-                    { emoji: '👍', type: 'like' },
-                    { emoji: '❤️', type: 'love' },
-                    { emoji: '😂', type: 'laugh' },
-                    { emoji: '😮', type: 'wow' },
-                    { emoji: '🔥', type: 'fire' },
+                    { emoji: '👍', type: 'like' as ReactionType, label: 'Like' },
+                    { emoji: '❤️', type: 'love' as ReactionType, label: 'Love' },
+                    { emoji: '🎉', type: 'celebrate' as ReactionType, label: 'Celebrate' },
+                    { emoji: '🤝', type: 'support' as ReactionType, label: 'Support' },
+                    { emoji: '💡', type: 'insightful' as ReactionType, label: 'Insightful' },
                   ].map((react) => (
                     <button
                       key={react.type}
@@ -343,10 +415,10 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
                         e.stopPropagation();
                         handleReactionSelect(react.type);
                       }}
-                      className={`p-2 hover:bg-slate-800 rounded-xl text-base transition-colors ${userReaction === react.type ? 'ring-2 ring-sky-500' : ''}`}
-                      title={react.type}
+                      className={`p-2 hover:bg-slate-800 rounded-xl text-base transition-all transform hover:scale-125 ${userReaction === react.type ? 'ring-2 ring-sky-500' : ''}`}
+                      title={react.label}
                     >
-                      {react.emoji}
+                      <span className="text-lg">{react.emoji}</span>
                     </button>
                   ))}
                 </div>
@@ -394,6 +466,24 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
             >
               <Flag className="w-4 h-4" />
             </button>
+
+            {showPinButton && (
+              <button
+                type="button"
+                title={post.pinned ? 'Unpin Post' : 'Pin Post'}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPinToggle?.();
+                }}
+                className={`p-2 border rounded-xl transition-all ${
+                  post.pinned
+                    ? 'bg-sky-500/20 border-sky-500/30 text-sky-300'
+                    : 'bg-slate-950/80 border-slate-800 hover:border-slate-700 text-slate-400 hover:text-sky-400'
+                }`}
+              >
+                <Bookmark className={`w-4 h-4 rotate-45 ${post.pinned ? 'fill-sky-400 text-sky-400' : ''}`} />
+              </button>
+            )}
           </div>
         </div>
       </article>
@@ -406,6 +496,77 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
           postAuthorId={post.authorId}
           onClose={() => setIsCommentSheetOpen(false)}
         />
+      )}
+
+      {/* Edit Post Modal */}
+      {isEditing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm" onClick={() => setIsEditing(false)} />
+          <div className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-4 z-10 shadow-2xl animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-lg font-bold text-white">Edit Post</h3>
+              <button onClick={() => setIsEditing(false)} className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditSubmit} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Title</label>
+                <input
+                  type="text"
+                  required
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  maxLength={80}
+                  className="w-full bg-slate-950 border border-slate-850 rounded-2xl px-4 py-3 text-sm text-white placeholder-slate-650 focus:outline-none focus:border-indigo-500 font-medium"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Category</label>
+                <select
+                  value={editCategory}
+                  onChange={(e) => setEditCategory(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-850 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500 font-medium"
+                >
+                  <option value="General">General</option>
+                  <option value="Event">Event</option>
+                  <option value="LostFound">LostFound</option>
+                  <option value="Mishap">Mishap</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Content</label>
+                <textarea
+                  required
+                  value={editContent}
+                  onChange={(e) => setEditContent(e.target.value)}
+                  maxLength={500}
+                  rows={4}
+                  className="w-full bg-slate-950 border border-slate-850 rounded-2xl px-4 py-3 text-sm text-white placeholder-slate-650 focus:outline-none focus:border-indigo-500 font-medium resize-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(false)}
+                  className="px-4 py-2 bg-slate-800 text-slate-300 hover:text-white rounded-xl text-xs font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-lg"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </>
   );

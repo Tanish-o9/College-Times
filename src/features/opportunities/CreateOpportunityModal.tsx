@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
-import { createOpportunity } from '../../services/opportunityService';
+import { createOpportunity, editOpportunity } from '../../services/opportunityService';
 import type { OpportunityType, OpportunityMode, Opportunity } from '../../types/opportunity';
 import toast from 'react-hot-toast';
 import { Briefcase, RefreshCw, X, Plus } from 'lucide-react';
@@ -9,6 +9,7 @@ interface CreateOpportunityModalProps {
   isOpen: boolean;
   onClose: () => void;
   onOpportunityCreated?: (opportunity: Opportunity) => void;
+  opportunity?: Opportunity | null;
 }
 
 const TYPES: OpportunityType[] = [
@@ -23,6 +24,7 @@ export const CreateOpportunityModal: React.FC<CreateOpportunityModalProps> = ({
   isOpen,
   onClose,
   onOpportunityCreated,
+  opportunity = null,
 }) => {
   const { currentUser, userProfile } = useAuth();
   const [title, setTitle] = useState<string>('');
@@ -37,6 +39,33 @@ export const CreateOpportunityModal: React.FC<CreateOpportunityModalProps> = ({
   const [eligibility, setEligibility] = useState<string>('');
   const [isOfficial, setIsOfficial] = useState<boolean>(false);
   const [submitting, setSubmitting] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setTitle(opportunity?.title || '');
+      setOrgName(opportunity?.organizationName || opportunity?.organization || '');
+      setType(opportunity?.type || 'Placement');
+      const oppMode = opportunity?.mode || opportunity?.workMode || 'online';
+      setMode(oppMode.toLowerCase() as OpportunityMode);
+      setDescription(opportunity?.description || '');
+      setApplicationUrl(opportunity?.applicationUrl || opportunity?.applicationLink || '');
+      
+      let deadStr = '';
+      if (opportunity?.applicationDeadline) {
+        try {
+          const dateObj = typeof opportunity.applicationDeadline.toDate === 'function'
+            ? opportunity.applicationDeadline.toDate()
+            : new Date(opportunity.applicationDeadline);
+          deadStr = dateObj.toISOString().split('T')[0];
+        } catch {}
+      }
+      setApplicationDeadline(deadStr);
+      setLocation(opportunity?.location || 'Campus / Remote');
+      setStipend(opportunity?.stipend || opportunity?.salaryRange || opportunity?.salary || '');
+      setEligibility(opportunity?.eligibility || '');
+      setIsOfficial(opportunity?.isOfficial || false);
+    }
+  }, [isOpen, opportunity]);
 
   if (!isOpen) return null;
   const isAdmin = userProfile?.role === 'admin';
@@ -55,28 +84,50 @@ export const CreateOpportunityModal: React.FC<CreateOpportunityModalProps> = ({
 
     setSubmitting(true);
     try {
-      const opportunity = await createOpportunity(
-        {
-          title,
-          description,
-          organizationName: orgName,
-          type,
-          mode,
-          applicationUrl,
-          applicationDeadline,
-          location,
-          stipend,
-          eligibility,
-          isOfficial: isAdmin ? isOfficial : false,
-        },
-        currentUser,
-        isAdmin
-      );
-      toast.success('Opportunity posted successfully! 🎯');
-      if (onOpportunityCreated) onOpportunityCreated(opportunity);
+      if (opportunity) {
+        await editOpportunity(
+          opportunity.id,
+          currentUser.uid,
+          {
+            title,
+            description,
+            organizationName: orgName,
+            type,
+            mode,
+            location,
+            stipend,
+            eligibility,
+            applicationUrl,
+            applicationDeadline,
+            isOfficial: isAdmin ? isOfficial : false,
+          },
+          isAdmin
+        );
+        toast.success('Opportunity updated successfully!');
+      } else {
+        const res = await createOpportunity(
+          {
+            title,
+            description,
+            organizationName: orgName,
+            type,
+            mode,
+            applicationUrl,
+            applicationDeadline,
+            location,
+            stipend,
+            eligibility,
+            isOfficial: isAdmin ? isOfficial : false,
+          },
+          currentUser,
+          isAdmin
+        );
+        toast.success('Opportunity posted successfully! 🎯');
+        if (onOpportunityCreated) onOpportunityCreated(res);
+      }
       onClose();
     } catch (err: any) {
-      toast.error(err.message || 'Failed to post opportunity.');
+      toast.error(err.message || 'Failed to save opportunity.');
     } finally {
       setSubmitting(false);
     }

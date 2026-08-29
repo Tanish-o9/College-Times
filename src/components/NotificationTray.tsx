@@ -1,11 +1,12 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useOverlayBackHandler } from '../hooks/useOverlayBackHandler';
-import { getNotificationsPaginated, markAllAsRead } from '../services/notificationService';
+import { subscribeToNotifications, markAllAsRead } from '../services/notificationService';
 import type { NotificationItem } from '../types/notification';
 import { NotificationCard } from './NotificationCard';
 import { Bell, X, Inbox } from 'lucide-react';
+import { useState } from 'react';
 
 interface NotificationTrayProps {
   isOpen: boolean;
@@ -20,31 +21,27 @@ export const NotificationTray: React.FC<NotificationTrayProps> = ({ isOpen, onCl
   const trayRef = useRef<HTMLDivElement>(null);
   const hasMarkedRef = useRef<boolean>(false);
 
+  // Real-time subscription: listen while tray is open
   useEffect(() => {
     if (!currentUser || !isOpen) {
       hasMarkedRef.current = false;
       return;
     }
 
-    // Call markAllAsRead once on open if not already marked
+    // Mark all as read once on open
     if (!hasMarkedRef.current) {
       hasMarkedRef.current = true;
-      markAllAsRead(currentUser.uid);
+      markAllAsRead(currentUser.uid).catch(() => {});
       import('../services/activityStateService').then(({ markScopeAsRead }) => {
         markScopeAsRead(currentUser.uid, 'notifications').catch(() => {});
       });
     }
 
-    let isMounted = true;
-    getNotificationsPaginated(currentUser.uid).then((res: any) => {
-      if (isMounted) {
-        setNotifications(Array.isArray(res) ? res : res.notifications || []);
-      }
+    const unsubscribe = subscribeToNotifications(currentUser.uid, (items) => {
+      setNotifications(items);
     });
 
-    return () => {
-      isMounted = false;
-    };
+    return () => unsubscribe();
   }, [currentUser, isOpen]);
 
   // Click outside to close tray

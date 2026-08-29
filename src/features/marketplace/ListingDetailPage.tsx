@@ -9,10 +9,23 @@ import {
   Tag,
   ArrowLeft,
   RefreshCw,
+  Bookmark,
+  Flag,
+  Trash2,
+  Edit,
+  X,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
+import { getOrCreateConversation } from '../../services/directMessageService';
+import {
+  toggleSaveListing,
+  checkListingIsSaved,
+  reportListing,
+  deleteListing,
+} from '../../services/marketplaceService';
+import { CreateListingModal } from './CreateListingModal';
 
 export const ListingDetailPage: React.FC = () => {
   const { listingId } = useParams<{ listingId: string }>();
@@ -25,6 +38,14 @@ export const ListingDetailPage: React.FC = () => {
   const [showOfferModal, setShowOfferModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  // Bookmark / Report / Edit Modal states
+  const [saved, setSaved] = useState<boolean>(false);
+  const [togglingSave, setTogglingSave] = useState<boolean>(false);
+  const [showReportModal, setShowReportModal] = useState<boolean>(false);
+  const [reportReason, setReportReason] = useState<string>('');
+  const [reporting, setReporting] = useState<boolean>(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
+
   const loadListing = async () => {
     if (!listingId) return;
     setLoading(true);
@@ -36,6 +57,11 @@ export const ListingDetailPage: React.FC = () => {
       } else {
         setListing(null);
       }
+
+      if (currentUser) {
+        const isSaved = await checkListingIsSaved(listingId, currentUser.uid);
+        setSaved(isSaved);
+      }
     } catch (err) {
       console.error('Failed to load listing detail:', err);
     } finally {
@@ -45,11 +71,21 @@ export const ListingDetailPage: React.FC = () => {
 
   useEffect(() => {
     loadListing();
-  }, [listingId]);
+  }, [listingId, currentUser]);
 
-  const handleChatToBuy = () => {
+  const handleChatToBuy = async () => {
     if (!listing || !currentUser) return;
-    navigate(`/messages/${listing.sellerId}`);
+    try {
+      // Fix Chat to Buy Bug: Navigate to correct conversation ID
+      const conv = await getOrCreateConversation(
+        listing.sellerId,
+        currentUser,
+        listing.sellerName || 'Seller'
+      );
+      navigate(`/messages/${conv.id}`);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to open conversation.');
+    }
   };
 
   const handleMakeOffer = async (e: React.FormEvent) => {
@@ -95,6 +131,53 @@ export const ListingDetailPage: React.FC = () => {
     }
   };
 
+  const handleSaveToggle = async () => {
+    if (!listing || !currentUser || togglingSave) return;
+    setTogglingSave(true);
+    try {
+      const active = await toggleSaveListing(listing.id, currentUser);
+      setSaved(active);
+      setListing((prev) => (prev ? { ...prev, saveCount: prev.saveCount + (active ? 1 : -1) } : null));
+      toast.success(active ? 'Listing saved to bookmarks!' : 'Listing unsaved.');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to toggle save.');
+    } finally {
+      setTogglingSave(false);
+    }
+  };
+
+  const handleReportListing = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!listing || !currentUser || !reportReason.trim() || reporting) return;
+    setReporting(true);
+    try {
+      const res = await reportListing(listing.id, currentUser.uid, reportReason);
+      if (res.alreadyReported) {
+        toast.error('You have already reported this listing.');
+      } else {
+        toast.success('Listing reported successfully.');
+        setShowReportModal(false);
+        setReportReason('');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to report listing.');
+    } finally {
+      setReporting(false);
+    }
+  };
+
+  const handleDeleteListing = async () => {
+    if (!listing || !currentUser) return;
+    if (!window.confirm('Are you sure you want to permanently delete this listing? This cannot be undone.')) return;
+    try {
+      await deleteListing(listing.id, currentUser.uid);
+      toast.success('Listing deleted successfully.');
+      navigate('/marketplace');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete listing.');
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4">
@@ -134,6 +217,55 @@ export const ListingDetailPage: React.FC = () => {
             <p className="text-[11px] text-amber-400 font-mono font-bold">₹{listing.price}</p>
           </div>
         </div>
+
+        {currentUser && (
+          <div className="flex items-center gap-2">
+            {/* Bookmark button */}
+            <button
+              onClick={handleSaveToggle}
+              disabled={togglingSave}
+              className={`p-2 border rounded-xl transition-all ${
+                saved
+                  ? 'bg-amber-500/20 border-amber-500/30 text-amber-300'
+                  : 'bg-slate-900 border-slate-800 hover:border-slate-700 text-slate-400 hover:text-white'
+              }`}
+              title="Save Listing"
+            >
+              <Bookmark className={`w-4 h-4 ${saved ? 'fill-amber-400 text-amber-400' : ''}`} />
+            </button>
+
+            {/* Report button */}
+            {!isSeller && (
+              <button
+                onClick={() => setShowReportModal(true)}
+                className="p-2 bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-rose-400 rounded-xl transition-all"
+                title="Report Listing"
+              >
+                <Flag className="w-4 h-4" />
+              </button>
+            )}
+
+            {/* Seller controls: Edit/Delete */}
+            {isSeller && (
+              <>
+                <button
+                  onClick={() => setIsEditModalOpen(true)}
+                  className="p-2 bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-sky-400 rounded-xl transition-all"
+                  title="Edit Listing"
+                >
+                  <Edit className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={handleDeleteListing}
+                  className="p-2 bg-slate-900 border border-slate-800 hover:border-rose-500/20 text-slate-400 hover:text-rose-400 rounded-xl transition-all"
+                  title="Delete Listing"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </>
+            )}
+          </div>
+        )}
       </header>
 
       {/* Main Container */}
@@ -288,6 +420,64 @@ export const ListingDetailPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Report Modal */}
+      {showReportModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Flag className="w-4 h-4 text-rose-500" />
+                <span>Report Listing</span>
+              </h3>
+              <button onClick={() => setShowReportModal(false)} className="text-slate-400 hover:text-white">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleReportListing} className="space-y-4">
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">Reason for report</label>
+                <textarea
+                  required
+                  rows={3}
+                  maxLength={300}
+                  value={reportReason}
+                  onChange={(e) => setReportReason(e.target.value)}
+                  placeholder="Explain why this listing violates campus guidelines (prohibited item, scam, etc.)..."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-500/50 resize-none"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowReportModal(false)}
+                  className="flex-1 py-2 bg-slate-800 text-slate-300 font-bold text-xs rounded-xl"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={reporting}
+                  className="flex-1 py-2 bg-rose-500 hover:bg-rose-450 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1"
+                >
+                  {reporting && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                  <span>Report</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Listing Modal */}
+      <CreateListingModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        listing={listing}
+        onCreated={loadListing}
+      />
     </div>
   );
 };

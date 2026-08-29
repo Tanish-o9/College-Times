@@ -129,3 +129,20 @@ export const markAnnouncementAsRead = async (
     readAt: serverTimestamp(),
   });
 };
+
+/**
+ * Pin or unpin an announcement in a group (admin/owner only).
+ */
+export const pinAnnouncement = async (
+  groupId: string,
+  announcementId: string,
+  isPinned: boolean
+): Promise<void> => {
+  if (!groupId || !announcementId) return;
+  const annRef = doc(db, 'groups', groupId, 'announcements', announcementId);
+  await updateDoc(annRef, {
+    pinned: isPinned,
+    pinnedAt: isPinned ? serverTimestamp() : null,
+  });
+  logAnalyticsEvent('announcement_pinned_toggled', { groupId, announcementId, isPinned });
+};

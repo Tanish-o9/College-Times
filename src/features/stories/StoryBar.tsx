@@ -37,6 +37,17 @@ export const StoryBar: React.FC = () => {
     fetchStories();
   }, [currentUser]);
 
+  // Refresh stories when tab regains focus (ensures hasUnseen ring updates)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchStories();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [currentUser]);
+
   // Update scroll arrow visibility
   const updateScrollButtons = () => {
     const el = scrollRef.current;

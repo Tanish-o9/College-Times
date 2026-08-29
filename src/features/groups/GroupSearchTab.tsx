@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Search, Sparkles, Users, RefreshCw, FileText, Megaphone, Calendar } from 'lucide-react';
+import { Search, Sparkles, Users, RefreshCw, FileText, Megaphone, Calendar, BookOpen } from 'lucide-react';
 import { searchGroupMembers } from '../../services/groupMemberManagementService';
 import { searchGroupChatMessages } from '../../services/groupChatService';
 import type { GroupMember, GroupAnnouncement } from '../../types/group';
 import type { ChatMessage } from '../../types/chat';
 import type { Post, CampusEvent } from '../../types';
+import type { GroupResource } from '../../services/groupResourceService';
 import { collection, query, where, limit, getDocs } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { PostCard } from '../feed/PostCard';
@@ -21,6 +22,7 @@ export const GroupSearchTab: React.FC<GroupSearchTabProps> = ({ groupId }) => {
   const [postResults, setPostResults] = useState<Post[]>([]);
   const [announcementResults, setAnnouncementResults] = useState<GroupAnnouncement[]>([]);
   const [eventResults, setEventResults] = useState<CampusEvent[]>([]);
+  const [resourceResults, setResourceResults] = useState<GroupResource[]>([]);
   const [searched, setSearched] = useState(false);
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -32,12 +34,13 @@ export const GroupSearchTab: React.FC<GroupSearchTabProps> = ({ groupId }) => {
       const channelId = `group-${groupId}`;
       const searchVal = queryText.toLowerCase();
 
-      const [members, chatMsgs, postsSnap, annsSnap, eventsSnap] = await Promise.all([
+      const [members, chatMsgs, postsSnap, annsSnap, eventsSnap, resourcesSnap] = await Promise.all([
         searchGroupMembers(groupId, queryText.trim(), 20),
         searchGroupChatMessages(channelId, queryText.trim(), 20),
         getDocs(query(collection(db, 'posts'), where('groupId', '==', groupId), where('status', '==', 'active'), limit(50))),
         getDocs(query(collection(db, 'groups', groupId, 'announcements'), where('status', '==', 'active'), limit(50))),
-        getDocs(query(collection(db, 'events'), where('groupId', '==', groupId), limit(50)))
+        getDocs(query(collection(db, 'events'), where('groupId', '==', groupId), limit(50))),
+        getDocs(query(collection(db, 'groups', groupId, 'resources'), limit(50)))
       ]);
 
       setMemberResults(members);
@@ -60,6 +63,12 @@ export const GroupSearchTab: React.FC<GroupSearchTabProps> = ({ groupId }) => {
         .map((d) => ({ id: d.id, ...d.data() } as CampusEvent))
         .filter((ev) => ev.title.toLowerCase().includes(searchVal) || ev.description.toLowerCase().includes(searchVal));
       setEventResults(matchedEvents);
+
+      // Filter resources in-memory
+      const matchedRes = resourcesSnap.docs
+        .map((d) => ({ id: d.id, ...d.data() } as GroupResource))
+        .filter((r) => r.title.toLowerCase().includes(searchVal) || (r.description && r.description.toLowerCase().includes(searchVal)));
+      setResourceResults(matchedRes);
 
       setSearched(true);
     } catch (err) {
@@ -178,6 +187,36 @@ export const GroupSearchTab: React.FC<GroupSearchTabProps> = ({ groupId }) => {
                     <p className="text-slate-300 line-clamp-2">{ev.description}</p>
                     <div className="text-[10px] text-rose-400 font-mono mt-1">
                       Venue: {ev.location}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Resources Results */}
+          <div className="space-y-3">
+            <h3 className="text-xs font-bold text-slate-400 uppercase font-mono flex items-center gap-1.5">
+              <BookOpen className="w-4 h-4 text-sky-400" />
+              <span>Matching Resources ({resourceResults.length})</span>
+            </h3>
+
+            {resourceResults.length === 0 ? (
+              <p className="text-xs text-slate-500 italic pl-2">No matching resources found.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {resourceResults.map((res) => (
+                  <div key={res.id} className="p-4 bg-slate-900 border border-slate-850 rounded-2xl text-xs flex flex-col justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-bold text-white">{res.title}</h4>
+                        <span className="px-2 py-0.5 bg-slate-950 border border-slate-850 text-slate-500 rounded text-[8px] font-bold font-mono uppercase">{res.type}</span>
+                      </div>
+                      <p className="text-slate-400 line-clamp-2">{res.description || 'No description.'}</p>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] pt-2 border-t border-slate-800/40">
+                      <span className="text-slate-500 font-mono">Shared by {res.creatorName}</span>
+                      <a href={res.link} target="_blank" rel="noopener noreferrer" className="text-sky-400 hover:text-sky-300 font-bold">Open Link →</a>
                     </div>
                   </div>
                 ))}

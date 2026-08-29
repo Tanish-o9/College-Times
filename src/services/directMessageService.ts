@@ -5,17 +5,21 @@ import {
   getDocs, 
   setDoc, 
   addDoc, 
+  updateDoc,
   query, 
   orderBy, 
   limit, 
   runTransaction, 
   serverTimestamp,
   deleteDoc,
-  increment
+  increment,
+  startAfter,
+  type QueryDocumentSnapshot,
 } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref as rtdbRef, set as rtdbSet, onValue, serverTimestamp as rtdbServerTimestamp } from 'firebase/database';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import type { User as FirebaseUser } from 'firebase/auth';
-import { db, storage, logAnalyticsEvent } from '../lib/firebase';
+import { db, storage, rtdb, logAnalyticsEvent } from '../lib/firebase';
 import type { 
   DirectConversation, 
   DirectMessage, 
@@ -116,7 +120,7 @@ export const getOrCreateConversation = async (
     return { id: snap.id, ...snap.data() } as DirectConversation;
   }
 
-  const blocked = await isUserBlocked(uid, targetUid);
+  const blocked = (await isUserBlocked(uid, targetUid)) || (await isUserBlocked(targetUid, uid));
   const sortedParticipants: [string, string] = [uid, targetUid].sort() as [string, string];
 
   const newConvData: Record<string, any> = {
@@ -423,9 +427,123 @@ export const uploadDMMedia = async (
   const cleanFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
   const storagePath = `dmMedia/${conversationId}/${userId}/${timestamp}_${cleanFileName}`;
 
-  const mediaRef = ref(storage, storagePath);
+  const mediaRef = storageRef(storage, storagePath);
   await uploadBytes(mediaRef, file);
 
   const downloadURL = await getDownloadURL(mediaRef);
   return downloadURL;
+};
+
+/**
+ * Sets / clears typing indicator in RTDB for a conversation.
+ * Path: typing/{conversationId}/{uid}
+ * Auto-expires: caller should clear after 3s of inactivity.
+ */
+export const setTypingIndicator = (
+  conversationId: string,
+  uid: string,
+  isTyping: boolean
+): void => {
+  if (!conversationId || !uid) return;
+  const typingRef = rtdbRef(rtdb, `typing/${conversationId}/${uid}`);
+  rtdbSet(typingRef, isTyping ? { typing: true, at: rtdbServerTimestamp() } : null).catch(() => {});
+};
+
+/**
+ * Subscribes to typing indicators in a conversation.
+ * Returns unsubscribe function.
+ */
+export const subscribeToTypingIndicators = (
+  conversationId: string,
+  currentUid: string,
+  callback: (typingUids: string[]) => void
+): (() => void) => {
+  if (!conversationId) return () => {};
+  const typingConvRef = rtdbRef(rtdb, `typing/${conversationId}`);
+
+  const unsubscribe = onValue(typingConvRef, (snapshot) => {
+    const data = snapshot.val() as Record<string, { typing: boolean }> | null;
+    if (!data) {
+      callback([]);
+      return;
+    }
+    const typingUids = Object.entries(data)
+      .filter(([uid, val]) => uid !== currentUid && val?.typing === true)
+      .map(([uid]) => uid);
+    callback(typingUids);
+  });
+
+  return () => unsubscribe();
+};
+
+/**
+ * Soft-deletes a DM message (sets status = 'deleted', clears content).
+ * Only the original sender may delete their own message.
+ */
+export const deleteDirectMessage = async (
+  conversationId: string,
+  messageId: string,
+  currentUser: FirebaseUser
+): Promise<void> => {
+  if (!currentUser || !conversationId || !messageId) throw new Error('Authentication required.');
+
+  const messageRef = doc(db, 'conversations', conversationId, 'messages', messageId);
+  const snap = await getDoc(messageRef);
+  if (!snap.exists()) throw new Error('Message not found.');
+
+  const data = snap.data();
+  if (data.senderId !== currentUser.uid) {
+    throw new Error('You can only delete your own messages.');
+  }
+
+  await updateDoc(messageRef, {
+    status: 'deleted',
+    content: '',
+    deletedAt: serverTimestamp(),
+  });
+
+  logAnalyticsEvent('dm_message_deleted', { conversationId, messageId });
+};
+
+/**
+ * Fetches paginated messages for a conversation (cursor-based).
+ */
+export const getDirectMessagesPaginated = async (
+  conversationId: string,
+  limitCount: number = 30,
+  lastVisibleDoc?: QueryDocumentSnapshot | null
+): Promise<{ messages: DirectMessage[]; lastDoc: QueryDocumentSnapshot | null }> => {
+  if (!conversationId) return { messages: [], lastDoc: null };
+  const bounded = Math.min(50, Math.max(1, limitCount));
+  const messagesRef = collection(db, 'conversations', conversationId, 'messages');
+  // Load newest messages: orderBy desc, then reverse for display
+  const q = lastVisibleDoc
+    ? query(messagesRef, orderBy('createdAt', 'desc'), startAfter(lastVisibleDoc), limit(bounded))
+    : query(messagesRef, orderBy('createdAt', 'desc'), limit(bounded));
+
+  const snap = await getDocs(q);
+  const messages = snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }) as DirectMessage)
+    .reverse(); // Display oldest → newest
+  const newLastDoc = snap.docs.length > 0 ? snap.docs[snap.docs.length - 1] : null;
+  return { messages, lastDoc: newLastDoc };
+};
+
+/**
+ * Marks a conversation as read for the current user.
+ * Updates participantMeta.{uid}.lastReadAt
+ */
+export const updateConversationReadState = async (
+  conversationId: string,
+  currentUser: FirebaseUser
+): Promise<void> => {
+  if (!currentUser || !conversationId) return;
+  const convRef = doc(db, 'conversations', conversationId);
+  await setDoc(
+    convRef,
+    {
+      [`participantMeta.${currentUser.uid}.lastReadAt`]: serverTimestamp(),
+    },
+    { merge: true }
+  ).catch(() => {});
 };

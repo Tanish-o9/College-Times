@@ -5,6 +5,7 @@ import {
   updateDoc,
   deleteDoc,
   query, 
+  where,
   orderBy, 
   getDocs,
   limit,
@@ -17,6 +18,8 @@ import {
 import type { User as FirebaseUser } from 'firebase/auth';
 import { db, logAnalyticsEvent } from '../lib/firebase';
 import { createNotification } from './notificationService';
+import { getUidByUsername } from './usernameService';
+import { isUserBlocked } from './directMessageService';
 import type { Comment, User } from '../types';
 
 export interface PaginatedCommentsResult {
@@ -38,18 +41,30 @@ export const getCommentsPage = async (
     const boundedSize = Math.min(50, Math.max(1, pageSize));
     
     const q = lastVisibleDoc
-      ? query(commentsRef, orderBy('timestamp', 'asc'), startAfter(lastVisibleDoc), limit(boundedSize))
-      : query(commentsRef, orderBy('timestamp', 'asc'), limit(boundedSize));
+      ? query(commentsRef, orderBy('timestamp', 'asc'), startAfter(lastVisibleDoc), limit(boundedSize * 3))
+      : query(commentsRef, orderBy('timestamp', 'asc'), limit(boundedSize * 3));
 
     const snapshot = await getDocs(q);
-    const comments = snapshot.docs.map((docSnap) => ({
+    let comments = snapshot.docs.map((docSnap) => ({
       id: docSnap.id,
       postId,
       ...docSnap.data(),
     })) as Comment[];
 
-    const newLastDoc = snapshot.docs.length > 0 ? snapshot.docs[snapshot.docs.length - 1] : null;
-    return { comments, lastDoc: newLastDoc };
+    // Filter to top-level comments (parentCommentId is null or undefined)
+    comments = comments.filter((c) => !c.parentCommentId);
+    const slicedComments = comments.slice(0, pageSize);
+
+    let newLastDoc: QueryDocumentSnapshot | null = null;
+    if (slicedComments.length > 0) {
+      const lastCommentId = slicedComments[slicedComments.length - 1].id;
+      const matchingDoc = snapshot.docs.find((d) => d.id === lastCommentId);
+      if (matchingDoc) {
+        newLastDoc = matchingDoc;
+      }
+    }
+
+    return { comments: slicedComments, lastDoc: newLastDoc };
   } catch (error) {
     console.error('Error fetching paginated comments:', error);
     throw error;
@@ -57,7 +72,36 @@ export const getCommentsPage = async (
 };
 
 /**
- * Adds a new comment to a post document sub-collection (supports replies using parentCommentId).
+ * Fetches replies to a specific parent comment.
+ */
+export const getRepliesPage = async (
+  postId: string,
+  parentCommentId: string,
+  pageSize: number = 20
+): Promise<Comment[]> => {
+  if (!postId || !parentCommentId) return [];
+  try {
+    const commentsRef = collection(db, 'posts', postId, 'comments');
+    const q = query(
+      commentsRef,
+      where('parentCommentId', '==', parentCommentId),
+      orderBy('timestamp', 'asc'),
+      limit(pageSize)
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => ({ id: d.id, postId, ...d.data() } as Comment));
+  } catch (error) {
+    // Fallback: Query all comments and filter in-memory in case of missing index
+    const commentsRef = collection(db, 'posts', postId, 'comments');
+    const snap = await getDocs(query(commentsRef, limit(100)));
+    return snap.docs
+      .map((d) => ({ id: d.id, postId, ...d.data() } as Comment))
+      .filter((c) => c.parentCommentId === parentCommentId);
+  }
+};
+
+/**
+ * Adds a new comment to a post document sub-collection (supports replies using parentCommentId and mentions).
  */
 export const addComment = async (
   postId: string,
@@ -78,6 +122,20 @@ export const addComment = async (
   const authorName = userProfile?.displayName || currentUser.displayName || 'Student';
   const authorAvatar = userProfile?.photoURL || currentUser.photoURL || '';
 
+  // Parse @username mentions
+  const mentionMatches = cleanText.match(/@([a-z0-9_]{3,30})/gi) || [];
+  const uniqueUsernames = Array.from(new Set(mentionMatches.map((m) => m.slice(1).toLowerCase())));
+
+  const mentions: { userId: string; username: string }[] = [];
+  await Promise.all(
+    uniqueUsernames.map(async (uname) => {
+      const uid = await getUidByUsername(uname);
+      if (uid) {
+        mentions.push({ userId: uid, username: uname });
+      }
+    })
+  );
+
   const newCommentData = {
     postId,
     authorId: currentUser.uid,
@@ -88,6 +146,7 @@ export const addComment = async (
     parentCommentId: parentCommentId || null,
     likeCount: 0,
     reportCount: 0,
+    mentions: mentions.length > 0 ? mentions : null,
   };
 
   let commentId = '';
@@ -113,14 +172,41 @@ export const addComment = async (
     await setDoc(userRef, { points: increment(2) }, { merge: true }).catch(() => {});
   }
 
+  // Trigger main comment notification
   if (postAuthorId && postAuthorId !== currentUser.uid) {
     createNotification({
       recipientId: postAuthorId,
       senderId: currentUser.uid,
+      senderName: authorName,
       message: `${authorName} commented on your post`,
       relatedPostId: postId,
+      type: 'post_comment',
+      category: 'feed',
+      deepLink: `/feed`,
+      deterministicId: `comment_${postId}_${commentId}_${currentUser.uid}`,
     });
   }
+
+  // Trigger mention notifications
+  await Promise.all(
+    mentions.map(async (m) => {
+      if (m.userId === currentUser.uid) return; // Don't notify self
+      const blocked = await isUserBlocked(m.userId, currentUser.uid);
+      if (blocked) return;
+
+      createNotification({
+        recipientId: m.userId,
+        senderId: currentUser.uid,
+        senderName: authorName,
+        message: `${authorName} mentioned you in a comment`,
+        relatedPostId: postId,
+        type: 'mention',
+        category: 'social',
+        deepLink: `/feed`,
+        deterministicId: `mention_comment_${postId}_${commentId}_${m.userId}`,
+      });
+    })
+  );
 
   logAnalyticsEvent('post_commented', { postId, parentCommentId });
 
@@ -169,6 +255,36 @@ export const reportComment = async (
   const commentRef = doc(db, 'posts', postId, 'comments', commentId);
   await updateDoc(commentRef, { reportCount: increment(1) });
   logAnalyticsEvent('comment_reported', { postId, commentId, reason });
+};
+
+/**
+ * Edits comment text (author only).
+ */
+export const editComment = async (
+  postId: string,
+  commentId: string,
+  newText: string
+): Promise<void> => {
+  if (!postId || !commentId || !newText.trim()) return;
+  const commentRef = doc(db, 'posts', postId, 'comments', commentId);
+  await updateDoc(commentRef, {
+    text: newText.trim(),
+    updatedAt: serverTimestamp(),
+  });
+};
+
+/**
+ * Dismisses reports for a comment (moderator/admin only).
+ */
+export const dismissCommentReports = async (
+  postId: string,
+  commentId: string
+): Promise<void> => {
+  if (!postId || !commentId) return;
+  const commentRef = doc(db, 'posts', postId, 'comments', commentId);
+  await updateDoc(commentRef, {
+    reportCount: 0,
+  });
 };
 
 // Backward-compatible alias for real-time fallback

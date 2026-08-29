@@ -4,13 +4,15 @@ import {
   getDoc, 
   getDocs, 
   addDoc, 
+  writeBatch,
   query, 
   where, 
   orderBy, 
   limit, 
   runTransaction, 
   serverTimestamp, 
-  Timestamp 
+  Timestamp,
+  increment
 } from 'firebase/firestore';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { db, logAnalyticsEvent } from '../lib/firebase';
@@ -219,4 +221,126 @@ export const toggleVerifyOpportunity = async (
   });
 
   logAnalyticsEvent('opportunity_verified', { opportunityId, isVerified });
+};
+
+/**
+ * Updates an opportunity document (creator or admin only).
+ */
+export const editOpportunity = async (
+  opportunityId: string,
+  userId: string,
+  updates: Partial<CreateOpportunityPayload>,
+  isAdmin: boolean = false
+): Promise<void> => {
+  if (!opportunityId || !userId) throw new Error('Opportunity ID and User ID are required.');
+
+  const docRef = doc(db, 'opportunities', opportunityId);
+  await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(docRef);
+    if (!snap.exists()) throw new Error('Opportunity not found.');
+
+    const data = snap.data() as Opportunity;
+    if (data.createdBy !== userId && !isAdmin) {
+      throw new Error('Unauthorized to edit this opportunity.');
+    }
+
+    const title = updates.title?.trim();
+    const orgName = updates.organizationName?.trim();
+    const appUrl = updates.applicationUrl?.trim();
+
+    if (title && title.length < 3) throw new Error('Title must be at least 3 characters.');
+    if (orgName && orgName.length < 2) throw new Error('Organization name required.');
+    if (appUrl && !appUrl.startsWith('http://') && !appUrl.startsWith('https://')) {
+      throw new Error('Valid application URL starting with http:// or https:// required.');
+    }
+
+    const payload = {
+      ...(title ? { title } : {}),
+      ...(updates.description ? { description: updates.description.trim() } : {}),
+      ...(orgName ? { organizationName: orgName } : {}),
+      ...(updates.organizationLogo ? { organizationLogo: updates.organizationLogo.trim() } : {}),
+      ...(updates.type ? { type: updates.type, category: updates.category || updates.type } : {}),
+      ...(updates.location ? { location: updates.location.trim() } : {}),
+      ...(updates.mode ? { mode: updates.mode } : {}),
+      ...(updates.eligibility ? { eligibility: updates.eligibility.trim() } : {}),
+      ...(updates.branches ? { branches: updates.branches } : {}),
+      ...(updates.yearOfStudy ? { yearOfStudy: updates.yearOfStudy } : {}),
+      ...(updates.skills ? { skills: updates.skills } : {}),
+      ...(updates.stipend ? { stipend: updates.stipend.trim() } : {}),
+      ...(updates.salaryRange ? { salaryRange: updates.salaryRange.trim() } : {}),
+      ...(appUrl ? { applicationUrl: appUrl } : {}),
+      ...(updates.applicationDeadline ? { applicationDeadline: Timestamp.fromDate(new Date(updates.applicationDeadline)) } : {}),
+      ...(updates.startDate ? { startDate: Timestamp.fromDate(new Date(updates.startDate)) } : {}),
+      ...(updates.endDate ? { endDate: Timestamp.fromDate(new Date(updates.endDate)) } : {}),
+      updatedAt: serverTimestamp(),
+    };
+
+    transaction.update(docRef, payload);
+  });
+
+  logAnalyticsEvent('opportunity_edited', { opportunityId });
+};
+
+/**
+ * Deletes an opportunity document (creator or admin only).
+ */
+export const deleteOpportunity = async (
+  opportunityId: string,
+  userId: string,
+  isAdmin: boolean = false
+): Promise<void> => {
+  if (!opportunityId || !userId) throw new Error('Opportunity ID and User ID are required.');
+
+  const docRef = doc(db, 'opportunities', opportunityId);
+  const snap = await getDoc(docRef);
+  if (!snap.exists()) throw new Error('Opportunity not found.');
+
+  const data = snap.data() as Opportunity;
+  if (data.createdBy !== userId && !isAdmin) {
+    throw new Error('Unauthorized to delete this opportunity.');
+  }
+
+  const batch = writeBatch(db);
+  batch.delete(docRef);
+
+  // Delete reports
+  const reportsSnap = await getDocs(collection(db, 'opportunities', opportunityId, 'reports'));
+  reportsSnap.docs.forEach((d) => batch.delete(d.ref));
+
+  await batch.commit();
+  logAnalyticsEvent('opportunity_deleted', { opportunityId });
+};
+
+/**
+ * Reports an opportunity.
+ * Path: opportunities/{opportunityId}/reports/{userId}
+ */
+export const reportOpportunity = async (
+  opportunityId: string,
+  reporterId: string,
+  reason: string
+): Promise<{ success: boolean; alreadyReported: boolean }> => {
+  if (!opportunityId || !reporterId) throw new Error('Opportunity ID and Reporter ID are required.');
+
+  const oppRef = doc(db, 'opportunities', opportunityId);
+  const reportRef = doc(db, 'opportunities', opportunityId, 'reports', reporterId);
+
+  let alreadyReported = false;
+
+  await runTransaction(db, async (transaction) => {
+    const reportSnap = await transaction.get(reportRef);
+    if (reportSnap.exists()) {
+      alreadyReported = true;
+      return;
+    }
+
+    transaction.set(reportRef, {
+      reporterId,
+      reason: reason.trim().slice(0, 300),
+      reportedAt: serverTimestamp(),
+    });
+    transaction.update(oppRef, { reportCount: increment(1) });
+  });
+
+  return { success: !alreadyReported, alreadyReported };
 };

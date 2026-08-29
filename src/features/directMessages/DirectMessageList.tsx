@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import type { DirectConversation } from '../../types/directMessage';
 import { useAuth } from '../../hooks/useAuth';
 import { getOrCreateConversation, deleteConversation } from '../../services/directMessageService';
+import { subscribeToMemberPresence } from '../../services/presenceService';
 import { NewDirectMessageModal } from './NewDirectMessageModal';
 import { collection, query, where, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -23,6 +24,7 @@ export const DirectMessageList: React.FC = () => {
   const { currentUser } = useAuth();
 
   const [conversations, setConversations] = useState<DirectConversation[]>([]);
+  const [onlineMap, setOnlineMap] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedTab, setSelectedTab] = useState<ListTab>('All');
@@ -69,8 +71,24 @@ export const DirectMessageList: React.FC = () => {
       markScopeAsRead(currentUser.uid, 'messages').catch(() => {});
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+    };
   }, [currentUser]);
+
+  // Subscribe to presence of conversation partners
+  useEffect(() => {
+    if (!currentUser || conversations.length === 0) return;
+    const targetUids = conversations
+      .map((c) => c.participantIds.find((id) => id !== currentUser.uid))
+      .filter((id): id is string => !!id);
+
+    if (targetUids.length === 0) return;
+    const unsubscribe = subscribeToMemberPresence(targetUids, (statusMap) => {
+      setOnlineMap(statusMap);
+    });
+    return () => unsubscribe();
+  }, [conversations, currentUser]);
 
   const handleUserSelected = async (targetUid: string, targetName: string) => {
     if (!currentUser) return;
@@ -182,28 +200,49 @@ export const DirectMessageList: React.FC = () => {
 
             const isPending = conv.status === 'pending';
 
+            const isOnline = targetUid ? onlineMap[targetUid] : false;
+            const myMeta = conv.participantMeta?.[uid];
+            const isUnread =
+              conv.lastMessageSenderId !== uid &&
+              conv.lastMessageId &&
+              (!myMeta?.lastReadAt ||
+                (conv.lastMessageAt?.toMillis ? conv.lastMessageAt.toMillis() : new Date(conv.lastMessageAt).getTime()) >
+                (myMeta.lastReadAt?.toMillis ? myMeta.lastReadAt.toMillis() : new Date(myMeta.lastReadAt).getTime()));
+
             return (
               <div
                 key={conv.id}
                 onClick={() => navigate(`/messages/${conv.id}`)}
-                className="p-4 bg-slate-900/80 hover:bg-slate-800/80 border border-slate-800 rounded-2xl flex items-center justify-between gap-4 cursor-pointer transition-all shadow-md"
+                className={`p-4 bg-slate-900/80 hover:bg-slate-800/80 border rounded-2xl flex items-center justify-between gap-4 cursor-pointer transition-all shadow-md ${
+                  isUnread ? 'border-indigo-500/50' : 'border-slate-800'
+                }`}
               >
                 <div className="flex items-center gap-3.5 truncate">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 text-indigo-400 flex items-center justify-center font-bold text-xs shrink-0">
-                    <User className="w-5 h-5" />
+                  <div className="relative shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 text-indigo-400 flex items-center justify-center font-bold text-xs">
+                      <User className="w-5 h-5" />
+                    </div>
+                    {isOnline && (
+                      <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-slate-900 rounded-full" />
+                    )}
                   </div>
 
                   <div className="truncate space-y-0.5">
                     <div className="flex items-center gap-2">
-                      <h4 className="text-xs font-bold text-white truncate">{targetName}</h4>
+                      <h4 className={`text-xs font-bold truncate ${isUnread ? 'text-white' : 'text-slate-200'}`}>
+                        {targetName}
+                      </h4>
                       {isPending && (
                         <span className="px-2 py-0.5 bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded-full text-[10px] font-bold">
                           REQUEST
                         </span>
                       )}
+                      {isUnread && (
+                        <span className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse" />
+                      )}
                     </div>
 
-                    <p className="text-xs text-slate-400 truncate">
+                    <p className={`text-xs truncate ${isUnread ? 'text-slate-200 font-semibold' : 'text-slate-400'}`}>
                       {conv.lastMessagePreview || 'No messages yet.'}
                     </p>
                   </div>

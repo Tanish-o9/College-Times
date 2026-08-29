@@ -1,73 +1,65 @@
 import React, { useEffect, useState } from 'react';
-import type { Post } from '../../types';
-import { 
-  getReportedPosts, 
-  getPostReportReasons, 
-  dismissPostReports, 
-  deletePost, 
-  createBroadcastPost,
-  type CreateBroadcastPayload
-} from '../../services/postService';
+import { useNavigate } from 'react-router-dom';
+import type { Post } from '../../types/models';
+import type { CampusGroup } from '../../types/group';
+import type { MarketplaceListing } from '../../types/marketplace';
+import type { Opportunity } from '../../types/opportunity';
+import { deletePost, createBroadcastPost, type CreateBroadcastPayload } from '../../services/postService';
 import { useAuth } from '../../hooks/useAuth';
 import toast from 'react-hot-toast';
-import { 
-  getReportedChatMessages, 
-  dismissChatMessageReports, 
-  softDeleteChatMessage, 
-  muteChannelUser, 
-  unmuteChannelUser, 
-  type ReportedChatMessageItem 
-} from '../../services/chatModerationService';
-import { 
-  getChatFeatureFlag, 
-  updateChatRolloutFlag, 
-  type ChatFeatureFlag 
-} from '../../services/featureFlagService';
+import { getChatFeatureFlag, updateChatRolloutFlag, type ChatFeatureFlag } from '../../services/featureFlagService';
 import { AlertHistory } from './AlertHistory';
 import { AlertAdminDetail } from './AlertAdminDetail';
-import { 
-  Shield, 
-  AlertOctagon, 
-  Radio, 
-  Users as UsersIcon, 
-  RefreshCw, 
-  Trash2, 
-  CheckCircle2, 
-  Send, 
-  AlertTriangle, 
-  UserCheck,
-  MessageSquare,
-  VolumeX,
-  Volume2,
+import { getReports, updateReportStatus, type Report, type ReportStatus } from '../../services/reportService';
+import { createAuditLog, getAuditLogs, type AuditLog } from '../../services/auditLogService';
+import { getPlatformAnalytics, type PlatformMetrics } from '../../services/platformAnalyticsService';
+import {
+  Shield,
+  AlertOctagon,
+  Users as UsersIcon,
+  RefreshCw,
+  Trash2,
+  Send,
   Sliders,
   Power,
-  Bell
+  Bell,
+  Search,
+  LineChart,
+  ClipboardList,
+  ShieldCheck,
+  FileText,
+  ChevronRight
 } from 'lucide-react';
+import { collection, query, limit, getDocs, doc, updateDoc, deleteDoc, orderBy } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 
-type AdminTab = 'reported' | 'chat-reported' | 'broadcast' | 'users' | 'rollout' | 'campus-alerts';
+type AdminTab =
+  | 'dashboard'
+  | 'users'
+  | 'reports'
+  | 'groups'
+  | 'posts'
+  | 'marketplace'
+  | 'opportunities'
+  | 'events'
+  | 'rollout'
+  | 'campus-alerts'
+  | 'analytics'
+  | 'audit-logs';
 
 export const AdminDashboard: React.FC = () => {
   const { currentUser, userProfile } = useAuth();
-  const [activeTab, setActiveTab] = useState<AdminTab>('reported');
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
   const [selectedAlertPostId, setSelectedAlertPostId] = useState<string | null>(null);
 
-  // Chat Rollout State
+  // States
+  const [processingId, setProcessingId] = useState<string | null>(null);
+  
+  // Dashboard / Rollout / Alerts
   const [chatFlag, setChatFlag] = useState<ChatFeatureFlag>({ enabled: true, rolloutPercentage: 100 });
   const [loadingFlag, setLoadingFlag] = useState<boolean>(false);
   const [selectedPercentage, setSelectedPercentage] = useState<number>(100);
-  const [confirmModalOpen, setConfirmModalOpen] = useState<boolean>(false);
-  const [pendingPercentage, setPendingPercentage] = useState<number | null>(null);
-  const [pendingEnabled, setPendingEnabled] = useState<boolean | null>(null);
-
-  // Reported Posts State
-  const [reportedPosts, setReportedPosts] = useState<Post[]>([]);
-  const [reportReasonsMap, setReportReasonsMap] = useState<Record<string, string[]>>({});
-  const [loadingReported, setLoadingReported] = useState<boolean>(true);
-
-  // Reported Chat Messages State
-  const [reportedChatItems, setReportedChatItems] = useState<ReportedChatMessageItem[]>([]);
-  const [loadingChatReported, setLoadingChatReported] = useState<boolean>(false);
-  const [processingId, setProcessingId] = useState<string | null>(null);
 
   // Broadcast Form State
   const [bTitle, setBTitle] = useState('');
@@ -75,40 +67,50 @@ export const AdminDashboard: React.FC = () => {
   const [bImageUrl, setBImageUrl] = useState('');
   const [submittingBroadcast, setSubmittingBroadcast] = useState(false);
 
-  const fetchReported = async () => {
-    setLoadingReported(true);
-    try {
-      const posts = await getReportedPosts();
-      setReportedPosts(posts);
+  // Users Tab
+  const [usersList, setUsersList] = useState<any[]>([]);
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [loadingUsers, setLoadingUsers] = useState(false);
 
-      // Fetch report reasons for each reported post
-      const map: Record<string, string[]> = {};
-      for (const p of posts) {
-        if (p.id) {
-          const reasons = await getPostReportReasons(p.id);
-          map[p.id] = reasons;
-        }
-      }
-      setReportReasonsMap(map);
-    } catch (err: any) {
-      console.error('Failed to load reported posts:', err);
-      toast.error('Failed to load reported posts.');
-    } finally {
-      setLoadingReported(false);
-    }
-  };
+  // Unified Reports Tab
+  const [reportsList, setReportsList] = useState<Report[]>([]);
+  const [reportFilter, setReportFilter] = useState<ReportStatus | 'ALL'>('ALL');
+  const [loadingReports, setLoadingReports] = useState(false);
 
-  const fetchReportedChat = async () => {
-    setLoadingChatReported(true);
-    try {
-      const items = await getReportedChatMessages();
-      setReportedChatItems(items);
-    } catch (err: any) {
-      toast.error('Failed to load reported chat messages.');
-    } finally {
-      setLoadingChatReported(false);
-    }
-  };
+  // Groups Tab
+  const [groupsList, setGroupsList] = useState<CampusGroup[]>([]);
+  const [groupSearchQuery, setGroupSearchQuery] = useState('');
+  const [loadingGroups, setLoadingGroups] = useState(false);
+
+  // Posts Tab
+  const [postsList, setPostsList] = useState<Post[]>([]);
+  const [postSearchQuery, setPostSearchQuery] = useState('');
+  const [loadingPosts, setLoadingPosts] = useState(false);
+
+  // Marketplace Tab
+  const [listingsList, setListingsList] = useState<MarketplaceListing[]>([]);
+  const [listingSearchQuery, setListingSearchQuery] = useState('');
+  const [loadingListings, setLoadingListings] = useState(false);
+
+  // Opportunities Tab
+  const [oppsList, setOppsList] = useState<Opportunity[]>([]);
+  const [oppsSearchQuery, setOppsSearchQuery] = useState('');
+  const [loadingOpps, setLoadingOpps] = useState(false);
+
+  // Events Tab
+  const [eventsList, setEventsList] = useState<any[]>([]);
+  const [eventSearchQuery, setEventSearchQuery] = useState('');
+  const [loadingEvents, setLoadingEvents] = useState(false);
+
+  // Analytics Tab
+  const [analytics, setAnalytics] = useState<PlatformMetrics | null>(null);
+  const [loadingAnalytics, setLoadingAnalytics] = useState(false);
+
+  // Audit Logs Tab
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [loadingAudits, setLoadingAudits] = useState(false);
+
+  // Fetching Functions
 
   const fetchChatFlag = async () => {
     setLoadingFlag(true);
@@ -123,6 +125,137 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
+  const fetchUsers = async () => {
+    setLoadingUsers(true);
+    try {
+      const q = query(collection(db, 'users'), limit(100));
+      const snap = await getDocs(q);
+      setUsersList(snap.docs.map((d) => ({ uid: d.id, ...d.data() })));
+    } catch (err) {
+      toast.error('Failed to load users list.');
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  const fetchUnifiedReports = async () => {
+    setLoadingReports(true);
+    try {
+      const list = await getReports(reportFilter === 'ALL' ? undefined : reportFilter);
+      setReportsList(list);
+    } catch (err) {
+      toast.error('Failed to load reports queue.');
+    } finally {
+      setLoadingReports(false);
+    }
+  };
+
+  const fetchGroups = async () => {
+    setLoadingGroups(true);
+    try {
+      const q = query(collection(db, 'groups'), limit(100));
+      const snap = await getDocs(q);
+      setGroupsList(snap.docs.map((d) => ({ id: d.id, ...d.data() } as CampusGroup)));
+    } catch (err) {
+      toast.error('Failed to load groups list.');
+    } finally {
+      setLoadingGroups(false);
+    }
+  };
+
+  const fetchPosts = async () => {
+    setLoadingPosts(true);
+    try {
+      const q = query(collection(db, 'posts'), orderBy('timestamp', 'desc'), limit(100));
+      const snap = await getDocs(q);
+      setPostsList(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Post)));
+    } catch (err) {
+      toast.error('Failed to load posts.');
+    } finally {
+      setLoadingPosts(false);
+    }
+  };
+
+  const fetchListings = async () => {
+    setLoadingListings(true);
+    try {
+      const q = query(collection(db, 'marketplaceListings'), orderBy('createdAt', 'desc'), limit(100));
+      const snap = await getDocs(q);
+      setListingsList(snap.docs.map((d) => ({ id: d.id, ...d.data() } as MarketplaceListing)));
+    } catch (err) {
+      toast.error('Failed to load listings.');
+    } finally {
+      setLoadingListings(false);
+    }
+  };
+
+  const fetchOpps = async () => {
+    setLoadingOpps(true);
+    try {
+      const q = query(collection(db, 'opportunities'), orderBy('createdAt', 'desc'), limit(100));
+      const snap = await getDocs(q);
+      setOppsList(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Opportunity)));
+    } catch (err) {
+      toast.error('Failed to load opportunities.');
+    } finally {
+      setLoadingOpps(false);
+    }
+  };
+
+  const fetchEvents = async () => {
+    setLoadingEvents(true);
+    try {
+      const q = query(collection(db, 'events'), orderBy('createdAt', 'desc'), limit(100));
+      const snap = await getDocs(q);
+      setEventsList(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    } catch (err) {
+      toast.error('Failed to load events.');
+    } finally {
+      setLoadingEvents(false);
+    }
+  };
+
+  const fetchAnalytics = async () => {
+    setLoadingAnalytics(true);
+    try {
+      const data = await getPlatformAnalytics();
+      setAnalytics(data);
+    } catch (err) {
+      toast.error('Failed to calculate platform metrics.');
+    } finally {
+      setLoadingAnalytics(false);
+    }
+  };
+
+  const fetchAudits = async () => {
+    setLoadingAudits(true);
+    try {
+      const logs = await getAuditLogs(100);
+      setAuditLogs(logs);
+    } catch (err) {
+      toast.error('Failed to load moderator audit logs.');
+    } finally {
+      setLoadingAudits(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'dashboard') fetchUnifiedReports();
+    if (activeTab === 'rollout') fetchChatFlag();
+    if (activeTab === 'users') fetchUsers();
+    if (activeTab === 'reports') fetchUnifiedReports();
+    if (activeTab === 'groups') fetchGroups();
+    if (activeTab === 'posts') {
+      fetchPosts();
+    }
+    if (activeTab === 'marketplace') fetchListings();
+    if (activeTab === 'opportunities') fetchOpps();
+    if (activeTab === 'events') fetchEvents();
+    if (activeTab === 'analytics') fetchAnalytics();
+    if (activeTab === 'audit-logs') fetchAudits();
+  }, [activeTab, reportFilter]);
+
+  // Action Handlers
   const handleSaveRollout = async (percentage: number, enabled: boolean) => {
     if (!currentUser) return;
     setProcessingId('saving-flag');
@@ -135,33 +268,8 @@ export const AdminDashboard: React.FC = () => {
           ? 'KILL SWITCH ACTIVATED: Community Chat disabled for non-admins.'
           : `Chat rollout percentage updated to ${percentage}%!`
       );
-      setConfirmModalOpen(false);
     } catch (err: any) {
       toast.error(err.message || 'Failed to update rollout percentage.');
-    } finally {
-      setProcessingId(null);
-    }
-  };
-
-  useEffect(() => {
-    if (activeTab === 'reported') {
-      fetchReported();
-    } else if (activeTab === 'chat-reported') {
-      fetchReportedChat();
-    } else if (activeTab === 'rollout') {
-      fetchChatFlag();
-    }
-  }, [activeTab]);
-
-  const handleDismiss = async (postId: string) => {
-    if (processingId) return;
-    setProcessingId(postId);
-    try {
-      await dismissPostReports(postId);
-      toast.success('Reports dismissed & report count reset!');
-      setReportedPosts((prev) => prev.filter((p) => p.id !== postId));
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to dismiss reports.');
     } finally {
       setProcessingId(null);
     }
@@ -173,7 +281,10 @@ export const AdminDashboard: React.FC = () => {
     try {
       await deletePost(postId);
       toast.success('Post and related sub-collections deleted!');
-      setReportedPosts((prev) => prev.filter((p) => p.id !== postId));
+      setPostsList((prev) => prev.filter((p) => p.id !== postId));
+      if (currentUser) {
+        await createAuditLog(currentUser.uid, 'POST_REMOVED', 'post', postId, 'Removed post content');
+      }
     } catch (err: any) {
       toast.error(err.message || 'Failed to delete post.');
     } finally {
@@ -181,56 +292,119 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  // Chat Moderation Handlers
-  const handleDismissChatReport = async (channelId: string, messageId: string) => {
-    if (processingId) return;
-    setProcessingId(messageId);
-    try {
-      await dismissChatMessageReports(channelId, messageId);
-      toast.success('Chat reports dismissed.');
-      setReportedChatItems((prev) => prev.filter((item) => item.message.id !== messageId));
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to dismiss chat report.');
-    } finally {
-      setProcessingId(null);
-    }
-  };
-
-  const handleDeleteChatMessage = async (channelId: string, messageId: string) => {
-    if (processingId) return;
-    setProcessingId(messageId);
-    try {
-      await softDeleteChatMessage(channelId, messageId);
-      toast.success('Chat message soft deleted.');
-      setReportedChatItems((prev) => prev.filter((item) => item.message.id !== messageId));
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to delete chat message.');
-    } finally {
-      setProcessingId(null);
-    }
-  };
-
-  const handleMuteUser = async (channelId: string, targetUid: string) => {
+  // User tab actions
+  const handleToggleUserRole = async (targetUid: string, currentRole: string) => {
     if (!currentUser || processingId) return;
     setProcessingId(targetUid);
+    const newRole = currentRole === 'admin' ? 'student' : 'admin';
     try {
-      await muteChannelUser(channelId, targetUid, currentUser.uid);
-      toast.success(`User muted in #${channelId}.`);
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to mute user.');
+      await updateDoc(doc(db, 'users', targetUid), { role: newRole });
+      toast.success(`User role updated to ${newRole}!`);
+      setUsersList((prev) => prev.map((u) => (u.uid === targetUid ? { ...u, role: newRole } : u)));
+      await createAuditLog(currentUser.uid, 'USER_RESTRICTED', 'user', targetUid, `Role updated to ${newRole}`);
+    } catch (err) {
+      toast.error('Failed to toggle user role.');
     } finally {
       setProcessingId(null);
     }
   };
 
-  const handleUnmuteUser = async (channelId: string, targetUid: string) => {
-    if (processingId) return;
+  const handleToggleUserSuspension = async (targetUid: string, currentStatus: string) => {
+    if (!currentUser || processingId) return;
     setProcessingId(targetUid);
+    const newStatus = currentStatus === 'suspended' ? 'active' : 'suspended';
     try {
-      await unmuteChannelUser(channelId, targetUid);
-      toast.success(`User unmuted in #${channelId}.`);
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to unmute user.');
+      await updateDoc(doc(db, 'users', targetUid), { profileStatus: newStatus });
+      toast.success(newStatus === 'suspended' ? 'User suspended! Session will be terminated.' : 'User activated!');
+      setUsersList((prev) => prev.map((u) => (u.uid === targetUid ? { ...u, profileStatus: newStatus } : u)));
+      await createAuditLog(currentUser.uid, 'USER_RESTRICTED', 'user', targetUid, `${newStatus === 'suspended' ? 'Suspended' : 'Activated'} user account`);
+    } catch (err) {
+      toast.error('Failed to update suspension status.');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  // Unified Reports Queue actions
+  const handleResolveReport = async (reportId: string, status: 'RESOLVED' | 'DISMISSED') => {
+    if (!currentUser || processingId) return;
+    setProcessingId(reportId);
+    try {
+      await updateReportStatus(reportId, status, currentUser.uid);
+      toast.success(`Report status set to ${status}!`);
+      setReportsList((prev) => prev.map((r) => (r.id === reportId ? { ...r, status, resolvedBy: currentUser.uid } : r)));
+      await createAuditLog(currentUser.uid, 'REPORT_RESOLVED', 'report', reportId, `Report set to ${status}`);
+    } catch (err) {
+      toast.error('Failed to resolve report.');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  // Content moderation actions
+  const handleRemoveGroup = async (groupId: string) => {
+    if (!currentUser || processingId) return;
+    const confirm = window.confirm('Are you sure you want to deactivate/delete this group?');
+    if (!confirm) return;
+    setProcessingId(groupId);
+    try {
+      await updateDoc(doc(db, 'groups', groupId), { active: false });
+      toast.success('Group deactivated successfully.');
+      setGroupsList((prev) => prev.map((g) => (g.id === groupId ? { ...g, active: false } : g)));
+      await createAuditLog(currentUser.uid, 'GROUP_ACTION', 'group', groupId, 'Deactivated group');
+    } catch (err) {
+      toast.error('Failed to deactivate group.');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleRemoveListing = async (listingId: string) => {
+    if (!currentUser || processingId) return;
+    const confirm = window.confirm('Are you sure you want to remove this marketplace item?');
+    if (!confirm) return;
+    setProcessingId(listingId);
+    try {
+      await deleteDoc(doc(db, 'marketplaceListings', listingId));
+      toast.success('Marketplace listing removed.');
+      setListingsList((prev) => prev.filter((l) => l.id !== listingId));
+      await createAuditLog(currentUser.uid, 'MARKETPLACE_MODERATION', 'listing', listingId, 'Deleted listing');
+    } catch (err) {
+      toast.error('Failed to remove listing.');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleRemoveOpportunity = async (oppId: string) => {
+    if (!currentUser || processingId) return;
+    const confirm = window.confirm('Are you sure you want to delete this opportunity?');
+    if (!confirm) return;
+    setProcessingId(oppId);
+    try {
+      await deleteDoc(doc(db, 'opportunities', oppId));
+      toast.success('Opportunity deleted.');
+      setOppsList((prev) => prev.filter((o) => o.id !== oppId));
+      await createAuditLog(currentUser.uid, 'OPPORTUNITY_MODERATION', 'opportunity', oppId, 'Deleted opportunity');
+    } catch (err) {
+      toast.error('Failed to remove opportunity.');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleRemoveEvent = async (eventId: string) => {
+    if (!currentUser || processingId) return;
+    const confirm = window.confirm('Are you sure you want to delete this event?');
+    if (!confirm) return;
+    setProcessingId(eventId);
+    try {
+      await deleteDoc(doc(db, 'events', eventId));
+      toast.success('Event deleted.');
+      setEventsList((prev) => prev.filter((e) => e.id !== eventId));
+      await createAuditLog(currentUser.uid, 'EVENT_MODERATION', 'event', eventId, 'Deleted event');
+    } catch (err) {
+      toast.error('Failed to remove event.');
     } finally {
       setProcessingId(null);
     }
@@ -253,6 +427,7 @@ export const AdminDashboard: React.FC = () => {
       setBTitle('');
       setBContent('');
       setBImageUrl('');
+      await createAuditLog(currentUser.uid, 'POST_REMOVED', 'broadcast', 'new', `Broadcast notice: ${payload.title}`);
     } catch (err: any) {
       toast.error(err.message || 'Failed to publish broadcast.');
     } finally {
@@ -260,655 +435,721 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
+  // Searching Filters
+  const filteredUsers = usersList.filter(
+    (u) =>
+      (u.displayName || '').toLowerCase().includes(userSearchQuery.toLowerCase()) ||
+      (u.username || '').toLowerCase().includes(userSearchQuery.toLowerCase()) ||
+      (u.email || '').toLowerCase().includes(userSearchQuery.toLowerCase())
+  );
+
+  const filteredGroups = groupsList.filter((g) =>
+    (g.name || '').toLowerCase().includes(groupSearchQuery.toLowerCase())
+  );
+
+  const filteredPosts = postsList.filter((p) =>
+    (p.title || '').toLowerCase().includes(postSearchQuery.toLowerCase()) ||
+    (p.content || '').toLowerCase().includes(postSearchQuery.toLowerCase())
+  );
+
+  const filteredListings = listingsList.filter((l) =>
+    (l.title || '').toLowerCase().includes(listingSearchQuery.toLowerCase())
+  );
+
+  const filteredOpps = oppsList.filter((o) =>
+    (o.title || '').toLowerCase().includes(oppsSearchQuery.toLowerCase())
+  );
+
+  const filteredEvents = eventsList.filter((e) =>
+    (e.title || '').toLowerCase().includes(eventSearchQuery.toLowerCase())
+  );
+
   return (
-    <div className="max-w-5xl mx-auto py-6 px-4 space-y-6">
-      {/* Admin Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-3xl p-6 shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl -z-10 pointer-events-none" />
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="p-2 rounded-xl bg-purple-500/20 border border-purple-500/30 text-purple-300">
+    <div className="max-w-7xl mx-auto py-6 px-4 flex flex-col md:flex-row gap-6">
+      {/* Admin Navigation Sidebar */}
+      <nav className="md:w-64 shrink-0 flex flex-col gap-4">
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-4 shadow-xl">
+          <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+            <span className="p-1.5 rounded-xl bg-purple-500/20 border border-purple-500/30 text-purple-300">
               <Shield className="w-5 h-5" />
             </span>
-            <h1 className="text-2xl font-black text-white tracking-tight">College Admin Portal</h1>
-          </div>
-          <p className="text-xs text-slate-400">
-            Moderate flagged feed & chat content, publish announcements, and manage campus access.
-          </p>
-        </div>
-
-        <div className="px-3.5 py-1.5 bg-purple-500/10 border border-purple-500/30 rounded-xl text-purple-300 font-mono text-xs font-bold shrink-0 flex items-center gap-1.5">
-          <UserCheck className="w-4 h-4 text-purple-400" />
-          <span>Role: Admin ({userProfile?.displayName || 'Admin'})</span>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex flex-wrap items-center gap-2 p-1.5 bg-slate-900/90 border border-slate-800 rounded-2xl">
-        <button
-          onClick={() => setActiveTab('reported')}
-          className={`flex-1 py-2.5 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 transition-all ${
-            activeTab === 'reported'
-              ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30 shadow-md shadow-rose-500/10'
-              : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <AlertOctagon className="w-4 h-4 text-rose-400" />
-          <span>REPORTED POSTS</span>
-          {reportedPosts.length > 0 && (
-            <span className="px-2 py-0.5 bg-rose-500 text-white rounded-full text-[10px] font-mono">
-              {reportedPosts.length}
-            </span>
-          )}
-        </button>
-
-        <button
-          onClick={() => setActiveTab('chat-reported')}
-          className={`flex-1 py-2.5 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 transition-all ${
-            activeTab === 'chat-reported'
-              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 shadow-md shadow-amber-500/10'
-              : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <MessageSquare className="w-4 h-4 text-amber-400" />
-          <span>CHAT MODERATION</span>
-          {reportedChatItems.length > 0 && (
-            <span className="px-2 py-0.5 bg-amber-500 text-white rounded-full text-[10px] font-mono">
-              {reportedChatItems.length}
-            </span>
-          )}
-        </button>
-
-        <button
-          onClick={() => setActiveTab('broadcast')}
-          className={`flex-1 py-2.5 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 transition-all ${
-            activeTab === 'broadcast'
-              ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30 shadow-md shadow-purple-500/10'
-              : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <Radio className="w-4 h-4 text-purple-400" />
-          <span>BROADCAST NEWS</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('rollout')}
-          className={`flex-1 py-2.5 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 transition-all ${
-            activeTab === 'rollout'
-              ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30 shadow-md shadow-sky-500/10'
-              : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <Sliders className="w-4 h-4 text-sky-400" />
-          <span>CHAT ROLLOUT</span>
-          <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
-            chatFlag.enabled && chatFlag.rolloutPercentage > 0
-              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-              : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-          }`}>
-            {chatFlag.enabled ? `${chatFlag.rolloutPercentage}%` : 'OFF'}
-          </span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('campus-alerts')}
-          className={`flex-1 py-2.5 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 transition-all ${
-            activeTab === 'campus-alerts'
-              ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30 shadow-md shadow-sky-500/10'
-              : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <Bell className="w-4 h-4 text-sky-400" />
-          <span>CAMPUS ALERTS</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('users')}
-          className={`flex-1 py-2.5 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 transition-all ${
-            activeTab === 'users'
-              ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30 shadow-md shadow-sky-500/10'
-              : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <UsersIcon className="w-4 h-4 text-sky-400" />
-          <span>USERS MANAGEMENT</span>
-        </button>
-      </div>
-
-      {/* Tab 1: Reported Posts Moderation */}
-      {activeTab === 'reported' && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider">
-              Flagged Posts Needing Review ({reportedPosts.length})
-            </h2>
-            <button
-              onClick={fetchReported}
-              className="p-1.5 bg-slate-900 text-slate-400 hover:text-white rounded-xl border border-slate-800 text-xs flex items-center gap-1"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${loadingReported ? 'animate-spin text-rose-400' : ''}`} />
-              <span>Refresh</span>
-            </button>
+            <div>
+              <h1 className="text-sm font-black text-white">Admin Portal</h1>
+              <p className="text-[10px] text-slate-500">College Times Moderator</p>
+            </div>
           </div>
 
-          {loadingReported ? (
-            <div className="p-12 text-center text-slate-400 text-xs font-semibold space-y-2">
-              <RefreshCw className="w-6 h-6 animate-spin text-rose-400 mx-auto" />
-              <p>Scanning Firestore for reported posts...</p>
-            </div>
-          ) : reportedPosts.length === 0 ? (
-            <div className="p-12 bg-slate-900/60 border border-slate-800 rounded-3xl text-center space-y-3">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto">
-                <CheckCircle2 className="w-6 h-6" />
-              </div>
-              <h3 className="text-lg font-bold text-white">No Flagged Posts</h3>
-              <p className="text-xs text-slate-400">
-                All campus feed posts are clean. No posts have active reports.
-              </p>
-            </div>
-          ) : (
-            reportedPosts.map((post) => {
-              const reasons = post.id ? reportReasonsMap[post.id] || [] : [];
-              const isProcessing = processingId === post.id;
-
+          <div className="space-y-1">
+            {[
+              { id: 'dashboard', label: 'Dashboard', icon: Sliders },
+              { id: 'users', label: 'Users Directory', icon: UsersIcon },
+              { id: 'reports', label: 'Reports Queue', icon: AlertOctagon },
+              { id: 'groups', label: 'Groups', icon: UsersIcon },
+              { id: 'posts', label: 'Feed Posts', icon: FileText },
+              { id: 'marketplace', label: 'Marketplace', icon: Sliders },
+              { id: 'opportunities', label: 'Opportunities', icon: Sliders },
+              { id: 'events', label: 'Events Hub', icon: Sliders },
+              { id: 'rollout', label: 'Chat Rollout', icon: Sliders },
+              { id: 'campus-alerts', label: 'Campus Alerts', icon: Bell },
+              { id: 'analytics', label: 'Platform Analytics', icon: LineChart },
+              { id: 'audit-logs', label: 'Moderator Logs', icon: ClipboardList },
+            ].map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
               return (
-                <div
-                  key={post.id}
-                  className="bg-slate-900/80 border border-slate-800 hover:border-rose-500/30 rounded-3xl p-6 space-y-4 shadow-xl relative overflow-hidden"
-                >
-                  <div className="flex items-center justify-between gap-3 border-b border-slate-800 pb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="px-3 py-1 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-full text-xs font-bold flex items-center gap-1">
-                        <AlertTriangle className="w-3.5 h-3.5" />
-                        <span>{post.reportCount} Reports Flagged</span>
-                      </span>
-                      <span className="text-xs text-slate-400 font-medium">Author: {post.authorName}</span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <h3 className="text-lg font-bold text-white">{post.title}</h3>
-                    <p className="text-slate-300 text-xs mt-1 line-clamp-3">{post.content}</p>
-                  </div>
-
-                  {/* Report Reasons List */}
-                  {reasons.length > 0 && (
-                    <div className="p-3 bg-slate-950/80 rounded-2xl border border-slate-800 space-y-1">
-                      <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block">
-                        Report Reasons Submitted by Students:
-                      </span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {reasons.map((r, i) => (
-                          <span
-                            key={i}
-                            className="px-2.5 py-0.5 bg-rose-500/10 border border-rose-500/20 text-rose-300 rounded-lg text-[11px] font-medium"
-                          >
-                            {r}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Moderation Action Buttons */}
-                  <div className="pt-3 border-t border-slate-800 flex items-center justify-end gap-3">
-                    <button
-                      onClick={() => post.id && handleDismiss(post.id)}
-                      disabled={isProcessing}
-                      className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
-                    >
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                      <span>Dismiss Reports</span>
-                    </button>
-
-                    <button
-                      onClick={() => post.id && handleDelete(post.id)}
-                      disabled={isProcessing}
-                      className="px-4 py-2 bg-rose-500 hover:bg-rose-400 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-rose-500/20 transition-all"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      <span>Delete Post</span>
-                    </button>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-      )}
-
-      {/* Tab: Chat Moderation */}
-      {activeTab === 'chat-reported' && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider">
-              Flagged Chat Messages ({reportedChatItems.length})
-            </h2>
-            <button
-              onClick={fetchReportedChat}
-              className="p-1.5 bg-slate-900 text-slate-400 hover:text-white rounded-xl border border-slate-800 text-xs flex items-center gap-1"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${loadingChatReported ? 'animate-spin text-amber-400' : ''}`} />
-              <span>Refresh</span>
-            </button>
-          </div>
-
-          {loadingChatReported ? (
-            <div className="p-12 text-center text-slate-400 text-xs font-semibold space-y-2">
-              <RefreshCw className="w-6 h-6 animate-spin text-amber-400 mx-auto" />
-              <p>Fetching flagged chat messages...</p>
-            </div>
-          ) : reportedChatItems.length === 0 ? (
-            <div className="p-12 bg-slate-900/60 border border-slate-800 rounded-3xl text-center space-y-3">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto">
-                <CheckCircle2 className="w-6 h-6" />
-              </div>
-              <h3 className="text-lg font-bold text-white">No Flagged Chat Messages</h3>
-              <p className="text-xs text-slate-400">
-                All community chat rooms are clean. No messages have pending reports.
-              </p>
-            </div>
-          ) : (
-            reportedChatItems.map((item) => {
-              const { message, reports } = item;
-              const isProcessing = processingId === message.id || processingId === message.senderId;
-
-              return (
-                <div
-                  key={`${message.channelId}_${message.id}`}
-                  className="bg-slate-900/80 border border-slate-800 hover:border-amber-500/30 rounded-3xl p-6 space-y-4 shadow-xl relative overflow-hidden"
-                >
-                  <div className="flex items-center justify-between gap-3 border-b border-slate-800 pb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="px-3 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-full text-xs font-bold flex items-center gap-1">
-                        <AlertTriangle className="w-3.5 h-3.5" />
-                        <span>{reports.length} Reports Flagged</span>
-                      </span>
-                      <span className="text-xs text-slate-400 font-mono">Channel: #{message.channelId}</span>
-                      <span className="text-xs text-slate-400 font-medium">Author: {message.senderName} ({message.senderId})</span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="text-slate-200 text-xs font-mono bg-slate-950/80 p-3 rounded-2xl border border-slate-800/80">
-                      "{message.content || '[Image]'}"
-                    </p>
-                  </div>
-
-                  {/* Report Reasons List */}
-                  {reports.length > 0 && (
-                    <div className="p-3 bg-slate-950/80 rounded-2xl border border-slate-800 space-y-1">
-                      <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block">
-                        Submitted Reasons:
-                      </span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {reports.map((r, i) => (
-                          <span
-                            key={i}
-                            className="px-2.5 py-0.5 bg-amber-500/10 border border-amber-500/20 text-amber-300 rounded-lg text-[11px] font-medium"
-                          >
-                            {r.reason} (Reporter: {r.reporterId})
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Moderation Action Buttons */}
-                  <div className="pt-3 border-t border-slate-800 flex items-center justify-end gap-2 flex-wrap">
-                    <button
-                      onClick={() => message.id && handleDismissChatReport(message.channelId, message.id)}
-                      disabled={isProcessing}
-                      className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
-                    >
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>Dismiss Reports</span>
-                    </button>
-
-                    <button
-                      onClick={() => message.id && handleDeleteChatMessage(message.channelId, message.id)}
-                      disabled={isProcessing}
-                      className="px-3.5 py-2 bg-rose-500 hover:bg-rose-400 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-rose-500/20 transition-all"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>Delete Message</span>
-                    </button>
-
-                    <button
-                      onClick={() => handleMuteUser(message.channelId, message.senderId)}
-                      disabled={isProcessing}
-                      className="px-3.5 py-2 bg-purple-500 hover:bg-purple-400 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
-                    >
-                      <VolumeX className="w-3.5 h-3.5" />
-                      <span>Mute User</span>
-                    </button>
-
-                    <button
-                      onClick={() => handleUnmuteUser(message.channelId, message.senderId)}
-                      disabled={isProcessing}
-                      className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
-                    >
-                      <Volume2 className="w-3.5 h-3.5 text-sky-400" />
-                      <span>Unmute</span>
-                    </button>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-      )}
-
-      {/* Tab 2: Broadcast News Form */}
-      {activeTab === 'broadcast' && (
-        <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6">
-          <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-2xl bg-purple-500/20 border border-purple-400/30 text-purple-300 flex items-center justify-center">
-              <Radio className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-white">Publish Official Broadcast Notice</h2>
-              <p className="text-xs text-slate-400">
-                Official posts carry an "Official" badge and are highlighted on the main campus feed.
-              </p>
-            </div>
-          </div>
-
-          <form onSubmit={handleBroadcastSubmit} className="space-y-4">
-            <div>
-              <label htmlFor="b-title" className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
-                Announcement Title <span className="text-rose-400">*</span>
-              </label>
-              <input
-                id="b-title"
-                type="text"
-                value={bTitle}
-                onChange={(e) => setBTitle(e.target.value)}
-                placeholder="e.g., Important Notice: Mid-Term Examination Schedule Released"
-                required
-                className="w-full px-4 py-3 bg-slate-950/80 border border-slate-800 focus:border-purple-500 rounded-xl text-white text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="b-content" className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
-                Announcement Content <span className="text-rose-400">*</span>
-              </label>
-              <textarea
-                id="b-content"
-                rows={4}
-                value={bContent}
-                onChange={(e) => setBContent(e.target.value)}
-                placeholder="Provide full official update details for the student body..."
-                required
-                className="w-full px-4 py-3 bg-slate-950/80 border border-slate-800 focus:border-purple-500 rounded-xl text-white text-sm resize-none focus:outline-none focus:ring-1 focus:ring-purple-500"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="b-image" className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
-                Image Banner URL <span className="text-slate-500 font-normal">(Optional)</span>
-              </label>
-              <input
-                id="b-image"
-                type="url"
-                value={bImageUrl}
-                onChange={(e) => setBImageUrl(e.target.value)}
-                placeholder="https://images.unsplash.com/..."
-                className="w-full px-4 py-2.5 bg-slate-950/80 border border-slate-800 focus:border-purple-500 rounded-xl text-white text-xs font-mono"
-              />
-            </div>
-
-            <div className="pt-3 flex items-center justify-end">
-              <button
-                type="submit"
-                disabled={submittingBroadcast || !bTitle.trim() || !bContent.trim()}
-                className="px-6 py-3 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 disabled:opacity-40 text-white font-bold text-xs rounded-xl shadow-lg shadow-purple-500/20 flex items-center gap-2 transition-all"
-              >
-                {submittingBroadcast ? (
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Send className="w-4 h-4" />
-                )}
-                <span>Publish Official Broadcast</span>
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* Tab 3: Users Placeholder Table */}
-      {activeTab === 'users' && (
-        <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-            <div className="flex items-center gap-2">
-              <UsersIcon className="w-5 h-5 text-sky-400" />
-              <h2 className="text-lg font-bold text-white">Campus User Registry Overview</h2>
-            </div>
-            <span className="px-3 py-1 bg-sky-500/10 text-sky-400 border border-sky-500/20 rounded-full text-xs font-semibold">
-              Phase 23 Overview
-            </span>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-slate-300">
-              <thead className="bg-slate-950/80 text-slate-500 uppercase text-[10px] tracking-wider font-bold">
-                <tr>
-                  <th className="p-3 rounded-l-xl">User Name</th>
-                  <th className="p-3">Role</th>
-                  <th className="p-3">Gamification Points</th>
-                  <th className="p-3 rounded-r-xl">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60">
-                <tr>
-                  <td className="p-3 font-semibold text-white">System Admin ({userProfile?.displayName || 'Admin'})</td>
-                  <td className="p-3"><span className="px-2 py-0.5 bg-purple-500/20 text-purple-300 rounded font-bold">Admin</span></td>
-                  <td className="p-3 font-mono font-bold text-amber-400">{userProfile?.points ?? 0} pts</td>
-                  <td className="p-3"><span className="text-emerald-400 font-semibold">Active Session</span></td>
-                </tr>
-                <tr>
-                  <td className="p-3 font-medium text-slate-300">Student Users Directory</td>
-                  <td className="p-3"><span className="px-2 py-0.5 bg-slate-800 text-slate-400 rounded">Student</span></td>
-                  <td className="p-3 font-mono text-slate-400">Dynamic</td>
-                  <td className="p-3"><span className="text-slate-500 italic">Full User Management Module Coming Soon</span></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Tab 4: Chat Staged Rollout & Kill Switch Control */}
-      {activeTab === 'rollout' && (
-        <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-sky-500/10 border border-sky-500/20 text-sky-400 flex items-center justify-center">
-                <Sliders className="w-5 h-5" />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-white">Community Chat Staged Rollout & Kill Switch</h2>
-                <p className="text-xs text-slate-400">Control Chat access percentage deterministically without redeploying</p>
-              </div>
-            </div>
-
-            <button
-              onClick={fetchChatFlag}
-              disabled={loadingFlag}
-              className="p-2 bg-slate-950 hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl border border-slate-800 transition-all text-xs"
-              title="Refresh Feature Flag"
-            >
-              <RefreshCw className={`w-4 h-4 ${loadingFlag ? 'animate-spin' : ''}`} />
-            </button>
-          </div>
-
-          {/* Current Status Overview */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-5 bg-slate-950/80 border border-slate-800 rounded-2xl space-y-2">
-              <span className="text-[11px] font-bold uppercase text-slate-400 tracking-wider">Current Status</span>
-              <div className="flex items-center gap-2">
-                <Power className={`w-5 h-5 ${chatFlag.enabled && chatFlag.rolloutPercentage > 0 ? 'text-emerald-400' : 'text-rose-400'}`} />
-                <span className="text-lg font-black text-white">
-                  {chatFlag.enabled && chatFlag.rolloutPercentage > 0 ? 'ACTIVE ROLLOUT' : 'DISABLED (KILL SWITCH)'}
-                </span>
-              </div>
-            </div>
-
-            <div className="p-5 bg-slate-950/80 border border-slate-800 rounded-2xl space-y-2">
-              <span className="text-[11px] font-bold uppercase text-slate-400 tracking-wider">Rollout Percentage</span>
-              <div className="text-2xl font-black font-mono text-sky-400">
-                {chatFlag.rolloutPercentage}%
-              </div>
-            </div>
-
-            <div className="p-5 bg-slate-950/80 border border-slate-800 rounded-2xl space-y-2">
-              <span className="text-[11px] font-bold uppercase text-slate-400 tracking-wider">Last Modified By</span>
-              <p className="text-xs font-mono text-slate-300 truncate">
-                {chatFlag.updatedBy || 'System Admin'}
-              </p>
-            </div>
-          </div>
-
-          {/* Kill Switch Banner & Action */}
-          <div className="p-6 bg-rose-500/10 border border-rose-500/20 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-rose-300 font-bold text-sm">
-                <AlertOctagon className="w-5 h-5 text-rose-400 shrink-0" />
-                <span>Emergency Kill Switch</span>
-              </div>
-              <p className="text-xs text-slate-400 max-w-xl">
-                Immediately sets rollout percentage to 0% and disables Community Chat for all non-admin students across the app without redeploying the frontend bundle.
-              </p>
-            </div>
-
-            <button
-              onClick={() => {
-                setPendingPercentage(0);
-                setPendingEnabled(false);
-                setConfirmModalOpen(true);
-              }}
-              className="px-5 py-2.5 bg-rose-500 hover:bg-rose-400 text-white font-bold text-xs rounded-xl shadow-lg shadow-rose-500/20 shrink-0 flex items-center gap-2 transition-all"
-            >
-              <Power className="w-4 h-4" />
-              <span>TRIGGER KILL SWITCH (0%)</span>
-            </button>
-          </div>
-
-          {/* Preset Staged Rollout Selection */}
-          <div className="space-y-4 pt-4 border-t border-slate-800">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">
-              Select Staged Rollout Target
-            </h3>
-
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-              {[
-                { label: '0% (Kill Switch)', value: 0 },
-                { label: '5% (Stage 1)', value: 5 },
-                { label: '25% (Stage 2)', value: 25 },
-                { label: '60% (Stage 3)', value: 60 },
-                { label: '100% (Full Launch)', value: 100 },
-              ].map((stage) => (
                 <button
-                  key={stage.value}
-                  type="button"
-                  onClick={() => setSelectedPercentage(stage.value)}
-                  className={`p-4 rounded-2xl border text-center transition-all ${
-                    selectedPercentage === stage.value
-                      ? 'bg-sky-500/20 border-sky-500 text-white font-black shadow-lg shadow-sky-500/10'
-                      : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left text-xs font-bold transition-all ${
+                    isActive
+                      ? 'bg-purple-500/10 border border-purple-550/20 text-purple-300'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
                   }`}
                 >
-                  <div className="text-xl font-bold font-mono">{stage.value}%</div>
-                  <div className="text-[10px] mt-1 truncate">{stage.label}</div>
+                  <Icon className="w-4 h-4 shrink-0" />
+                  <span>{tab.label}</span>
                 </button>
-              ))}
+              );
+            })}
+          </div>
+        </div>
+      </nav>
+
+      {/* Main Content Area */}
+      <div className="flex-1 bg-slate-900 border border-slate-800 rounded-3xl p-6 min-h-[500px] shadow-xl space-y-6">
+        
+        {/* Dashboard Tab */}
+        {activeTab === 'dashboard' && (
+          <div className="space-y-6">
+            <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+              <Sliders className="w-5 h-5 text-purple-400" />
+              <h2 className="text-base font-bold text-white">System Controls Dashboard</h2>
             </div>
 
-            <div className="flex items-center gap-4 pt-2">
-              <div className="flex-1 max-w-xs">
-                <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">
-                  Custom Rollout Percentage (0-100)
-                </label>
-                <input
-                  type="number"
-                  min={0}
-                  max={100}
-                  value={selectedPercentage}
-                  onChange={(e) => setSelectedPercentage(Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
-                  className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white font-mono text-sm focus:border-sky-500 focus:outline-none"
-                />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="p-4 bg-slate-950 border border-slate-850 rounded-2xl space-y-1">
+                <span className="text-[10px] uppercase font-bold text-slate-500">Security Gate</span>
+                <p className="text-xs text-white font-semibold flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  <span>Active Session</span>
+                </p>
               </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setPendingPercentage(selectedPercentage);
-                  setPendingEnabled(selectedPercentage > 0);
-                  setConfirmModalOpen(true);
-                }}
-                className="mt-5 px-6 py-2.5 bg-sky-500 hover:bg-sky-400 text-white font-bold text-xs rounded-xl shadow-lg shadow-sky-500/20 transition-all flex items-center gap-2"
-              >
-                <Sliders className="w-4 h-4" />
-                <span>Save Rollout Setting</span>
-              </button>
+              <div className="p-4 bg-slate-950 border border-slate-850 rounded-2xl space-y-1">
+                <span className="text-[10px] uppercase font-bold text-slate-500">Active Reports</span>
+                <p className="text-xs text-white font-semibold">
+                  {reportsList.filter(r => r.status === 'OPEN').length} active flags pending
+                </p>
+              </div>
+
+              <div className="p-4 bg-slate-950 border border-slate-850 rounded-2xl space-y-1">
+                <span className="text-[10px] uppercase font-bold text-slate-500">System Status</span>
+                <button
+                  onClick={() => navigate('/admin/system-health')}
+                  className="text-xs text-sky-400 hover:underline font-semibold flex items-center gap-1"
+                >
+                  <span>View health metrics</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Broadcast Form inside Dashboard tab */}
+            <div className="border-t border-slate-800 pt-6">
+              <h3 className="text-sm font-bold text-white mb-4">Quick Actions: Publish Broadcast</h3>
+              <form onSubmit={handleBroadcastSubmit} className="space-y-4 max-w-2xl">
+                <input
+                  type="text"
+                  value={bTitle}
+                  onChange={(e) => setBTitle(e.target.value)}
+                  placeholder="Broadcast Title..."
+                  required
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-850 rounded-xl text-xs text-white focus:outline-none"
+                />
+                <textarea
+                  rows={3}
+                  value={bContent}
+                  onChange={(e) => setBContent(e.target.value)}
+                  placeholder="Broadcast Content..."
+                  required
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-850 rounded-xl text-xs text-white focus:outline-none resize-none"
+                />
+                <button
+                  type="submit"
+                  disabled={submittingBroadcast}
+                  className="px-4 py-2 bg-purple-500 text-slate-950 font-bold text-xs rounded-xl flex items-center gap-1"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>Send Broadcast</span>
+                </button>
+              </form>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Campus Alerts Tab Content */}
-      {activeTab === 'campus-alerts' && (
-        <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-6">
-          <AlertHistory onSelectAlert={(pId) => setSelectedAlertPostId(pId)} />
-          {selectedAlertPostId && (
-            <AlertAdminDetail postId={selectedAlertPostId} onClose={() => setSelectedAlertPostId(null)} />
-          )}
-        </div>
-      )}
-
-      {/* Confirmation Modal */}
-      {confirmModalOpen && pendingPercentage !== null && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="max-w-md w-full p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-5 shadow-2xl">
-            <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center mx-auto">
-              <AlertTriangle className="w-6 h-6" />
+        {/* Users Directory Tab */}
+        {activeTab === 'users' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                <UsersIcon className="w-5 h-5 text-purple-400" />
+                <span>Campus Users Directory ({filteredUsers.length})</span>
+              </h2>
+              <button onClick={fetchUsers} className="p-1 text-slate-400 hover:text-white">
+                <RefreshCw className="w-4 h-4" />
+              </button>
             </div>
 
-            <div className="text-center space-y-2">
-              <h3 className="text-lg font-bold text-white">Confirm Chat Rollout Change</h3>
-              <p className="text-xs text-slate-400">
-                Are you sure you want to change Community Chat rollout from{' '}
-                <span className="font-bold text-sky-400">{chatFlag.rolloutPercentage}%</span> to{' '}
-                <span className="font-bold text-amber-400">{pendingPercentage}%</span>?
-              </p>
-              {pendingPercentage === 0 && (
-                <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs font-semibold rounded-xl mt-2">
-                  ⚠️ This acts as an emergency Kill Switch and disables Chat for all regular students.
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+              <input
+                type="text"
+                value={userSearchQuery}
+                onChange={(e) => setUserSearchQuery(e.target.value)}
+                placeholder="Search user by display name, username, or email..."
+                className="w-full pl-9 pr-4 py-2.5 bg-slate-950 border border-slate-850 rounded-xl text-xs text-white focus:outline-none"
+              />
+            </div>
+
+            {loadingUsers ? (
+              <p className="text-xs text-slate-400 text-center py-6">Loading user accounts...</p>
+            ) : (
+              <div className="overflow-x-auto border border-slate-850 rounded-2xl">
+                <table className="w-full text-left text-xs text-slate-300">
+                  <thead className="bg-slate-950 text-slate-500 uppercase text-[9px] font-bold tracking-wider">
+                    <tr>
+                      <th className="p-3">User Details</th>
+                      <th className="p-3">Role</th>
+                      <th className="p-3">Points</th>
+                      <th className="p-3">Status</th>
+                      <th className="p-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-850 bg-slate-900/30">
+                    {filteredUsers.map((u) => (
+                      <tr key={u.uid} className="hover:bg-slate-900/40">
+                        <td className="p-3">
+                          <div>
+                            <p className="font-bold text-white">{u.displayName}</p>
+                            <p className="text-[10px] text-sky-400">@{u.username || 'student'}</p>
+                            <p className="text-[10px] text-slate-500">{u.email || u.phone || 'No email'}</p>
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                            u.role === 'admin' ? 'bg-purple-500/20 text-purple-300' : 'bg-slate-800 text-slate-400'
+                          }`}>
+                            {u.role || 'student'}
+                          </span>
+                        </td>
+                        <td className="p-3 font-mono font-bold text-amber-400">{u.points || 0} pts</td>
+                        <td className="p-3">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            u.profileStatus === 'suspended' ? 'bg-rose-500/25 text-rose-400' : 'bg-emerald-500/20 text-emerald-300'
+                          }`}>
+                            {u.profileStatus || 'active'}
+                          </span>
+                        </td>
+                        <td className="p-3 text-right space-x-2">
+                          <button
+                            onClick={() => handleToggleUserRole(u.uid, u.role)}
+                            className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-[10px] font-bold rounded-lg"
+                          >
+                            Toggle Role
+                          </button>
+                          <button
+                            onClick={() => handleToggleUserSuspension(u.uid, u.profileStatus)}
+                            className={`px-2.5 py-1 text-[10px] font-bold rounded-lg ${
+                              u.profileStatus === 'suspended'
+                                ? 'bg-emerald-555/20 text-emerald-400 border border-emerald-500/30'
+                                : 'bg-rose-555/20 text-rose-400 border border-rose-500/30'
+                            }`}
+                          >
+                            {u.profileStatus === 'suspended' ? 'Activate' : 'Suspend'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Unified Reports Tab */}
+        {activeTab === 'reports' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                <AlertOctagon className="w-5 h-5 text-rose-400" />
+                <span>Unified Moderation Reports Queue ({reportsList.length})</span>
+              </h2>
+              <div className="flex items-center gap-3">
+                <select
+                  value={reportFilter}
+                  onChange={(e) => setReportFilter(e.target.value as any)}
+                  className="bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1 text-xs text-white"
+                >
+                  <option value="ALL">All Reports</option>
+                  <option value="OPEN">Open Only</option>
+                  <option value="REVIEWING">Reviewing</option>
+                  <option value="RESOLVED">Resolved</option>
+                  <option value="DISMISSED">Dismissed</option>
+                </select>
+                <button onClick={fetchUnifiedReports} className="p-1 text-slate-400 hover:text-white">
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {loadingReports ? (
+              <p className="text-xs text-slate-400 text-center py-6">Fetching moderation requests...</p>
+            ) : reportsList.length === 0 ? (
+              <p className="text-xs text-slate-500 italic text-center py-8">No reports matches this filter status.</p>
+            ) : (
+              <div className="grid grid-cols-1 gap-4">
+                {reportsList.map((rep) => (
+                  <div key={rep.id} className="p-4 bg-slate-950 border border-slate-850 rounded-2xl space-y-3 relative">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-850 pb-2">
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase ${
+                          rep.status === 'OPEN'
+                            ? 'bg-rose-500/25 text-rose-400 border border-rose-500/30'
+                            : rep.status === 'REVIEWING'
+                              ? 'bg-amber-500/25 text-amber-400'
+                              : 'bg-slate-800 text-slate-500'
+                        }`}>
+                          {rep.status}
+                        </span>
+                        <span className="text-[10px] text-sky-400 font-mono">Target: {rep.targetType} ({rep.targetId})</span>
+                      </div>
+                      <span className="text-[10px] text-slate-500 font-mono">
+                        {rep.createdAt ? new Date(rep.createdAt.toMillis?.() || rep.createdAt).toLocaleString() : ''}
+                      </span>
+                    </div>
+
+                    <div className="text-xs space-y-1">
+                      <p className="text-slate-400 font-bold">Reason: <span className="text-white font-medium">{rep.reason}</span></p>
+                      {rep.description && <p className="text-slate-400">Notes: <span className="text-slate-200">{rep.description}</span></p>}
+                      <p className="text-[10px] text-slate-500">Submitted by Reporter UID: {rep.reporterId}</p>
+                    </div>
+
+                    {/* Action buttons */}
+                    {rep.status === 'OPEN' && (
+                      <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-900">
+                        <button
+                          onClick={() => rep.id && handleResolveReport(rep.id, 'DISMISSED')}
+                          className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-[10px] font-bold rounded-lg text-slate-300"
+                        >
+                          Dismiss Flag
+                        </button>
+                        <button
+                          onClick={() => rep.id && handleResolveReport(rep.id, 'RESOLVED')}
+                          className="px-2.5 py-1 bg-emerald-500 hover:bg-emerald-450 text-[10px] font-bold rounded-lg text-slate-950"
+                        >
+                          Mark Resolved
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (window.confirm('Delete this reported content?')) {
+                              await deleteDoc(doc(db, rep.targetType === 'post' ? 'posts' : rep.targetType === 'marketplace' ? 'marketplaceListings' : rep.targetType === 'opportunity' ? 'opportunities' : rep.targetType === 'event' ? 'events' : 'posts', rep.targetId));
+                              if (rep.id) await handleResolveReport(rep.id, 'RESOLVED');
+                              toast.success('Reported content removed.');
+                            }
+                          }}
+                          className="px-2.5 py-1 bg-rose-500 hover:bg-rose-450 text-[10px] font-bold rounded-lg text-white"
+                        >
+                          Remove Content
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Groups Management */}
+        {activeTab === 'groups' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                <UsersIcon className="w-5 h-5 text-purple-400" />
+                <span>Campus Groups Registry ({filteredGroups.length})</span>
+              </h2>
+              <button onClick={fetchGroups} className="p-1 text-slate-400 hover:text-white">
+                <RefreshCw className="w-4 h-4" />
+              </button>
+            </div>
+
+            <input
+              type="text"
+              value={groupSearchQuery}
+              onChange={(e) => setGroupSearchQuery(e.target.value)}
+              placeholder="Search group by name..."
+              className="w-full px-3 py-2 bg-slate-950 border border-slate-850 rounded-xl text-xs text-white focus:outline-none"
+            />
+
+            {loadingGroups ? (
+              <p className="text-xs text-slate-400 text-center">Loading campus groups...</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {filteredGroups.map((g) => (
+                  <div key={g.id} className="p-4 bg-slate-950 border border-slate-850 rounded-2xl flex items-center justify-between">
+                    <div>
+                      <p className="font-bold text-white text-xs">{g.name}</p>
+                      <p className="text-[10px] text-slate-500">{g.memberCount || 0} members • Category: {g.category}</p>
+                      <p className={`text-[10px] font-bold mt-1 ${g.active ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {g.active ? 'Active' : 'Deactivated'}
+                      </p>
+                    </div>
+                    {g.active && (
+                      <button
+                        onClick={() => g.id && handleRemoveGroup(g.id)}
+                        className="px-2 py-1 bg-rose-500/20 text-rose-400 border border-rose-500/30 hover:bg-rose-500 hover:text-white rounded-lg text-[10px] font-bold transition-all"
+                      >
+                        Deactivate
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Feed Posts Tab */}
+        {activeTab === 'posts' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                <FileText className="w-5 h-5 text-purple-400" />
+                <span>Feed Posts List ({filteredPosts.length})</span>
+              </h2>
+              <button onClick={fetchPosts} className="p-1 text-slate-400 hover:text-white">
+                <RefreshCw className="w-4 h-4" />
+              </button>
+            </div>
+
+            <input
+              type="text"
+              value={postSearchQuery}
+              onChange={(e) => setPostSearchQuery(e.target.value)}
+              placeholder="Search posts by title or content..."
+              className="w-full px-3 py-2 bg-slate-950 border border-slate-850 rounded-xl text-xs text-white focus:outline-none"
+            />
+
+            {loadingPosts ? (
+              <p className="text-xs text-slate-400 text-center">Loading feed posts...</p>
+            ) : (
+              <div className="grid grid-cols-1 gap-3">
+                {filteredPosts.map((post) => (
+                  <div key={post.id} className="p-4 bg-slate-950 border border-slate-850 rounded-2xl flex items-center justify-between">
+                    <div className="space-y-1">
+                      <span className="px-1.5 py-0.5 rounded bg-slate-800 text-sky-400 text-[9px] font-mono uppercase">{post.category}</span>
+                      <h4 className="font-bold text-white text-xs">{post.title || 'Untitled Post'}</h4>
+                      <p className="text-[10px] text-slate-400 line-clamp-1">{post.content}</p>
+                    </div>
+                    <button
+                      onClick={() => post.id && handleDelete(post.id)}
+                      className="p-1.5 bg-rose-500/10 hover:bg-rose-500 border border-rose-500/20 text-rose-400 hover:text-white rounded-xl transition-all"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Marketplace Tab */}
+        {activeTab === 'marketplace' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                <Sliders className="w-5 h-5 text-purple-400" />
+                <span>Marketplace Listings Registry ({filteredListings.length})</span>
+              </h2>
+              <button onClick={fetchListings} className="p-1 text-slate-400 hover:text-white">
+                <RefreshCw className="w-4 h-4" />
+              </button>
+            </div>
+
+            <input
+              type="text"
+              value={listingSearchQuery}
+              onChange={(e) => setListingSearchQuery(e.target.value)}
+              placeholder="Search listings by title..."
+              className="w-full px-3 py-2 bg-slate-950 border border-slate-850 rounded-xl text-xs text-white focus:outline-none"
+            />
+
+            {loadingListings ? (
+              <p className="text-xs text-slate-400 text-center">Loading marketplace items...</p>
+            ) : (
+              <div className="grid grid-cols-1 gap-3">
+                {filteredListings.map((l) => (
+                  <div key={l.id} className="p-4 bg-slate-950 border border-slate-850 rounded-2xl flex items-center justify-between">
+                    <div>
+                      <p className="font-bold text-white text-xs">{l.title}</p>
+                      <p className="text-[10px] text-slate-500">Price: ₹{l.price} • Status: {l.status}</p>
+                    </div>
+                    <button
+                      onClick={() => l.id && handleRemoveListing(l.id)}
+                      className="p-1.5 bg-rose-500/10 hover:bg-rose-500 border border-rose-500/20 text-rose-400 hover:text-white rounded-xl transition-all"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Opportunities Tab */}
+        {activeTab === 'opportunities' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                <Sliders className="w-5 h-5 text-purple-400" />
+                <span>Opportunities Hub Registry ({filteredOpps.length})</span>
+              </h2>
+              <button onClick={fetchOpps} className="p-1 text-slate-400 hover:text-white">
+                <RefreshCw className="w-4 h-4" />
+              </button>
+            </div>
+
+            <input
+              type="text"
+              value={oppsSearchQuery}
+              onChange={(e) => setOppsSearchQuery(e.target.value)}
+              placeholder="Search opportunities by title..."
+              className="w-full px-3 py-2 bg-slate-950 border border-slate-850 rounded-xl text-xs text-white focus:outline-none"
+            />
+
+            {loadingOpps ? (
+              <p className="text-xs text-slate-400 text-center">Loading opportunities list...</p>
+            ) : (
+              <div className="grid grid-cols-1 gap-3">
+                {filteredOpps.map((o) => (
+                  <div key={o.id} className="p-4 bg-slate-950 border border-slate-850 rounded-2xl flex items-center justify-between">
+                    <div>
+                      <p className="font-bold text-white text-xs">{o.title}</p>
+                      <p className="text-[10px] text-slate-500">{o.organizationName || o.organization} • Type: {o.type} ({o.status})</p>
+                    </div>
+                    <button
+                      onClick={() => o.id && handleRemoveOpportunity(o.id)}
+                      className="p-1.5 bg-rose-500/10 hover:bg-rose-500 border border-rose-500/20 text-rose-400 hover:text-white rounded-xl transition-all"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Events Tab */}
+        {activeTab === 'events' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                <Sliders className="w-5 h-5 text-purple-400" />
+                <span>Events Registry ({filteredEvents.length})</span>
+              </h2>
+              <button onClick={fetchEvents} className="p-1 text-slate-400 hover:text-white">
+                <RefreshCw className="w-4 h-4" />
+              </button>
+            </div>
+
+            <input
+              type="text"
+              value={eventSearchQuery}
+              onChange={(e) => setEventSearchQuery(e.target.value)}
+              placeholder="Search events by title..."
+              className="w-full px-3 py-2 bg-slate-950 border border-slate-850 rounded-xl text-xs text-white focus:outline-none"
+            />
+
+            {loadingEvents ? (
+              <p className="text-xs text-slate-400 text-center">Loading events registry...</p>
+            ) : (
+              <div className="grid grid-cols-1 gap-3">
+                {filteredEvents.map((ev) => (
+                  <div key={ev.id} className="p-4 bg-slate-950 border border-slate-850 rounded-2xl flex items-center justify-between">
+                    <div>
+                      <p className="font-bold text-white text-xs">{ev.title}</p>
+                      <p className="text-[10px] text-slate-500">RSVPs: {ev.rsvpCount || 0} attendee(s) • Date: {ev.date}</p>
+                    </div>
+                    <button
+                      onClick={() => ev.id && handleRemoveEvent(ev.id)}
+                      className="p-1.5 bg-rose-500/10 hover:bg-rose-500 border border-rose-500/20 text-rose-400 hover:text-white rounded-xl transition-all"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Chat Rollout Tab */}
+        {activeTab === 'rollout' && (
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6">
+            <div>
+              <h2 className="text-base font-bold text-white">Community Chat Rollout Flags</h2>
+              <p className="text-xs text-slate-400 mt-1">Control system access of non-admin student users.</p>
+            </div>
+
+            {loadingFlag ? (
+              <p className="text-xs text-slate-400 animate-pulse">Loading rollout config...</p>
+            ) : (
+              <div className="p-4 bg-slate-950 border border-slate-850 rounded-2xl space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-bold text-white">Enable Chat feature</p>
+                    <p className="text-[10px] text-slate-500">Toggle community access</p>
+                  </div>
+                  <button
+                    onClick={() => handleSaveRollout(selectedPercentage, !chatFlag.enabled)}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-xl flex items-center gap-1.5 ${
+                      chatFlag.enabled ? 'bg-emerald-500 text-slate-950' : 'bg-rose-500 text-white'
+                    }`}
+                  >
+                    <Power className="w-3.5 h-3.5" />
+                    <span>{chatFlag.enabled ? 'ENABLED' : 'DISABLED'}</span>
+                  </button>
                 </div>
-              )}
+
+                <div className="space-y-2">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase">Rollout Percentage</label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={selectedPercentage}
+                    onChange={(e) => setSelectedPercentage(parseInt(e.target.value))}
+                    className="w-full accent-purple-500 cursor-pointer"
+                  />
+                  <div className="flex justify-between text-[10px] text-slate-500 font-mono">
+                    <span>0% (Kill Switch)</span>
+                    <span className="text-purple-400 font-bold">{selectedPercentage}% Rollout</span>
+                    <span>100% (All Users)</span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => handleSaveRollout(selectedPercentage, chatFlag.enabled)}
+                  className="px-4 py-2 bg-purple-500 text-slate-950 text-xs font-bold rounded-xl"
+                >
+                  Save Rollout Percentage
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Campus Alerts Tab */}
+        {activeTab === 'campus-alerts' && (
+          <div className="space-y-4">
+            <h2 className="text-base font-bold text-white border-b border-slate-800 pb-3">Active Campus Emergency Alerts</h2>
+            {selectedAlertPostId ? (
+              <AlertAdminDetail
+                postId={selectedAlertPostId}
+                onClose={() => setSelectedAlertPostId(null)}
+              />
+            ) : (
+              <AlertHistory
+                onSelectAlert={(id: string) => setSelectedAlertPostId(id)}
+              />
+            )}
+          </div>
+        )}
+
+        {/* Platform Analytics Tab */}
+        {activeTab === 'analytics' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                <LineChart className="w-5 h-5 text-purple-400" />
+                <span>Real-Time Platform Performance Metrics</span>
+              </h2>
+              <button onClick={fetchAnalytics} className="p-1 text-slate-400 hover:text-white">
+                <RefreshCw className="w-4 h-4" />
+              </button>
             </div>
 
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setConfirmModalOpen(false)}
-                className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl text-xs transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSaveRollout(pendingPercentage, pendingEnabled ?? true)}
-                disabled={processingId === 'saving-flag'}
-                className="flex-1 py-3 bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-white font-bold rounded-xl text-xs transition-colors shadow-lg shadow-sky-500/20"
-              >
-                Confirm & Update
+            {loadingAnalytics ? (
+              <p className="text-xs text-slate-400 text-center py-6">Aggregating database counters...</p>
+            ) : !analytics ? (
+              <p className="text-xs text-slate-400 text-center py-6">No metrics loaded.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {[
+                  { label: 'Total Users', value: analytics.usersTotal, sub: `${analytics.usersNew} new this week` },
+                  { label: 'Total Posts', value: analytics.postsTotal, sub: 'Main campus feed' },
+                  { label: 'Total Comments', value: analytics.commentsTotal, sub: 'Across feed posts' },
+                  { label: 'Friendships Formed', value: analytics.friendshipsTotal, sub: 'Social graph connections' },
+                  { label: 'Campus Groups', value: analytics.groupsTotal, sub: `${analytics.groupMembershipsTotal} total members` },
+                  { label: 'Marketplace Listings', value: analytics.listingsTotal, sub: `${analytics.listingsSold} items sold` },
+                  { label: 'Active Opportunities', value: analytics.opportunitiesActive, sub: 'Active listings only' },
+                  { label: 'Upcoming Events', value: analytics.eventsUpcoming, sub: `${analytics.eventsRsvps} RSVPs submitted` },
+                  { label: 'Pending Safety Reports', value: analytics.reportsOpen, sub: `${analytics.reportsResolved} resolved logs` },
+                ].map((item, idx) => (
+                  <div key={idx} className="p-4 bg-slate-950 border border-slate-850 rounded-2xl space-y-1">
+                    <span className="text-[10px] uppercase font-bold text-slate-500">{item.label}</span>
+                    <p className="text-2xl font-black text-white">{item.value}</p>
+                    <p className="text-[10px] text-slate-400 font-medium">{item.sub}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Moderator Logs Tab */}
+        {activeTab === 'audit-logs' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                <ClipboardList className="w-5 h-5 text-purple-400" />
+                <span>Immutable Moderator Audit Trail Logs ({auditLogs.length})</span>
+              </h2>
+              <button onClick={fetchAudits} className="p-1.5 bg-slate-900 border border-slate-850 rounded-xl text-slate-400 hover:text-white">
+                <RefreshCw className="w-3.5 h-3.5" />
               </button>
             </div>
+
+            {loadingAudits ? (
+              <p className="text-xs text-slate-400 text-center py-6">Loading audit trail...</p>
+            ) : (
+              <div className="space-y-3">
+                {auditLogs.map((log) => (
+                  <div key={log.id} className="p-3 bg-slate-950 border border-slate-850 rounded-xl text-xs flex items-center justify-between gap-4">
+                    <div className="space-y-0.5">
+                      <p className="text-slate-400 font-bold">
+                        Mod ID: <span className="text-purple-300 font-mono">{log.moderatorId}</span>
+                      </p>
+                      <p className="text-white">
+                        Action: <span className="font-bold text-sky-400 font-mono">{log.action}</span> on {log.targetType} ({log.targetId})
+                      </p>
+                      {log.reason && <p className="text-slate-500 text-[10px]">Reason: {log.reason}</p>}
+                    </div>
+                    <span className="text-[10px] text-slate-600 font-mono whitespace-nowrap shrink-0">
+                      {log.timestamp ? new Date(log.timestamp.toMillis?.() || log.timestamp).toLocaleString() : ''}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        )}
+
+      </div>
     </div>
   );
 };

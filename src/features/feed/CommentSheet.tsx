@@ -1,13 +1,15 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useOverlayBackHandler } from '../../hooks/useOverlayBackHandler';
-import { getCommentsPage, addComment, deleteComment, reactToComment } from '../../services/commentService';
+import { getCommentsPage, addComment, deleteComment, reactToComment, getRepliesPage } from '../../services/commentService';
 import type { Comment } from '../../types';
 import { formatTimestamp } from '../../utils/format';
 import toast from 'react-hot-toast';
-import { X, Send, MessageSquare, User, RefreshCw, Sparkles, Trash2, CornerDownRight, Heart } from 'lucide-react';
+import { X, Send, MessageSquare, User, RefreshCw, Sparkles, Trash2, CornerDownRight, Heart, AtSign } from 'lucide-react';
 import type { QueryDocumentSnapshot } from 'firebase/firestore';
+import { collection, query, where, limit, getDocs } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 
 interface CommentSheetProps {
   isOpen: boolean;
@@ -39,6 +41,17 @@ export const CommentSheet: React.FC<CommentSheetProps> = ({
   // Reply states
   const [replyToCommentId, setReplyToCommentId] = useState<string | null>(null);
   const [replyToAuthorName, setReplyToAuthorName] = useState<string | null>(null);
+
+  // Inline reply expansion state
+  const [expandedReplies, setExpandedReplies] = useState<Record<string, Comment[]>>({});
+  const [loadingReplies, setLoadingReplies] = useState<Record<string, boolean>>({});
+
+  // @mention autocomplete state
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [_mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentionSuggestions, setMentionSuggestions] = useState<{ uid: string; username: string; displayName: string; photoURL?: string }[]>([]);
+  const [showMentions, setShowMentions] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const commentsEndRef = useRef<HTMLDivElement>(null);
 
@@ -116,7 +129,15 @@ export const CommentSheet: React.FC<CommentSheetProps> = ({
         postAuthorId,
         replyToCommentId || undefined
       );
-      setComments((prev) => [...prev, newComment]);
+      // If it's a reply, append to expanded replies; otherwise append to root comments
+      if (replyToCommentId) {
+        setExpandedReplies((prev) => ({
+          ...prev,
+          [replyToCommentId]: [...(prev[replyToCommentId] || []), newComment],
+        }));
+      } else {
+        setComments((prev) => [...prev, newComment]);
+      }
       setText('');
       setReplyToCommentId(null);
       setReplyToAuthorName(null);
@@ -126,6 +147,68 @@ export const CommentSheet: React.FC<CommentSheetProps> = ({
       setSubmitting(false);
     }
   };
+
+  const handleLoadReplies = useCallback(async (commentId: string) => {
+    if (loadingReplies[commentId]) return;
+    setLoadingReplies((prev) => ({ ...prev, [commentId]: true }));
+    try {
+      const replies = await getRepliesPage(postId, commentId, 20);
+      setExpandedReplies((prev) => ({ ...prev, [commentId]: replies }));
+    } catch {
+      toast.error('Failed to load replies.');
+    } finally {
+      setLoadingReplies((prev) => ({ ...prev, [commentId]: false }));
+    }
+  }, [postId, loadingReplies]);
+
+  // Handle @mention detection in input
+  const handleTextChange = useCallback(async (value: string) => {
+    setText(value);
+    // Look for @mention at end of text or anywhere in text
+    const mentionMatch = value.match(/@([a-z0-9_]{1,30})$/i);
+    if (mentionMatch) {
+      const q = mentionMatch[1].toLowerCase();
+      setMentionQuery(q);
+      if (q.length >= 1) {
+        try {
+          const usersCol = collection(db, 'users');
+          // Firebase doesn't support full-text search, so we use prefix range query
+          const snap = await getDocs(
+            query(
+              usersCol,
+              where('username', '>=', q),
+              where('username', '<=', q + '\uf8ff'),
+              limit(5)
+            )
+          );
+          const suggestions = snap.docs.map((d) => ({
+            uid: d.id,
+            username: d.data().username || '',
+            displayName: d.data().displayName || d.data().username || '',
+            photoURL: d.data().photoURL || '',
+          })).filter((s) => s.username);
+          setMentionSuggestions(suggestions);
+          setShowMentions(suggestions.length > 0);
+        } catch {
+          setShowMentions(false);
+        }
+      } else {
+        setShowMentions(false);
+      }
+    } else {
+      setMentionQuery(null);
+      setShowMentions(false);
+    }
+  }, []);
+
+  const handleMentionSelect = useCallback((username: string) => {
+    // Replace the @-prefix in the text with the selected username
+    const newText = text.replace(/@([a-z0-9_]*)$/i, `@${username} `);
+    setText(newText);
+    setShowMentions(false);
+    setMentionQuery(null);
+    inputRef.current?.focus();
+  }, [text]);
 
   const handleDelete = async (commentId: string) => {
     if (!postId || !commentId) return;
@@ -155,9 +238,9 @@ export const CommentSheet: React.FC<CommentSheetProps> = ({
 
   if (!isOpen) return null;
 
-  // Separate root comments and nested replies
+  // Root comments only — nested replies are lazy-loaded via expandedReplies state
   const rootComments = comments.filter((c) => !c.parentCommentId);
-  const replies = comments.filter((c) => !!c.parentCommentId);
+
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
@@ -223,7 +306,6 @@ export const CommentSheet: React.FC<CommentSheetProps> = ({
               )}
 
               {rootComments.map((c) => {
-                const commentReplies = replies.filter((r) => r.parentCommentId === c.id);
                 return (
                   <div key={c.id} className="space-y-2">
                     {/* Parent Comment */}
@@ -273,25 +355,32 @@ export const CommentSheet: React.FC<CommentSheetProps> = ({
                           onClick={() => {
                             setReplyToCommentId(c.id!);
                             setReplyToAuthorName(c.authorName || 'Student');
+                            inputRef.current?.focus();
                           }}
                           className="hover:text-sky-400 transition-colors"
                         >
                           Reply
                         </button>
+                        {/* Show Replies Button */}
+                        <button
+                          onClick={() => handleLoadReplies(c.id!)}
+                          disabled={loadingReplies[c.id!]}
+                          className="hover:text-purple-400 transition-colors flex items-center gap-1"
+                        >
+                          {loadingReplies[c.id!] ? <RefreshCw className="w-3 h-3 animate-spin" /> : null}
+                          {expandedReplies[c.id!] ? `Hide replies` : `Show replies`}
+                        </button>
                       </div>
                     </div>
 
-                    {/* Nested Replies */}
-                    {commentReplies.map((r) => (
+                    {/* Dynamically-loaded nested replies */}
+                    {(expandedReplies[c.id!] || []).map((r) => (
                       <div key={r.id} className="pl-8 flex gap-2">
                         <CornerDownRight className="w-4 h-4 text-slate-700 shrink-0 mt-2" />
                         <div className="flex-1 p-3 bg-slate-950/60 border border-slate-850 rounded-2xl space-y-1.5 relative group">
                           <div className="flex items-center justify-between">
-                            <div 
-                              onClick={() => {
-                                navigate(`/profile/${r.authorId}`);
-                                onClose();
-                              }}
+                            <div
+                              onClick={() => { navigate(`/profile/${r.authorId}`); onClose(); }}
                               className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
                             >
                               {r.authorAvatar ? (
@@ -316,7 +405,13 @@ export const CommentSheet: React.FC<CommentSheetProps> = ({
                               )}
                             </div>
                           </div>
-                          <p className="text-xs text-slate-300 leading-relaxed pl-7">{r.text}</p>
+                          <p className="text-xs text-slate-300 leading-relaxed pl-7">
+                            {r.text.split(/(@[a-z0-9_]+)/gi).map((part, i) =>
+                              part.startsWith('@') ? (
+                                <span key={i} className="text-sky-400 font-semibold">{part}</span>
+                              ) : part
+                            )}
+                          </p>
                         </div>
                       </div>
                     ))}
@@ -345,24 +440,56 @@ export const CommentSheet: React.FC<CommentSheetProps> = ({
         )}
 
         {/* Sticky Input Footer */}
-        <form onSubmit={handleSubmit} className="p-4 border-t border-slate-800 bg-slate-950/90 shrink-0 flex items-center gap-2">
-          <input
-            type="text"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder={replyToCommentId ? `Reply to @${replyToAuthorName}...` : "Add a comment..."}
-            maxLength={500}
-            required
-            className="flex-1 px-4 py-2.5 bg-slate-900 border border-slate-800 focus:border-sky-500 rounded-xl text-white text-xs placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-sky-500 transition-all"
-          />
-          <button
-            type="submit"
-            disabled={!text.trim() || submitting}
-            className="p-2.5 bg-sky-500 hover:bg-sky-400 disabled:opacity-40 text-white rounded-xl shadow-md transition-all shrink-0"
-          >
-            {submitting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-          </button>
-        </form>
+        <div className="relative">
+          {/* @mention suggestions dropdown */}
+          {showMentions && mentionSuggestions.length > 0 && (
+            <div className="absolute bottom-full left-4 right-4 mb-1 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden">
+              {mentionSuggestions.map((s) => (
+                <button
+                  key={s.uid}
+                  type="button"
+                  onClick={() => handleMentionSelect(s.username)}
+                  className="w-full px-3 py-2 flex items-center gap-2.5 hover:bg-slate-800 transition-colors text-left"
+                >
+                  {s.photoURL ? (
+                    <img src={s.photoURL} className="w-6 h-6 rounded-full object-cover" alt="" />
+                  ) : (
+                    <div className="w-6 h-6 rounded-full bg-sky-500/20 border border-sky-400/30 flex items-center justify-center text-[9px] font-bold text-sky-300">
+                      {s.displayName.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-xs font-semibold text-white">{s.displayName}</p>
+                    <p className="text-[10px] text-slate-400">@{s.username}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+          <form onSubmit={handleSubmit} className="p-4 border-t border-slate-800 bg-slate-950/90 flex items-center gap-2">
+            <div className="flex-1 relative">
+              <input
+                ref={inputRef}
+                type="text"
+                value={text}
+                onChange={(e) => handleTextChange(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Escape') { setShowMentions(false); } }}
+                placeholder={replyToCommentId ? `Reply to @${replyToAuthorName}... (use @username to mention)` : "Add a comment... (use @username to mention)"}
+                maxLength={500}
+                required
+                className="w-full px-4 py-2.5 bg-slate-900 border border-slate-800 focus:border-sky-500 rounded-xl text-white text-xs placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-sky-500 transition-all"
+              />
+              <AtSign className="absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-600 pointer-events-none" />
+            </div>
+            <button
+              type="submit"
+              disabled={!text.trim() || submitting}
+              className="p-2.5 bg-sky-500 hover:bg-sky-400 disabled:opacity-40 text-white rounded-xl shadow-md transition-all shrink-0"
+            >
+              {submitting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );

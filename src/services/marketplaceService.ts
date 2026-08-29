@@ -9,7 +9,8 @@ import {
   orderBy, 
   limit, 
   runTransaction, 
-  serverTimestamp 
+  serverTimestamp,
+  increment
 } from 'firebase/firestore';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { db, logAnalyticsEvent } from '../lib/firebase';
@@ -216,4 +217,189 @@ export const markListingStatus = async (
   });
 
   logAnalyticsEvent(newStatus === 'sold' ? 'marketplace_listing_sold' : 'marketplace_listing_reserved', { listingId });
+};
+
+/**
+ * Updates an existing Marketplace listing.
+ */
+export const editListing = async (
+  listingId: string,
+  userId: string,
+  updates: Partial<CreateListingPayload>
+): Promise<void> => {
+  if (!listingId || !userId) throw new Error('Listing ID and User ID are required.');
+
+  const docRef = doc(db, 'marketplaceListings', listingId);
+  await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(docRef);
+    if (!snap.exists()) throw new Error('Listing not found.');
+
+    const data = snap.data() as MarketplaceListing;
+    if (data.sellerId !== userId) {
+      throw new Error('Unauthorized to edit this listing.');
+    }
+
+    const cleanTitle = updates.title?.trim();
+    const cleanDesc = updates.description?.trim();
+
+    if (cleanTitle && cleanTitle.length < 3) throw new Error('Title must be at least 3 characters.');
+    if (cleanDesc && cleanDesc.length < 5) throw new Error('Description must be at least 5 characters.');
+    if (updates.price !== undefined && (isNaN(updates.price) || updates.price < 0)) {
+      throw new Error('Valid non-negative price required.');
+    }
+
+    if (cleanTitle || cleanDesc) {
+      const prohibitedTerm = checkProhibitedKeywords(cleanTitle || '', cleanDesc || '');
+      if (prohibitedTerm) {
+        throw new Error(`Listing contains prohibited term ("${prohibitedTerm}").`);
+      }
+    }
+
+    const payload = {
+      ...(cleanTitle ? { title: cleanTitle } : {}),
+      ...(cleanDesc ? { description: cleanDesc } : {}),
+      ...(updates.category ? { category: updates.category } : {}),
+      ...(updates.price !== undefined ? { price: updates.price } : {}),
+      ...(updates.negotiable !== undefined ? { negotiable: updates.negotiable } : {}),
+      ...(updates.condition ? { condition: updates.condition } : {}),
+      ...(updates.images ? { images: updates.images } : {}),
+      ...(updates.locationArea ? { locationArea: updates.locationArea.trim() } : {}),
+      updatedAt: serverTimestamp(),
+    };
+
+    transaction.update(docRef, payload);
+  });
+
+  logAnalyticsEvent('marketplace_listing_edited', { listingId });
+};
+
+/**
+ * Deletes a Marketplace listing.
+ */
+export const deleteListing = async (listingId: string, userId: string): Promise<void> => {
+  if (!listingId || !userId) throw new Error('Listing ID and User ID are required.');
+
+  const docRef = doc(db, 'marketplaceListings', listingId);
+  const snap = await getDoc(docRef);
+  if (!snap.exists()) throw new Error('Listing not found.');
+
+  const data = snap.data() as MarketplaceListing;
+  if (data.sellerId !== userId) {
+    throw new Error('Unauthorized to delete this listing.');
+  }
+
+  // Cascading delete: delete listing doc, and delete related offers and reports
+  const batch = writeBatch(db);
+  batch.delete(docRef);
+
+  // Fetch and delete reports
+  const reportsSnap = await getDocs(collection(db, 'marketplaceListings', listingId, 'reports'));
+  reportsSnap.docs.forEach((d) => batch.delete(d.ref));
+
+  await batch.commit();
+  logAnalyticsEvent('marketplace_listing_deleted', { listingId });
+};
+
+// Import writeBatch to avoid undefined reference
+import { writeBatch } from 'firebase/firestore';
+
+/**
+ * Atomically toggles saving a listing.
+ * Path: users/{uid}/savedListings/{listingId}
+ */
+export const toggleSaveListing = async (
+  listingId: string,
+  currentUser: FirebaseUser
+): Promise<boolean> => {
+  if (!currentUser || !listingId) throw new Error('Authentication required.');
+  const uid = currentUser.uid;
+
+  const listingRef = doc(db, 'marketplaceListings', listingId);
+  const saveRef = doc(db, 'users', uid, 'savedListings', listingId);
+  let isNowSaved = false;
+
+  await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(saveRef);
+    if (snap.exists()) {
+      transaction.delete(saveRef);
+      transaction.update(listingRef, { saveCount: increment(-1) });
+      isNowSaved = false;
+    } else {
+      transaction.set(saveRef, {
+        listingId,
+        savedAt: serverTimestamp(),
+      });
+      transaction.update(listingRef, { saveCount: increment(1) });
+      isNowSaved = true;
+    }
+  });
+
+  logAnalyticsEvent(isNowSaved ? 'marketplace_listing_saved' : 'marketplace_listing_unsaved', { listingId });
+  return isNowSaved;
+};
+
+/**
+ * Checks if user has saved a listing.
+ */
+export const checkListingIsSaved = async (listingId: string, uid: string): Promise<boolean> => {
+  if (!listingId || !uid) return false;
+  try {
+    const saveRef = doc(db, 'users', uid, 'savedListings', listingId);
+    const snap = await getDoc(saveRef);
+    return snap.exists();
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Fetches saved listings.
+ */
+export const getSavedListings = async (currentUser: FirebaseUser): Promise<MarketplaceListing[]> => {
+  if (!currentUser) return [];
+  try {
+    const savesRef = collection(db, 'users', currentUser.uid, 'savedListings');
+    const snap = await getDocs(savesRef);
+    const ids = snap.docs.map((d) => d.id);
+
+    const results = await Promise.all(ids.map((id) => getListingById(id)));
+    return results.filter((o): o is MarketplaceListing => o !== null);
+  } catch (err) {
+    console.error('Error fetching saved listings:', err);
+    return [];
+  }
+};
+
+/**
+ * Reports a Marketplace listing.
+ * Path: marketplaceListings/{listingId}/reports/{userId}
+ */
+export const reportListing = async (
+  listingId: string,
+  reporterId: string,
+  reason: string
+): Promise<{ success: boolean; alreadyReported: boolean }> => {
+  if (!listingId || !reporterId) throw new Error('Listing ID and Reporter ID are required.');
+
+  const listingRef = doc(db, 'marketplaceListings', listingId);
+  const reportRef = doc(db, 'marketplaceListings', listingId, 'reports', reporterId);
+
+  let alreadyReported = false;
+
+  await runTransaction(db, async (transaction) => {
+    const reportSnap = await transaction.get(reportRef);
+    if (reportSnap.exists()) {
+      alreadyReported = true;
+      return;
+    }
+
+    transaction.set(reportRef, {
+      reporterId,
+      reason: reason.trim().slice(0, 300),
+      reportedAt: serverTimestamp(),
+    });
+    transaction.update(listingRef, { reportCount: increment(1) });
+  });
+
+  return { success: !alreadyReported, alreadyReported };
 };

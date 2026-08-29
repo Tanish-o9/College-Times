@@ -526,6 +526,22 @@ export const togglePostImportant = async (
 };
 
 /**
+ * Pin or unpin a post in a group (admin/owner only).
+ */
+export const pinPost = async (
+  postId: string,
+  isPinned: boolean
+): Promise<void> => {
+  if (!postId) return;
+  const postRef = doc(db, 'posts', postId);
+  await updateDoc(postRef, {
+    pinned: isPinned,
+    pinnedAt: isPinned ? serverTimestamp() : null,
+  });
+  logAnalyticsEvent('post_pinned_toggled', { postId, isPinned });
+};
+
+/**
  * Idempotently reacts to a post and maintains counts inside reactionCounts subfield.
  */
 export const reactToPost = async (
@@ -573,5 +589,19 @@ export const reactToPost = async (
   logAnalyticsEvent('post_reacted', { postId, reactionType });
 };
 
-
-
+/**
+ * Fetches a single post document by its ID.
+ */
+export const getPostById = async (postId: string): Promise<Post | null> => {
+  if (!postId) return null;
+  try {
+    const { getDoc } = await import('firebase/firestore');
+    const postRef = doc(db, 'posts', postId);
+    const snap = await getDoc(postRef);
+    if (!snap.exists()) return null;
+    return { id: snap.id, ...snap.data() } as Post;
+  } catch (err) {
+    console.error(`Error fetching post ${postId}:`, err);
+    return null;
+  }
+};

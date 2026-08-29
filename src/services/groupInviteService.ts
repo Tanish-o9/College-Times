@@ -52,11 +52,18 @@ export const generateUniqueInviteCode = async (): Promise<string> => {
  */
 export const createInviteCodeForGroup = async (
   groupId: string,
-  currentUserUid: string
+  currentUserUid: string,
+  maxUses?: number,
+  expiresInHours?: number
 ): Promise<string> => {
   const code = await generateUniqueInviteCode();
   const codeRef = doc(db, 'groupInviteCodes', code);
   const groupRef = doc(db, 'groups', groupId);
+
+  let expiresAt: any = null;
+  if (expiresInHours) {
+    expiresAt = new Date(Date.now() + expiresInHours * 60 * 60 * 1000);
+  }
 
   const inviteDoc: GroupInviteCodeDoc = {
     code,
@@ -64,6 +71,9 @@ export const createInviteCodeForGroup = async (
     active: true,
     createdAt: serverTimestamp(),
     createdBy: currentUserUid,
+    useCount: 0,
+    ...(maxUses !== undefined ? { maxUses } : {}),
+    ...(expiresAt ? { expiresAt } : {}),
   };
 
   await setDoc(codeRef, inviteDoc);
@@ -80,11 +90,11 @@ export const createInviteCodeForGroup = async (
 
 /**
  * Resolves a normalized pass code to its target group ID.
- * Returns null for invalid or inactive codes.
+ * Returns null for invalid, expired, or fully used codes.
  */
 export const resolveGroupInviteCode = async (
   passCode: string
-): Promise<{ groupId: string; active: boolean } | null> => {
+): Promise<GroupInviteCodeDoc | null> => {
   if (!passCode) return null;
   const normalized = passCode.trim().toUpperCase();
 
@@ -96,7 +106,20 @@ export const resolveGroupInviteCode = async (
     const data = snap.data() as GroupInviteCodeDoc;
     if (!data.active) return null;
 
-    return { groupId: data.groupId, active: data.active };
+    // Check expiration
+    if (data.expiresAt) {
+      const expDate = data.expiresAt.toDate ? data.expiresAt.toDate() : new Date(data.expiresAt);
+      if (Date.now() > expDate.getTime()) {
+        return null; // Expired
+      }
+    }
+
+    // Check maximum uses
+    if (data.maxUses !== undefined && data.useCount !== undefined && data.useCount >= data.maxUses) {
+      return null; // Max uses reached
+    }
+
+    return data;
   } catch (err) {
     console.error('Error resolving group invite code:', err);
     return null;
@@ -123,6 +146,7 @@ export const joinGroupWithPassCode = async (
 
   const { groupId } = resolved;
   const uid = currentUser.uid;
+  const codeRef = doc(db, 'groupInviteCodes', resolved.code);
   const groupRef = doc(db, 'groups', groupId);
   const memberRef = doc(db, 'groups', groupId, 'members', uid);
   const userMembershipRef = doc(db, 'users', uid, 'groupMemberships', groupId);
@@ -130,6 +154,25 @@ export const joinGroupWithPassCode = async (
   let groupName = 'Campus Group';
 
   await runTransaction(db, async (transaction) => {
+    // Re-verify code parameters inside transaction to prevent concurrency issues
+    const freshCodeSnap = await transaction.get(codeRef);
+    if (!freshCodeSnap.exists()) {
+      throw new Error('Invalid, expired, or fully used group code.');
+    }
+    const freshCodeData = freshCodeSnap.data() as GroupInviteCodeDoc;
+    if (!freshCodeData.active) {
+      throw new Error('Invalid, expired, or fully used group code.');
+    }
+    if (freshCodeData.expiresAt) {
+      const expDate = freshCodeData.expiresAt.toDate ? freshCodeData.expiresAt.toDate() : new Date(freshCodeData.expiresAt);
+      if (Date.now() > expDate.getTime()) {
+        throw new Error('Group code has expired.');
+      }
+    }
+    if (freshCodeData.maxUses !== undefined && freshCodeData.useCount !== undefined && freshCodeData.useCount >= freshCodeData.maxUses) {
+      throw new Error('Group code usage limit has been reached.');
+    }
+
     const groupSnap = await transaction.get(groupRef);
     if (!groupSnap.exists()) {
       throw new Error('Invalid or expired group code.');
@@ -178,6 +221,13 @@ export const joinGroupWithPassCode = async (
     transaction.update(groupRef, {
       memberCount: increment(1),
       updatedAt: serverTimestamp(),
+    });
+
+    const newUseCount = (freshCodeData.useCount || 0) + 1;
+    const isNowActive = freshCodeData.maxUses !== undefined ? newUseCount < freshCodeData.maxUses : true;
+    transaction.update(codeRef, {
+      useCount: increment(1),
+      active: isNowActive,
     });
   });
 

@@ -26,6 +26,7 @@ import type {
   GroupAuditLog,
 } from '../types/group';
 import { createNotification } from './notificationService';
+import { logGroupActivityEvent } from './groupActivityService';
 
 /**
  * Logs a privacy-safe audit log event for group administrative actions.
@@ -96,6 +97,26 @@ export const requestToJoinGroup = async (
   };
 
   await setDoc(reqRef, reqData);
+
+  // Send notification to group owner/creator
+  try {
+    const groupSnap = await getDoc(doc(db, 'groups', groupId));
+    if (groupSnap.exists()) {
+      const gData = groupSnap.data();
+      const ownerId = gData.createdBy;
+      if (ownerId && ownerId !== currentUser.uid) {
+        await createNotification({
+          recipientId: ownerId,
+          senderId: currentUser.uid,
+          message: `${userProfile?.displayName || currentUser.displayName || 'A student'} requested to join your group "${gData.name}".`,
+          relatedPostId: groupId,
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to send join request notification to group owner:', err);
+  }
+
   logAnalyticsEvent('group_join_request_created', { groupId });
 };
 
@@ -162,14 +183,32 @@ export const approveJoinRequest = async (
     relatedPostId: groupId,
   });
 
+  let targetProfile: User | null = null;
+  try {
+    const userSnap = await getDoc(doc(db, 'users', targetUid));
+    if (userSnap.exists()) {
+      targetProfile = userSnap.data() as User;
+    }
+  } catch (err) {
+    console.warn('Failed to fetch approved user profile:', err);
+  }
+
+  await logGroupActivityEvent(
+    groupId,
+    'membership_change',
+    targetUid,
+    targetProfile?.displayName || 'Student',
+    targetProfile?.photoURL || undefined,
+    undefined,
+    undefined,
+    'joined the group'
+  );
+
   const adminName = adminProfile?.displayName || adminUser.displayName || 'Admin';
   logGroupActivity(groupId, 'member_joined', adminUser.uid, adminName, `Approved join request for ${targetUid}`);
   logAnalyticsEvent('group_join_request_approved', { groupId, targetUid });
 };
 
-/**
- * Rejects a user's join request.
- */
 export const rejectJoinRequest = async (
   groupId: string,
   targetUid: string,
@@ -184,7 +223,32 @@ export const rejectJoinRequest = async (
     reviewedBy: adminUser.uid,
   });
 
+  createNotification({
+    recipientId: targetUid,
+    senderId: adminUser.uid,
+    message: 'Your join request was rejected.',
+    relatedPostId: groupId,
+  });
+
   logAnalyticsEvent('group_join_request_rejected', { groupId, targetUid });
+};
+
+/**
+ * Cancels a user's pending join request.
+ */
+export const cancelJoinRequest = async (
+  groupId: string,
+  currentUser: FirebaseUser
+): Promise<void> => {
+  if (!groupId || !currentUser) return;
+
+  const reqRef = doc(db, 'groups', groupId, 'joinRequests', currentUser.uid);
+  await updateDoc(reqRef, {
+    status: 'cancelled',
+    updatedAt: serverTimestamp(),
+  });
+
+  logAnalyticsEvent('group_join_request_cancelled', { groupId });
 };
 
 /**

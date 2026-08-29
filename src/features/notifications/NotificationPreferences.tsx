@@ -46,6 +46,19 @@ export const NotificationPreferences: React.FC = () => {
   // Digest mode
   const [digestMode, setDigestMode] = useState<'immediate' | 'hourly' | 'daily'>('immediate');
 
+  // Tri-state preferences (Phase 4)
+  const [friendRequestsPreference, setFriendRequestsPreference] = useState<'all' | 'important' | 'off'>('all');
+  const [friendAcceptancePreference, setFriendAcceptancePreference] = useState<'all' | 'important' | 'off'>('all');
+  const [likesReactionsPreference, setLikesReactionsPreference] = useState<'all' | 'important' | 'off'>('all');
+  const [commentsPreference, setCommentsPreference] = useState<'all' | 'important' | 'off'>('all');
+  const [repliesPreference, setRepliesPreference] = useState<'all' | 'important' | 'off'>('all');
+  const [mentionsPreference, setMentionsPreference] = useState<'all' | 'important' | 'off'>('all');
+  const [messagesPreference, setMessagesPreference] = useState<'all' | 'important' | 'off'>('all');
+  const [groupActivityPreference, setGroupActivityPreference] = useState<'all' | 'important' | 'off'>('all');
+  const [eventsPreference, setEventsPreference] = useState<'all' | 'important' | 'off'>('all');
+  const [marketplacePreference, setMarketplacePreference] = useState<'all' | 'important' | 'off'>('all');
+  const [opportunitiesPreference, setOpportunitiesPreference] = useState<'all' | 'important' | 'off'>('all');
+
   const loadPreferences = async () => {
     if (!currentUser) return;
     setLoading(true);
@@ -79,6 +92,18 @@ export const NotificationPreferences: React.FC = () => {
       if (prefs.digestMode) {
         setDigestMode(prefs.digestMode);
       }
+      // Load tri-state preferences
+      setFriendRequestsPreference(prefs.friendRequestsPreference || 'all');
+      setFriendAcceptancePreference(prefs.friendAcceptancePreference || 'all');
+      setLikesReactionsPreference(prefs.likesReactionsPreference || 'all');
+      setCommentsPreference(prefs.commentsPreference || 'all');
+      setRepliesPreference(prefs.repliesPreference || 'all');
+      setMentionsPreference(prefs.mentionsPreference || 'all');
+      setMessagesPreference(prefs.messagesPreference || 'all');
+      setGroupActivityPreference(prefs.groupActivityPreference || 'all');
+      setEventsPreference(prefs.eventsPreference || 'all');
+      setMarketplacePreference(prefs.marketplacePreference || 'all');
+      setOpportunitiesPreference(prefs.opportunitiesPreference || 'all');
     } catch (err) {
       toast.error('Failed to load notification settings.');
     } finally {
@@ -119,6 +144,18 @@ export const NotificationPreferences: React.FC = () => {
           end: quietHoursEnd,
         },
         digestMode,
+        // Tri-state preferences
+        friendRequestsPreference,
+        friendAcceptancePreference,
+        likesReactionsPreference,
+        commentsPreference,
+        repliesPreference,
+        mentionsPreference,
+        messagesPreference,
+        groupActivityPreference,
+        eventsPreference,
+        marketplacePreference,
+        opportunitiesPreference,
       };
 
       await updateUserNotificationPreferences(currentUser.uid, updatedPrefs);
@@ -318,7 +355,72 @@ export const NotificationPreferences: React.FC = () => {
             ))}
           </div>
         </section>
+
+        {/* Tri-state Category Preferences */}
+        <section className="p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-4 shadow-xl">
+          <div>
+            <h2 className="text-sm font-bold text-white flex items-center gap-2">
+              <Bell className="w-4 h-4 text-purple-400" />
+              <span>Category Notification Control</span>
+            </h2>
+            <p className="text-[11px] text-slate-500 mt-1">Choose how each notification type is delivered</p>
+          </div>
+
+          {/* Tri-state selector helper */}
+          {(() => {
+            type PrefVal = 'all' | 'important' | 'off';
+            const TriStateSelector = ({
+              label,
+              value,
+              onChange,
+            }: {
+              label: string;
+              value: PrefVal;
+              onChange: (v: PrefVal) => void;
+            }) => (
+              <div className="p-3 bg-slate-950/40 border border-slate-800 rounded-2xl flex items-center justify-between gap-3">
+                <span className="text-xs text-slate-300 font-semibold">{label}</span>
+                <div className="flex items-center gap-1 bg-slate-900 rounded-xl p-0.5 border border-slate-800">
+                  {(['all', 'important', 'off'] as PrefVal[]).map((opt) => (
+                    <button
+                      key={opt}
+                      onClick={() => onChange(opt)}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                        value === opt
+                          ? opt === 'all'
+                            ? 'bg-sky-500 text-slate-950'
+                            : opt === 'important'
+                            ? 'bg-amber-500 text-slate-950'
+                            : 'bg-rose-500 text-white'
+                          : 'text-slate-500 hover:text-white'
+                      }`}
+                    >
+                      {opt === 'all' ? 'All' : opt === 'important' ? 'Important' : 'Off'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+
+            return (
+              <div className="space-y-2">
+                <TriStateSelector label="Friend Requests" value={friendRequestsPreference} onChange={setFriendRequestsPreference} />
+                <TriStateSelector label="Friend Acceptances" value={friendAcceptancePreference} onChange={setFriendAcceptancePreference} />
+                <TriStateSelector label="Likes & Reactions" value={likesReactionsPreference} onChange={setLikesReactionsPreference} />
+                <TriStateSelector label="Comments" value={commentsPreference} onChange={setCommentsPreference} />
+                <TriStateSelector label="Comment Replies" value={repliesPreference} onChange={setRepliesPreference} />
+                <TriStateSelector label="Mentions (@)" value={mentionsPreference} onChange={setMentionsPreference} />
+                <TriStateSelector label="Direct Messages" value={messagesPreference} onChange={setMessagesPreference} />
+                <TriStateSelector label="Group Activity" value={groupActivityPreference} onChange={setGroupActivityPreference} />
+                <TriStateSelector label="Events" value={eventsPreference} onChange={setEventsPreference} />
+                <TriStateSelector label="Marketplace" value={marketplacePreference} onChange={setMarketplacePreference} />
+                <TriStateSelector label="Opportunities" value={opportunitiesPreference} onChange={setOpportunitiesPreference} />
+              </div>
+            );
+          })()}
+        </section>
       </main>
+
     </div>
   );
 };

@@ -2,10 +2,11 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import {
-  getNotificationsPaginated,
+  subscribeToNotifications,
   markNotificationAsRead,
   markAllNotificationsAsRead,
   deleteNotification,
+  getNotificationsPaginated,
 } from '../services/notificationService';
 import { rankNotifications } from '../services/notificationRankingService';
 import { approveJoinRequest, rejectJoinRequest } from '../services/groupManagementService';
@@ -31,7 +32,6 @@ import {
   Trash2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import type { DocumentSnapshot } from 'firebase/firestore';
 
 export const NotificationCenter: React.FC = () => {
   const { currentUser } = useAuth();
@@ -39,28 +39,25 @@ export const NotificationCenter: React.FC = () => {
 
   const [activeCategory, setActiveCategory] = useState<NotificationCategory>('all');
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [lastDoc, setLastDoc] = useState<DocumentSnapshot | null>(null);
+  const [lastDoc, setLastDoc] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [actioningId, setActioningId] = useState<string | null>(null);
 
-  const fetchInitial = async () => {
-    if (!currentUser) return;
-    setLoading(true);
-    try {
-      const res = await getNotificationsPaginated(currentUser.uid, { limitCount: 20 });
-      setNotifications(res.notifications as any);
-      setLastDoc(res.lastDoc);
-    } catch (err) {
-      toast.error('Failed to load notifications.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Real-time subscription to notifications (first 30, newest first)
   useEffect(() => {
-    fetchInitial();
+    if (!currentUser) {
+      setNotifications([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const unsubscribe = subscribeToNotifications(currentUser.uid, (items) => {
+      setNotifications(items);
+      setLoading(false);
+    });
+    return () => unsubscribe();
   }, [currentUser]);
 
   const handleLoadMore = async () => {

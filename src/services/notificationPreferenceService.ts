@@ -41,6 +41,19 @@ export interface UserNotificationPreferences {
   emailNotifications?: boolean;
   pushNotifications?: boolean;
 
+  // Tri-state preferences (Phase 4)
+  friendRequestsPreference?: 'all' | 'important' | 'off';
+  friendAcceptancePreference?: 'all' | 'important' | 'off';
+  likesReactionsPreference?: 'all' | 'important' | 'off';
+  commentsPreference?: 'all' | 'important' | 'off';
+  repliesPreference?: 'all' | 'important' | 'off';
+  mentionsPreference?: 'all' | 'important' | 'off';
+  messagesPreference?: 'all' | 'important' | 'off';
+  groupActivityPreference?: 'all' | 'important' | 'off';
+  eventsPreference?: 'all' | 'important' | 'off';
+  marketplacePreference?: 'all' | 'important' | 'off';
+  opportunitiesPreference?: 'all' | 'important' | 'off';
+
   // Communication controls
   quietHours?: QuietHoursConfig;
   digestMode?: 'immediate' | 'hourly' | 'daily';
@@ -81,6 +94,18 @@ const defaultPreferences: UserNotificationPreferences = {
   announcementNotifications: true,
   emailNotifications: false,
   pushNotifications: true,
+
+  friendRequestsPreference: 'all',
+  friendAcceptancePreference: 'all',
+  likesReactionsPreference: 'all',
+  commentsPreference: 'all',
+  repliesPreference: 'all',
+  mentionsPreference: 'all',
+  messagesPreference: 'all',
+  groupActivityPreference: 'all',
+  eventsPreference: 'all',
+  marketplacePreference: 'all',
+  opportunitiesPreference: 'all',
 
   quietHours: { enabled: false, start: '22:00', end: '07:00' },
   digestMode: 'immediate',

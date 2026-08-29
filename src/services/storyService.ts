@@ -76,9 +76,10 @@ export const createStory = async (
 
 /**
  * Retrieves active campus stories grouped by author.
+ * Sets hasUnseen accurately per-user based on Firestore view records.
  */
 export const getActiveCampusStories = async (
-  _currentUser?: FirebaseUser
+  currentUser?: FirebaseUser
 ): Promise<GroupedAuthorStories[]> => {
   try {
     const storiesRef = collection(db, 'stories');
@@ -105,10 +106,34 @@ export const getActiveCampusStories = async (
           authorName: story.authorName,
           authorAvatar: story.authorAvatar,
           stories: [],
-          hasUnseen: true,
+          hasUnseen: false, // Will be set after checking views
         };
       }
       authorMap[story.authorId].stories.push(story);
+    }
+
+    // For logged-in users, check per-story view status in parallel (bounded)
+    if (currentUser) {
+      const uid = currentUser.uid;
+      const viewChecks = activeStories.map(async (story) => {
+        const viewRef = doc(db, 'stories', story.id, 'views', uid);
+        const viewSnap = await getDoc(viewRef);
+        return { storyId: story.id, authorId: story.authorId, viewed: viewSnap.exists() };
+      });
+
+      const viewResults = await Promise.all(viewChecks);
+
+      // For each author group, mark hasUnseen = true if ANY story in the group is unviewed
+      for (const result of viewResults) {
+        if (!result.viewed && authorMap[result.authorId]) {
+          authorMap[result.authorId].hasUnseen = true;
+        }
+      }
+    } else {
+      // Not logged in: treat all as unseen
+      for (const group of Object.values(authorMap)) {
+        group.hasUnseen = true;
+      }
     }
 
     return Object.values(authorMap);

@@ -11,7 +11,6 @@ import {
   getDocs,
   serverTimestamp,
   QueryDocumentSnapshot,
-  increment,
   updateDoc,
 } from 'firebase/firestore';
 import { db, logAnalyticsEvent } from '../lib/firebase';
@@ -83,10 +82,49 @@ export const logGroupActivityEvent = async (
     else if (type === 'membership_change' && preview && preview.toLowerCase().includes('joined')) pointsToAdd = 5;
 
     if (pointsToAdd > 0) {
-      const memberRef = doc(db, 'groups', groupId, 'members', actorId);
-      await updateDoc(memberRef, {
-        points: increment(pointsToAdd)
-      }).catch((err) => console.warn('Failed to increment group member points:', err));
+      const getYearWeekString = (date: Date): string => {
+        const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+        const dayNum = d.getUTCDay() || 7;
+        d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+        const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+        const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+        return `${d.getUTCFullYear()}-W${weekNo.toString().padStart(2, '0')}`;
+      };
+
+      const getYearMonthString = (date: Date): string => {
+        return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
+      };
+
+      try {
+        const memberRef = doc(db, 'groups', groupId, 'members', actorId);
+        const memberSnap = await getDoc(memberRef);
+        if (memberSnap.exists()) {
+          const mData = memberSnap.data();
+          const currentWeek = getYearWeekString(new Date());
+          const currentMonth = getYearMonthString(new Date());
+
+          const lastWeek = mData.lastPointsUpdateWeek || '';
+          const lastMonth = mData.lastPointsUpdateMonth || '';
+
+          const prevPoints = mData.points || 0;
+          const prevWeekly = mData.weeklyPoints || 0;
+          const prevMonthly = mData.monthlyPoints || 0;
+
+          const nextWeekly = lastWeek === currentWeek ? prevWeekly + pointsToAdd : pointsToAdd;
+          const nextMonthly = lastMonth === currentMonth ? prevMonthly + pointsToAdd : pointsToAdd;
+
+          await updateDoc(memberRef, {
+            points: prevPoints + pointsToAdd,
+            weeklyPoints: nextWeekly,
+            monthlyPoints: nextMonthly,
+            lastPointsUpdateWeek: currentWeek,
+            lastPointsUpdateMonth: currentMonth,
+            updatedAt: serverTimestamp(),
+          });
+        }
+      } catch (err) {
+        console.warn('Failed to update group member points:', err);
+      }
     }
 
     logAnalyticsEvent('group_activity_created', { groupId, type });

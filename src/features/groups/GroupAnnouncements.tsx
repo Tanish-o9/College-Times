@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
-import { getGroupAnnouncements } from '../../services/groupAnnouncementService';
+import { getGroupAnnouncements, pinAnnouncement } from '../../services/groupAnnouncementService';
 import { canCreateAnnouncement } from '../../services/groupPermissionService';
 import { CreateAnnouncementModal } from './CreateAnnouncementModal';
 import { Megaphone, Plus, Pin, RefreshCw } from 'lucide-react';
+import toast from 'react-hot-toast';
 import type { GroupAnnouncement, GroupRole } from '../../types/group';
 
 interface GroupAnnouncementsProps {
@@ -33,6 +34,17 @@ export const GroupAnnouncements: React.FC<GroupAnnouncementsProps> = ({ groupId,
   useEffect(() => {
     loadAnnouncements();
   }, [groupId]);
+
+  const handleTogglePin = async (ann: GroupAnnouncement) => {
+    if (!ann.id) return;
+    try {
+      await pinAnnouncement(groupId, ann.id, !ann.pinned);
+      toast.success(ann.pinned ? 'Announcement unpinned.' : 'Announcement pinned.');
+      loadAnnouncements();
+    } catch {
+      toast.error('Failed to toggle announcement pin status.');
+    }
+  };
 
   const canCreate = canCreateAnnouncement(userRole, userProfile?.role);
 
@@ -79,7 +91,17 @@ export const GroupAnnouncements: React.FC<GroupAnnouncementsProps> = ({ groupId,
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  {ann.pinned && <Pin className="w-4 h-4 text-amber-400" />}
+                  {(userRole === 'owner' || userRole === 'admin') ? (
+                    <button
+                      onClick={() => handleTogglePin(ann)}
+                      className="p-1 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-amber-400 transition-colors"
+                      title={ann.pinned ? 'Unpin Announcement' : 'Pin Announcement'}
+                    >
+                      <Pin className={`w-3.5 h-3.5 ${ann.pinned ? 'fill-amber-400 text-amber-400' : ''}`} />
+                    </button>
+                  ) : (
+                    ann.pinned && <Pin className="w-4 h-4 text-amber-400" />
+                  )}
                   <span className="font-bold text-xs text-white">{ann.title}</span>
                 </div>
                 {ann.priority && (

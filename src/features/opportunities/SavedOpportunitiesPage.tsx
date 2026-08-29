@@ -78,7 +78,15 @@ export const SavedOpportunitiesPage: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {opportunities.map((opp) => (
-            <OpportunityCard key={opp.id} opportunity={opp} />
+            <OpportunityCard
+              key={opp.id}
+              opportunity={opp}
+              onOpportunityDeleted={(id) => setOpportunities((prev) => prev.filter((o) => o.id !== id))}
+              onOpportunityUpdated={() => {
+                // reload
+                getSavedOpportunities(currentUser!).then(setOpportunities);
+              }}
+            />
           ))}
         </div>
       )}

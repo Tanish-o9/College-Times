@@ -13,7 +13,10 @@ import {
   serverTimestamp, 
   Timestamp,
   collectionGroup,
-  startAfter
+  startAfter,
+  updateDoc,
+  setDoc,
+  deleteDoc,
 } from 'firebase/firestore';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { db } from '../lib/firebase';
@@ -198,9 +201,11 @@ export const toggleRsvp = async (
     } else {
       // Add RSVP
       const userName = userProfile?.displayName || 'Student';
+      const userAvatar = userProfile?.photoURL || '';
       transaction.set(rsvpRef, {
         userId,
         userName,
+        userAvatar,
         rsvpdAt: serverTimestamp(),
       });
       updatedCount = currentCount + 1;
@@ -218,7 +223,7 @@ export const toggleRsvp = async (
 export const getEventParticipants = async (
   eventId: string,
   limitCount: number = 20
-): Promise<{ userId: string; userName: string }[]> => {
+): Promise<{ userId: string; userName: string; userAvatar?: string }[]> => {
   try {
     const rsvpsRef = collection(db, 'events', eventId, 'rsvps');
     const q = query(rsvpsRef, limit(limitCount));
@@ -227,6 +232,7 @@ export const getEventParticipants = async (
     return snapshot.docs.map((docSnap) => ({
       userId: docSnap.id,
       userName: docSnap.data().userName || 'Student',
+      userAvatar: docSnap.data().userAvatar || '',
     }));
   } catch (error) {
     console.error('Error fetching event participants:', error);
@@ -400,7 +406,7 @@ export const editEvent = async (
 };
 
 export interface EventFilters {
-  tab: 'upcoming' | 'today' | 'this_week' | 'my_events' | 'past';
+  tab: 'upcoming' | 'today' | 'this_week' | 'this_month' | 'my_events' | 'past';
   category?: string;
   searchQuery?: string;
 }
@@ -422,6 +428,9 @@ export const getEventsFiltered = async (
   const weekEnd = new Date();
   weekEnd.setDate(weekEnd.getDate() + 7);
 
+  const monthEnd = new Date();
+  monthEnd.setDate(monthEnd.getDate() + 30);
+
   if (filters.tab === 'past') {
     q = query(eventsRef, where('eventDate', '<', now), orderBy('eventDate', 'desc'), limit(50));
   } else if (filters.tab === 'today') {
@@ -437,6 +446,14 @@ export const getEventsFiltered = async (
       eventsRef,
       where('eventDate', '>=', now),
       where('eventDate', '<=', Timestamp.fromDate(weekEnd)),
+      orderBy('eventDate', 'asc'),
+      limit(50)
+    );
+  } else if (filters.tab === 'this_month') {
+    q = query(
+      eventsRef,
+      where('eventDate', '>=', now),
+      where('eventDate', '<=', Timestamp.fromDate(monthEnd)),
       orderBy('eventDate', 'asc'),
       limit(50)
     );
@@ -531,3 +548,76 @@ export const getPastGroupEvents = async (groupId: string): Promise<CampusEvent[]
     throw error;
   }
 };
+
+/**
+ * Pin or unpin an event in a group (admin/owner only).
+ */
+export const pinEvent = async (
+  eventId: string,
+  isPinned: boolean
+): Promise<void> => {
+  if (!eventId) return;
+  const eventRef = doc(db, 'events', eventId);
+  await updateDoc(eventRef, {
+    pinned: isPinned,
+    pinnedAt: isPinned ? serverTimestamp() : null,
+  });
+};
+
+/**
+ * Toggles saving/bookmarking an event for the current user.
+ * Path: users/{uid}/savedEvents/{eventId}
+ */
+export const toggleSaveEvent = async (
+  eventId: string,
+  currentUser: FirebaseUser
+): Promise<boolean> => {
+  if (!currentUser || !eventId) throw new Error('Authentication required.');
+  const uid = currentUser.uid;
+  const saveRef = doc(db, 'users', uid, 'savedEvents', eventId);
+
+  const snap = await getDoc(saveRef);
+  if (snap.exists()) {
+    await deleteDoc(saveRef);
+    return false;
+  } else {
+    await setDoc(saveRef, {
+      eventId,
+      savedAt: serverTimestamp(),
+    });
+    return true;
+  }
+};
+
+/**
+ * Checks if user has bookmarked an event.
+ */
+export const checkEventIsSaved = async (eventId: string, uid: string): Promise<boolean> => {
+  if (!eventId || !uid) return false;
+  try {
+    const saveRef = doc(db, 'users', uid, 'savedEvents', eventId);
+    const snap = await getDoc(saveRef);
+    return snap.exists();
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Fetches events saved/bookmarked by the current user.
+ */
+export const getSavedEvents = async (currentUser: FirebaseUser): Promise<CampusEvent[]> => {
+  if (!currentUser) return [];
+  try {
+    const savesRef = collection(db, 'users', currentUser.uid, 'savedEvents');
+    const snap = await getDocs(savesRef);
+    const ids = snap.docs.map((d) => d.id);
+
+    const results = await Promise.all(ids.map((id) => getEventById(id)));
+    return results.filter((e): e is CampusEvent => e !== null);
+  } catch (err) {
+    console.error('Error fetching saved events:', err);
+    return [];
+  }
+};
+

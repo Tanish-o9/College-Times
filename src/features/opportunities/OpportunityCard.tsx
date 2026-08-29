@@ -5,6 +5,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { toggleSaveOpportunity, hasUserSavedOpportunity } from '../../services/opportunitySaveService';
 import { toggleOpportunityReminder, hasUserOpportunityReminder } from '../../services/opportunityReminderService';
 import { trackApplicationStatus, getUserApplicationStatus } from '../../services/opportunityApplicationService';
+import { deleteOpportunity, reportOpportunity } from '../../services/opportunityService';
 import toast from 'react-hot-toast';
 import { 
   Building2, 
@@ -18,17 +19,28 @@ import {
   ShieldCheck, 
   MessageCircle,
   Briefcase,
-  Award
+  Award,
+  Edit,
+  Trash2,
+  Flag,
+  X,
+  RefreshCw,
 } from 'lucide-react';
+import { CreateOpportunityModal } from './CreateOpportunityModal';
 
 interface OpportunityCardProps {
   opportunity: Opportunity;
   onOpportunityUpdated?: (id: string) => void;
+  onOpportunityDeleted?: (id: string) => void;
 }
 
-export const OpportunityCard: React.FC<OpportunityCardProps> = ({ opportunity }) => {
+export const OpportunityCard: React.FC<OpportunityCardProps> = ({ 
+  opportunity,
+  onOpportunityUpdated,
+  onOpportunityDeleted
+}) => {
   const navigate = useNavigate();
-  const { currentUser } = useAuth();
+  const { currentUser, userProfile } = useAuth();
 
   const [saved, setSaved] = useState<boolean>(false);
   const [saveCount, setSaveCount] = useState<number>(opportunity.saveCount || 0);
@@ -38,6 +50,12 @@ export const OpportunityCard: React.FC<OpportunityCardProps> = ({ opportunity })
   const [togglingReminder, setTogglingReminder] = useState<boolean>(false);
 
   const [userAppStatus, setUserAppStatus] = useState<string | null>(null);
+
+  // Edit / Report states
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportReason, setReportReason] = useState('');
+  const [reporting, setReporting] = useState(false);
 
   useEffect(() => {
     if (!opportunity.id || !currentUser) return;
@@ -91,6 +109,14 @@ export const OpportunityCard: React.FC<OpportunityCardProps> = ({ opportunity })
 
   const handleApplyClick = async () => {
     if (!currentUser || !opportunity.id) return;
+    const targetUrl = opportunity.applicationUrl || opportunity.applicationLink;
+    
+    // Safety check on external link
+    if (!targetUrl || (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://'))) {
+      toast.error('Unsafe or invalid application URL protocol.');
+      return;
+    }
+
     try {
       await trackApplicationStatus(
         currentUser.uid,
@@ -103,7 +129,41 @@ export const OpportunityCard: React.FC<OpportunityCardProps> = ({ opportunity })
     } catch (err) {
       // Non-blocking status tracking
     }
-    window.open(opportunity.applicationUrl || opportunity.applicationLink, '_blank');
+    
+    window.open(targetUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleDelete = async () => {
+    if (!currentUser || !opportunity.id) return;
+    if (!window.confirm('Are you sure you want to delete this opportunity?')) return;
+    try {
+      const isAdmin = userProfile?.role === 'admin';
+      await deleteOpportunity(opportunity.id, currentUser.uid, isAdmin);
+      toast.success('Opportunity deleted successfully.');
+      if (onOpportunityDeleted) onOpportunityDeleted(opportunity.id);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete opportunity.');
+    }
+  };
+
+  const handleReport = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser || !opportunity.id || !reportReason.trim() || reporting) return;
+    setReporting(true);
+    try {
+      const res = await reportOpportunity(opportunity.id, currentUser.uid, reportReason);
+      if (res.alreadyReported) {
+        toast.error('You have already reported this opportunity.');
+      } else {
+        toast.success('Opportunity reported successfully.');
+        setShowReportModal(false);
+        setReportReason('');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to report.');
+    } finally {
+      setReporting(false);
+    }
   };
 
   // Calculate Days Remaining
@@ -118,6 +178,8 @@ export const OpportunityCard: React.FC<OpportunityCardProps> = ({ opportunity })
   const isClosingSoon = diffDays > 0 && diffDays <= 3;
   const isExpired = diffMs <= 0;
 
+  const isCreatorOrAdmin = currentUser?.uid === opportunity.createdBy || userProfile?.role === 'admin';
+
   return (
     <article className="w-full bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 relative overflow-hidden transition-all hover:border-slate-700">
       {/* Header Badges */}
@@ -129,7 +191,7 @@ export const OpportunityCard: React.FC<OpportunityCardProps> = ({ opportunity })
           </span>
 
           <span className="px-2.5 py-0.5 bg-slate-800 text-slate-300 border border-slate-700 rounded-md text-[10px] font-bold uppercase">
-            {opportunity.mode}
+            {opportunity.mode || opportunity.workMode || 'remote'}
           </span>
 
           {opportunity.isOfficial && (
@@ -167,12 +229,44 @@ export const OpportunityCard: React.FC<OpportunityCardProps> = ({ opportunity })
       <div className="space-y-1">
         <div className="flex items-center gap-2 text-xs font-bold text-slate-400">
           <Building2 className="w-4 h-4 text-purple-400" />
-          <span>{opportunity.organizationName}</span>
+          <span>{opportunity.organizationName || opportunity.organization}</span>
         </div>
 
-        <h3 className="text-lg font-extrabold text-white tracking-tight leading-snug">
-          {opportunity.title}
-        </h3>
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-lg font-extrabold text-white tracking-tight leading-snug">
+            {opportunity.title}
+          </h3>
+          
+          <div className="flex items-center gap-1.5">
+            {isCreatorOrAdmin && (
+              <>
+                <button
+                  onClick={() => setIsEditOpen(true)}
+                  className="p-1.5 bg-slate-950 border border-slate-850 rounded-lg text-slate-400 hover:text-sky-400 transition-colors"
+                  title="Edit"
+                >
+                  <Edit className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={handleDelete}
+                  className="p-1.5 bg-slate-950 border border-slate-850 rounded-lg text-slate-400 hover:text-rose-400 transition-colors"
+                  title="Delete"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </>
+            )}
+            {!isCreatorOrAdmin && currentUser && (
+              <button
+                onClick={() => setShowReportModal(true)}
+                className="p-1.5 bg-slate-950 border border-slate-850 rounded-lg text-slate-500 hover:text-rose-400 transition-colors"
+                title="Report"
+              >
+                <Flag className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Description */}
@@ -187,10 +281,10 @@ export const OpportunityCard: React.FC<OpportunityCardProps> = ({ opportunity })
           <span>{opportunity.location || 'Campus / Remote'}</span>
         </span>
 
-        {(opportunity.stipend || opportunity.salaryRange) && (
+        {(opportunity.stipend || opportunity.salaryRange || opportunity.salary) && (
           <span className="flex items-center gap-1 truncate font-mono font-bold text-emerald-400">
             <Award className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-            <span>{opportunity.stipend || opportunity.salaryRange}</span>
+            <span>{opportunity.stipend || opportunity.salaryRange || opportunity.salary}</span>
           </span>
         )}
       </div>
@@ -273,6 +367,66 @@ export const OpportunityCard: React.FC<OpportunityCardProps> = ({ opportunity })
           </button>
         </div>
       </div>
+
+      {/* Edit Opportunity Modal */}
+      <CreateOpportunityModal
+        isOpen={isEditOpen}
+        onClose={() => setIsEditOpen(false)}
+        opportunity={opportunity}
+        onOpportunityCreated={() => {
+          if (onOpportunityUpdated) onOpportunityUpdated(opportunity.id);
+        }}
+      />
+
+      {/* Report Modal */}
+      {showReportModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Flag className="w-4 h-4 text-rose-550" />
+                <span>Report Opportunity</span>
+              </h3>
+              <button onClick={() => setShowReportModal(false)} className="text-slate-400 hover:text-white">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleReport} className="space-y-4">
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">Reason for report</label>
+                <textarea
+                  required
+                  rows={3}
+                  maxLength={300}
+                  value={reportReason}
+                  onChange={(e) => setReportReason(e.target.value)}
+                  placeholder="Explain why this opportunity violations guidelines (spam, fake listings, etc.)..."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-500/50 resize-none"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowReportModal(false)}
+                  className="flex-1 py-2 bg-slate-800 text-slate-300 font-bold text-xs rounded-xl"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={reporting}
+                  className="flex-1 py-2 bg-rose-500 hover:bg-rose-450 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1"
+                >
+                  {reporting && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                  <span>Report</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </article>
   );
 };

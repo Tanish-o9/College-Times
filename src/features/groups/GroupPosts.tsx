@@ -4,14 +4,17 @@ import { collection, query, where, orderBy, limit, onSnapshot } from 'firebase/f
 import type { Post } from '../../types';
 import { PostCard } from '../feed/PostCard';
 import { CreatePostModal } from '../feed/CreatePostModal';
-import { RefreshCw, FileText, Plus } from 'lucide-react';
+import { pinPost } from '../../services/postService';
+import { RefreshCw, FileText, Plus, Pin } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 interface GroupPostsProps {
   groupId: string;
   isMember: boolean;
+  userRole?: string;
 }
 
-export const GroupPosts: React.FC<GroupPostsProps> = ({ groupId, isMember }) => {
+export const GroupPosts: React.FC<GroupPostsProps> = ({ groupId, isMember, userRole }) => {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
@@ -44,6 +47,21 @@ export const GroupPosts: React.FC<GroupPostsProps> = ({ groupId, isMember }) => 
     return () => unsubscribe();
   }, [groupId]);
 
+  const isManager = userRole === 'owner' || userRole === 'admin' || userRole === 'moderator';
+
+  const handleTogglePin = async (post: Post) => {
+    if (!post.id) return;
+    try {
+      await pinPost(post.id, !post.pinned);
+      toast.success(post.pinned ? 'Post unpinned.' : 'Post pinned to the top.');
+    } catch {
+      toast.error('Failed to toggle post pin status.');
+    }
+  };
+
+  const pinnedPosts = posts.filter((p) => p.pinned);
+  const normalPosts = posts.filter((p) => !p.pinned);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -73,10 +91,40 @@ export const GroupPosts: React.FC<GroupPostsProps> = ({ groupId, isMember }) => 
           No posts in this group yet. Be the first to start a conversation!
         </div>
       ) : (
-        <div className="space-y-4">
-          {posts.map((post) => (
-            <PostCard key={post.id} post={post} />
-          ))}
+        <div className="space-y-6">
+          {/* Pinned Posts Section */}
+          {pinnedPosts.length > 0 && (
+            <div className="p-4 bg-sky-950/20 border border-sky-500/30 rounded-3xl space-y-3">
+              <div className="flex items-center gap-1.5 text-sky-400 text-xs font-bold font-mono pl-1">
+                <Pin className="w-3.5 h-3.5" />
+                <span>Pinned Discussions ({pinnedPosts.length})</span>
+              </div>
+              <div className="space-y-3">
+                {pinnedPosts.map((post) => (
+                  <PostCard
+                    key={post.id}
+                    post={post}
+                    showPinButton={isManager}
+                    onPinToggle={() => handleTogglePin(post)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Normal Posts Section */}
+          {normalPosts.length > 0 && (
+            <div className="space-y-4">
+              {normalPosts.map((post) => (
+                <PostCard
+                  key={post.id}
+                  post={post}
+                  showPinButton={isManager}
+                  onPinToggle={() => handleTogglePin(post)}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
 

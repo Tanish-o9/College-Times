@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { CampusEvent } from '../../types/models';
-import { getEventById, hasUserRsvpd, toggleRsvpStatus, cancelEvent, getEventParticipantsPaginated } from '../../services/eventService';
+import { getEventById, hasUserRsvpd, toggleRsvpStatus, cancelEvent, getEventParticipantsPaginated, toggleSaveEvent, checkEventIsSaved } from '../../services/eventService';
 import { toggleEventReminder, hasUserReminder } from '../../services/eventReminderService';
 import { useAuth } from '../../hooks/useAuth';
 import toast from 'react-hot-toast';
@@ -17,8 +17,12 @@ import {
   Bell, 
   BellOff, 
   AlertTriangle, 
-  X
+  X,
+  Bookmark,
+  Share2
 } from 'lucide-react';
+import { buildShareableContent } from '../../services/shareService';
+import { ShareModal } from '../../components/ShareModal';
 
 export const EventDetail: React.FC = () => {
   const { eventId } = useParams<{ eventId: string }>();
@@ -41,6 +45,9 @@ export const EventDetail: React.FC = () => {
   const [isCancelModalOpen, setIsCancelModalOpen] = useState<boolean>(false);
   const [cancelReason, setCancelReason] = useState<string>('');
   const [cancelling, setCancelling] = useState<boolean>(false);
+  const [isSaved, setIsSaved] = useState<boolean>(false);
+  const [togglingSave, setTogglingSave] = useState<boolean>(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
 
   // Participants list & pagination
   const [participants, setParticipants] = useState<{ userId: string; userName: string }[]>([]);
@@ -69,13 +76,15 @@ export const EventDetail: React.FC = () => {
         }
 
         if (currentUser) {
-          const [userHasRsvpd, remStatus] = await Promise.all([
+          const [userHasRsvpd, remStatus, savedStatus] = await Promise.all([
             hasUserRsvpd(eventId, currentUser.uid),
             hasUserReminder(eventId, currentUser.uid),
+            checkEventIsSaved(eventId, currentUser.uid),
           ]);
           if (mounted) {
             setUserRsvpStatus(userHasRsvpd ? 'going' : null);
             setHasReminder(remStatus);
+            setIsSaved(savedStatus);
           }
         }
 
@@ -149,6 +158,20 @@ export const EventDetail: React.FC = () => {
       toast.error('Failed to toggle reminder.');
     } finally {
       setTogglingReminder(false);
+    }
+  };
+
+  const handleSaveToggle = async () => {
+    if (!currentUser || !event || !event.id || togglingSave) return;
+    setTogglingSave(true);
+    try {
+      const saved = await toggleSaveEvent(event.id, currentUser);
+      setIsSaved(saved);
+      toast.success(saved ? 'Event saved!' : 'Event removed from saved.');
+    } catch (err) {
+      toast.error('Failed to save event.');
+    } finally {
+      setTogglingSave(false);
     }
   };
 
@@ -383,6 +406,29 @@ export const EventDetail: React.FC = () => {
               {/* Reminder Toggle & Organizer Controls */}
               <div className="flex items-center gap-2">
                 <button
+                  onClick={handleSaveToggle}
+                  disabled={togglingSave}
+                  className={`p-2.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    isSaved
+                      ? 'bg-sky-500/20 text-sky-300 border-sky-500/40'
+                      : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700'
+                  }`}
+                  title={isSaved ? 'Event Bookmarked' : 'Save Event'}
+                >
+                  <Bookmark className={`w-4 h-4 ${isSaved ? 'text-sky-400 fill-sky-400' : ''}`} />
+                  <span className="hidden sm:inline">{isSaved ? 'Saved' : 'Save'}</span>
+                </button>
+
+                <button
+                  onClick={() => setIsShareModalOpen(true)}
+                  className="p-2.5 rounded-xl border border-slate-800 bg-slate-950 text-slate-400 hover:text-white hover:border-slate-700 text-xs font-bold transition-all flex items-center gap-1.5"
+                  title="Share Event"
+                >
+                  <Share2 className="w-4 h-4" />
+                  <span className="hidden sm:inline">Share</span>
+                </button>
+
+                <button
                   onClick={handleReminderToggle}
                   disabled={togglingReminder}
                   className={`p-2.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 ${
@@ -497,6 +543,19 @@ export const EventDetail: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Share Modal */}
+      {isShareModalOpen && (
+        <ShareModal
+          isOpen={isShareModalOpen}
+          onClose={() => setIsShareModalOpen(false)}
+          content={buildShareableContent.event(
+            event.id!,
+            event.title,
+            event.description
+          )}
+        />
       )}
     </div>
   );

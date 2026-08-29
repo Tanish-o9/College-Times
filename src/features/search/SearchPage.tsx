@@ -23,7 +23,8 @@ import {
   Sparkles,
   RefreshCw,
   ChevronRight,
-  ArrowLeft
+  ArrowLeft,
+  FileText
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -38,6 +39,7 @@ const CATEGORY_TABS: { id: SearchCategory; label: string }[] = [
   { id: 'lost_found', label: 'Lost & Found' },
   { id: 'marketplace', label: 'Marketplace' },
   { id: 'opportunities', label: 'Opportunities' },
+  { id: 'resources', label: 'Resources' },
 ];
 
 export const SearchPage: React.FC = () => {
@@ -134,6 +136,8 @@ export const SearchPage: React.FC = () => {
         return <ShoppingBag className="w-5 h-5 text-pink-400" />;
       case 'opportunity':
         return <Briefcase className="w-5 h-5 text-orange-400" />;
+      case 'resource':
+        return <FileText className="w-5 h-5 text-sky-400" />;
       default:
         return <Tag className="w-5 h-5 text-slate-400" />;
     }

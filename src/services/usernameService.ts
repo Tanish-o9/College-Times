@@ -51,3 +51,14 @@ export const claimUsername = async (uid: string, rawUsername: string): Promise<s
 
   return norm;
 };
+
+export const getUidByUsername = async (rawUsername: string): Promise<string | null> => {
+  const norm = normalizeUsername(rawUsername);
+  try {
+    const snap = await getDoc(doc(db, 'usernames', norm));
+    if (snap.exists()) {
+      return snap.data().uid || null;
+    }
+  } catch (_) {}
+  return null;
+};

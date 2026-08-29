@@ -1,16 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
-import type { MarketplaceCategory } from '../../types/marketplace';
+import type { MarketplaceCategory, MarketplaceListing3 } from '../../types/marketplace';
 import { ShoppingBag, X, Upload, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../../lib/firebase';
+import { editListing } from '../../services/marketplaceService';
 
 interface CreateListingModalProps {
   isOpen: boolean;
   onClose: () => void;
   onCreated?: () => void;
+  listing?: MarketplaceListing3 | null;
 }
 
 const categories: MarketplaceCategory[] = [
@@ -32,6 +34,7 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({
   isOpen,
   onClose,
   onCreated,
+  listing = null,
 }) => {
   const { currentUser, userProfile } = useAuth();
   const [title, setTitle] = useState('');
@@ -43,6 +46,18 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({
   const [negotiable, _setNegotiable] = useState(true);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setTitle(listing?.title || '');
+      setDescription(listing?.description || '');
+      setPrice(listing?.price ? String(listing.price) : '');
+      setCategory(listing?.category || 'Electronics');
+      setCondition(listing?.condition || 'Like New');
+      setLocationArea(listing?.locationArea || '');
+      setSelectedFile(null);
+    }
+  }, [isOpen, listing]);
 
   if (!isOpen) return null;
 
@@ -58,45 +73,74 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({
 
     setSubmitting(true);
     try {
-      const listingId = `list_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-      let imageUrls: string[] = [];
+      if (listing) {
+        // Edit mode
+        let imageUrls = listing.images || [];
+        if (selectedFile) {
+          const fileRef = ref(
+            storage,
+            `marketplaceMedia/${listing.id}/${currentUser.uid}/${Date.now()}_${selectedFile.name}`
+          );
+          await uploadBytes(fileRef, selectedFile);
+          const url = await getDownloadURL(fileRef);
+          imageUrls = [url]; // Overwrite or add to image array
+        }
 
-      if (selectedFile) {
-        const fileRef = ref(
-          storage,
-          `marketplaceMedia/${listingId}/${currentUser.uid}/${Date.now()}_${selectedFile.name}`
-        );
-        await uploadBytes(fileRef, selectedFile);
-        const url = await getDownloadURL(fileRef);
-        imageUrls.push(url);
+        await editListing(listing.id, currentUser.uid, {
+          title: title.trim(),
+          description: description.trim(),
+          price: numPrice,
+          category,
+          condition,
+          images: imageUrls,
+          locationArea: locationArea.trim(),
+          negotiable,
+        });
+
+        toast.success('Listing updated successfully!');
+      } else {
+        // Create mode
+        const listingId = `list_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        let imageUrls: string[] = [];
+
+        if (selectedFile) {
+          const fileRef = ref(
+            storage,
+            `marketplaceMedia/${listingId}/${currentUser.uid}/${Date.now()}_${selectedFile.name}`
+          );
+          await uploadBytes(fileRef, selectedFile);
+          const url = await getDownloadURL(fileRef);
+          imageUrls.push(url);
+        }
+
+        const listingRef = doc(db, 'marketplaceListings', listingId);
+        await setDoc(listingRef, {
+          id: listingId,
+          title: title.trim(),
+          description: description.trim(),
+          price: numPrice,
+          category,
+          condition,
+          images: imageUrls,
+          sellerId: currentUser.uid,
+          sellerName: userProfile?.displayName || 'Campus Student',
+          sellerUsername: (userProfile as any)?.username || '',
+          sellerAvatar: userProfile?.photoURL || '',
+          locationArea: locationArea.trim(),
+          negotiable,
+          status: 'active',
+          viewCount: 0,
+          saveCount: 0,
+          createdAt: serverTimestamp(),
+        });
+
+        toast.success('Listing published successfully!');
       }
 
-      const listingRef = doc(db, 'marketplaceListings', listingId);
-      await setDoc(listingRef, {
-        id: listingId,
-        title: title.trim(),
-        description: description.trim(),
-        price: numPrice,
-        category,
-        condition,
-        images: imageUrls,
-        sellerId: currentUser.uid,
-        sellerName: userProfile?.displayName || 'Campus Student',
-        sellerUsername: (userProfile as any)?.username || '',
-        sellerAvatar: userProfile?.photoURL || '',
-        locationArea: locationArea.trim(),
-        negotiable,
-        status: 'active',
-        viewCount: 0,
-        saveCount: 0,
-        createdAt: serverTimestamp(),
-      });
-
-      toast.success('Listing published successfully!');
       if (onCreated) onCreated();
       onClose();
     } catch (err: any) {
-      toast.error(err.message || 'Failed to publish listing.');
+      toast.error(err.message || 'Failed to save listing.');
     } finally {
       setSubmitting(false);
     }

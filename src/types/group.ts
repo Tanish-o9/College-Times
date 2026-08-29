@@ -44,6 +44,11 @@ export interface GroupMember {
   displayName?: string;
   photoURL?: string;
   points?: number;
+  weeklyPoints?: number;
+  monthlyPoints?: number;
+  lastPointsUpdateWeek?: string;
+  lastPointsUpdateMonth?: string;
+  updatedAt?: Timestamp | FieldValue | any;
 }
 
 export interface UserGroupMembership {
@@ -57,6 +62,9 @@ export interface GroupInviteCodeDoc {
   active: boolean;
   createdAt: Timestamp | FieldValue | any;
   createdBy: string;
+  maxUses?: number;
+  useCount?: number;
+  expiresAt?: any;
 }
 
 // Phase 34 & 36A: Permanent Group Instant / Moments Experience Data Models

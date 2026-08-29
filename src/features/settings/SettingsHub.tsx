@@ -92,6 +92,10 @@ export const SettingsHub: React.FC = () => {
 
   // Privacy Settings state
   const [isPrivate, setIsPrivate] = useState(userProfile?.profileVisibility === 'private');
+  const [friendListVisibility, setFriendListVisibility] = useState<'public' | 'friends' | 'private'>('public');
+  const [postVisibility, setPostVisibility] = useState<'public' | 'friends'>('public');
+  const [storyVisibility, setStoryVisibility] = useState<'public' | 'friends'>('public');
+  const [messagePermissions, setMessagePermissions] = useState<'everyone' | 'friends'>('everyone');
   const [savingPrivacy, setSavingPrivacy] = useState(false);
 
   useEffect(() => {
@@ -107,6 +111,10 @@ export const SettingsHub: React.FC = () => {
       setInterests((userProfile as any)?.interests?.join(', ') || '');
       setPhotoURL(userProfile?.photoURL || '');
       setIsPrivate(userProfile?.profileVisibility === 'private');
+      setFriendListVisibility((userProfile as any).friendListVisibility || 'public');
+      setPostVisibility((userProfile as any).postVisibility || 'public');
+      setStoryVisibility((userProfile as any).storyVisibility || 'public');
+      setMessagePermissions((userProfile as any).messagePermissions || 'everyone');
     }
   }, [userProfile]);
 
@@ -147,18 +155,21 @@ export const SettingsHub: React.FC = () => {
     }
   };
 
-  const handleSavePrivacy = async (newVal: boolean) => {
+  const handleSavePrivacy = async () => {
     if (!currentUser) return;
-    setIsPrivate(newVal);
     setSavingPrivacy(true);
     try {
       const userRef = doc(db, 'users', currentUser.uid);
       await updateDoc(userRef, {
-        profileVisibility: newVal ? 'private' : 'public',
+        profileVisibility: isPrivate ? 'private' : 'public',
+        friendListVisibility,
+        postVisibility,
+        storyVisibility,
+        messagePermissions,
         updatedAt: serverTimestamp(),
       });
       await refreshProfile();
-      toast.success(newVal ? 'Account visibility set to Private.' : 'Account visibility set to Public.');
+      toast.success('Privacy settings updated!');
     } catch (err: any) {
       toast.error(err.message || 'Failed to update privacy settings.');
     } finally {
@@ -320,17 +331,17 @@ export const SettingsHub: React.FC = () => {
             </div>
             
             <div className="space-y-4">
+              {/* Private Account toggle */}
               <div className="flex items-center justify-between p-4 bg-slate-950 border border-slate-800 rounded-2xl">
                 <div className="space-y-1 pr-4">
                   <span className="text-sm font-semibold text-slate-200 block">Private Account</span>
                   <span className="text-xs text-slate-500 block leading-relaxed">
-                    When your account is private, only students you approve can follow you and view your connections.
+                    When your account is private, only approved connections can view your profile details.
                   </span>
                 </div>
                 <button
                   type="button"
-                  disabled={savingPrivacy}
-                  onClick={() => handleSavePrivacy(!isPrivate)}
+                  onClick={() => setIsPrivate(!isPrivate)}
                   className={`w-12 h-7 rounded-full p-1 transition-all ${
                     isPrivate ? 'bg-sky-500' : 'bg-slate-855 border border-slate-750'
                   } flex items-center shrink-0 cursor-pointer`}
@@ -343,21 +354,68 @@ export const SettingsHub: React.FC = () => {
                 </button>
               </div>
 
-              {[
-                { label: 'Show profile in search results', key: 'searchVisible' },
-                { label: 'Allow others to view my groups', key: 'groupsVisible' },
-                { label: 'Show my activity in the campus feed', key: 'activityVisible' },
-              ].map((item) => (
-                <div
-                  key={item.key}
-                  className="flex items-center justify-between p-4 bg-slate-950 border border-slate-800 rounded-2xl opacity-60 pointer-events-none"
+              {/* Friend list visibility */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">Friend List Visibility</label>
+                <select
+                  value={friendListVisibility}
+                  onChange={(e) => setFriendListVisibility(e.target.value as any)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-sky-500/60"
                 >
-                  <span className="text-sm text-slate-400">{item.label}</span>
-                  <div className="w-12 h-7 bg-emerald-500/20 border border-emerald-500/30 rounded-full p-1 flex items-center">
-                    <div className="w-5 h-5 bg-emerald-400 rounded-full translate-x-5" />
-                  </div>
-                </div>
-              ))}
+                  <option value="public">Public (Everyone)</option>
+                  <option value="friends">Friends Only</option>
+                  <option value="private">Private (Only Me)</option>
+                </select>
+              </div>
+
+              {/* Post visibility */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">Post Visibility</label>
+                <select
+                  value={postVisibility}
+                  onChange={(e) => setPostVisibility(e.target.value as any)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-sky-500/60"
+                >
+                  <option value="public">Public (Everyone)</option>
+                  <option value="friends">Friends Only</option>
+                </select>
+              </div>
+
+              {/* Story visibility */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">Story Visibility</label>
+                <select
+                  value={storyVisibility}
+                  onChange={(e) => setStoryVisibility(e.target.value as any)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-sky-500/60"
+                >
+                  <option value="public">Public (Everyone)</option>
+                  <option value="friends">Friends Only</option>
+                </select>
+              </div>
+
+              {/* Message permissions */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">Message Permissions</label>
+                <select
+                  value={messagePermissions}
+                  onChange={(e) => setMessagePermissions(e.target.value as any)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-sky-500/60"
+                >
+                  <option value="everyone">Everyone</option>
+                  <option value="friends">Friends Only</option>
+                </select>
+              </div>
+
+              {/* Save Button */}
+              <button
+                onClick={handleSavePrivacy}
+                disabled={savingPrivacy}
+                className="mt-2 w-full py-2.5 bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-md shadow-sky-500/10 transition-all disabled:opacity-60"
+              >
+                {savingPrivacy ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                <span>Save Privacy Settings</span>
+              </button>
             </div>
           </div>
         );
