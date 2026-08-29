@@ -79,17 +79,9 @@ export const uploadInstantMediaFile = async (
     });
   };
 
-  // Convert to Data URL fallback immediately so data is never lost
-  let dataUrl = '';
-  try {
-    dataUrl = await readFileAsDataUrl(file);
-  } catch (err) {
-    console.error('Data URL conversion error:', err);
-  }
-
-  // Attempt Storage upload if storage is initialized
-  try {
-    if (storage) {
+  // 1. Fast path: Attempt Direct Firebase Storage upload first
+  if (storage) {
+    try {
       const storageRef = ref(storage, storagePath);
       const uploadTask = uploadBytesResumable(storageRef, file, { contentType: rawType });
 
@@ -117,11 +109,13 @@ export const uploadInstantMediaFile = async (
           mimeType: rawType,
         };
       }
+    } catch {
+      // Fall through to Data URL fallback
     }
-  } catch {
-    // Fall back to Data URL
   }
 
+  // 2. Fallback path: Convert to Data URL only if Storage upload is unavailable or fails
+  const dataUrl = await readFileAsDataUrl(file);
   return {
     downloadUrl: dataUrl,
     storagePath,

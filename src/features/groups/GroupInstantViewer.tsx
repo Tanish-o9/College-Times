@@ -263,12 +263,12 @@ export const GroupInstantViewer: React.FC<GroupInstantViewerProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950 flex items-center justify-center select-none overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-slate-950 flex items-center justify-center select-none overflow-hidden h-[100dvh] w-full touch-none overscroll-none">
       {/* Background Glow */}
       <div className="absolute inset-0 bg-gradient-to-b from-slate-900/90 via-slate-950 to-slate-950 pointer-events-none" />
 
       {/* Main Container */}
-      <div className="relative w-full max-w-md h-full max-h-[92vh] sm:rounded-3xl overflow-hidden bg-slate-900 border border-slate-800 flex flex-col shadow-2xl">
+      <div className="relative w-full max-w-md h-[100dvh] sm:h-auto sm:max-h-[92vh] rounded-none sm:rounded-3xl overflow-hidden bg-slate-900 border-0 sm:border sm:border-slate-800 flex flex-col shadow-2xl">
         {/* Top Header Bar */}
         <div className="absolute top-0 left-0 right-0 z-30 p-3 bg-gradient-to-b from-slate-950/90 to-transparent space-y-2">
           {/* Top Status Counter */}

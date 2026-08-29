@@ -100,7 +100,7 @@ export const MomentCameraModal: React.FC<MomentCameraModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-xl flex flex-col justify-between items-center p-4 sm:p-6 overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-xl flex flex-col justify-between items-center p-3 sm:p-6 h-[100dvh] w-full overflow-hidden touch-none overscroll-none">
       {/* Hidden Native Camera Input Fallback */}
       <input
         type="file"
@@ -149,7 +149,7 @@ export const MomentCameraModal: React.FC<MomentCameraModalProps> = ({
       </div>
 
       {/* Main Viewfinder Area */}
-      <div className="relative w-full max-w-md aspect-[9/16] sm:aspect-[3/4] bg-slate-900 rounded-3xl overflow-hidden border border-slate-800 shadow-2xl flex items-center justify-center my-auto">
+      <div className="relative w-full max-w-md flex-1 min-h-0 sm:aspect-[3/4] bg-slate-900 rounded-3xl overflow-hidden border border-slate-800 shadow-2xl flex items-center justify-center my-1 sm:my-auto">
         {/* Video Element (ALWAYS Mounted to ensure videoRef is never null) */}
         <video
           ref={videoRef}
