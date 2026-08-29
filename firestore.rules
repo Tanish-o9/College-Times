@@ -116,6 +116,13 @@ service cloud.firestore {
         allow create, update, delete: if isAuthenticated() && userId == request.auth.uid;
       }
 
+      // User Reputation History Sub-collection: Audit log of earned reputation XP
+      match /reputationHistory/{actionId} {
+        allow read: if isAuthenticated() && userId == request.auth.uid;
+        allow create, update: if isAuthenticated() && userId == request.auth.uid;
+        allow delete: if isAdmin();
+      }
+
       // Phase 37: Saved Group Moments Sub-collection
       match /savedGroupMoments/{instantId} {
         allow read, create, update, delete: if isOwner(userId);

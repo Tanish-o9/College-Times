@@ -85,8 +85,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         const enteredHash = hashStringSHA256(trimmedPasscode);
+        const enteredHashLower = hashStringSHA256(trimmedPasscode.toLowerCase());
         const isMatch =
-          (groupData.passcodeHash && enteredHash === groupData.passcodeHash) ||
+          (groupData.passcodeHash && (enteredHash === groupData.passcodeHash || enteredHashLower === groupData.passcodeHash)) ||
           (groupData.passcode && trimmedPasscode.toLowerCase() === String(groupData.passcode).trim().toLowerCase()) ||
           (groupData.inviteCodePlaintext && trimmedPasscode.toUpperCase() === groupData.inviteCodePlaintext.trim().toUpperCase()) ||
           (groupData.inviteCodeHash && trimmedPasscode.toUpperCase() === groupData.inviteCodeHash.trim().toUpperCase());
