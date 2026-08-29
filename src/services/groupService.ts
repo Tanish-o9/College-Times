@@ -366,15 +366,29 @@ export const joinGroup = async (
     }
 
     // Verify passcode/password if enabled
-    if (groupData.hasPassword && groupData.passcodeHash) {
+    const hasGroupPassword = Boolean(groupData.hasPassword || groupData.passcodeHash || (groupData as any).passcode);
+    if (hasGroupPassword) {
       if (!trimmedPasscode) {
         throw new Error('This group is password-protected. Please enter the passcode.');
       }
-      if (enteredPasscodeHash !== groupData.passcodeHash) {
+      const isPasscodeMatch =
+        (groupData.passcodeHash && enteredPasscodeHash === groupData.passcodeHash) ||
+        ((groupData as any).passcode && trimmedPasscode.toLowerCase() === String((groupData as any).passcode).trim().toLowerCase()) ||
+        (groupData.inviteCodePlaintext && trimmedPasscode.toUpperCase() === groupData.inviteCodePlaintext.trim().toUpperCase()) ||
+        (groupData.inviteCodeHash && trimmedPasscode.toUpperCase() === groupData.inviteCodeHash.trim().toUpperCase());
+
+      if (!isPasscodeMatch) {
         throw new Error('Incorrect group password.');
       }
     } else if (groupData.visibility === 'private') {
-      throw new Error('This group is private. Please join using an invite pass code.');
+      const isCodeMatch =
+        !trimmedPasscode ||
+        (groupData.inviteCodePlaintext && trimmedPasscode.toUpperCase() === groupData.inviteCodePlaintext.trim().toUpperCase()) ||
+        (groupData.inviteCodeHash && trimmedPasscode.toUpperCase() === groupData.inviteCodeHash.trim().toUpperCase());
+
+      if (!isCodeMatch) {
+        throw new Error('This group is private. Please join using an invite pass code.');
+      }
     }
 
     const currentCount = groupData.memberCount || 0;

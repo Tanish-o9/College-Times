@@ -849,14 +849,7 @@ service cloud.firestore {
     match /groups/{groupId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated();
-      allow update: if isAuthenticated() && (
-        request.resource.data.diff(resource.data).affectedKeys().hasAny(['memberCount', 'updatedAt']) ||
-        isAdmin() ||
-        (exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)) &&
-         get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['owner', 'admin']) ||
-        (exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)) &&
-         request.resource.data.diff(resource.data).affectedKeys().hasAny(['inviteCodePlaintext', 'inviteCodeHash', 'inviteCodeVersion', 'inviteEnabled']))
-      );
+      allow update: if isAuthenticated();
       allow delete: if isAuthenticated() && (
         isAdmin() ||
         (exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)) &&
@@ -865,24 +858,7 @@ service cloud.firestore {
 
       match /members/{memberUid} {
         allow read: if isAuthenticated();
-        allow create: if isAuthenticated() && (
-          memberUid == request.auth.uid ||
-          isAdmin() ||
-          (exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)) &&
-           get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['owner', 'admin', 'moderator'])
-        );
-        allow update: if isAuthenticated() && (
-          (memberUid == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['points', 'weeklyPoints', 'monthlyPoints', 'lastPointsUpdateWeek', 'lastPointsUpdateMonth', 'updatedAt'])) ||
-          isAdmin() ||
-          (exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)) &&
-           get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['owner', 'admin'])
-        );
-        allow delete: if isAuthenticated() && (
-          memberUid == request.auth.uid ||
-          isAdmin() ||
-          (exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)) &&
-           get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['owner', 'admin', 'moderator'])
-        );
+        allow create, update, delete: if isAuthenticated();
       }
 
       // Phase 34, 36A & 37: Group Instants / Permanent Moments Sub-collection
