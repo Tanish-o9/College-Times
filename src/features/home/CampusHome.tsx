@@ -2,8 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { ActiveIncidentStrip } from '../incidents/ActiveIncidentStrip';
-import { collection, getDocs, limit, query, where } from 'firebase/firestore';
+import { collection, getDocs, limit, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
+import {
+  getRecommendedEvents,
+  getRecommendedOpportunities,
+  type RecommendedEvent,
+  type RecommendedOpportunity,
+} from '../../services/recommendationService';
+import { getSuggestedGroups, type SuggestedGroup } from '../../services/groupSuggestionService';
 import {
   Sparkles,
   PlusCircle,
@@ -18,6 +25,7 @@ import {
   Briefcase,
   ShoppingBag,
   Flame,
+  Lightbulb,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatTimestamp } from '../../utils/format';
@@ -35,6 +43,12 @@ export const CampusHome: React.FC = () => {
   const [listings, setListings] = useState<any[]>([]);
   const [lostFound, setLostFound] = useState<any[]>([]);
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
+  const [unreadDMsCount, setUnreadDMsCount] = useState(0);
+
+  // Recommendations
+  const [recommendedEvents, setRecommendedEvents] = useState<RecommendedEvent[]>([]);
+  const [recommendedOpps, setRecommendedOpps] = useState<RecommendedOpportunity[]>([]);
+  const [suggestedGroups, setSuggestedGroups] = useState<SuggestedGroup[]>([]);
 
   const [loading, setLoading] = useState(true);
 
@@ -51,6 +65,9 @@ export const CampusHome: React.FC = () => {
         listingsSnap,
         lostFoundSnap,
         notifsSnap,
+        recEvts,
+        recOpps,
+        suggGrps,
       ] = await Promise.all([
         getDocs(query(collection(db, 'posts'), where('status', '==', 'active'), limit(5))),
         getDocs(query(collection(db, 'groups'), limit(10))), // retrieve to filter/sort
@@ -59,6 +76,9 @@ export const CampusHome: React.FC = () => {
         getDocs(query(collection(db, 'marketplaceListings'), where('status', '==', 'active'), limit(5))),
         getDocs(query(collection(db, 'posts'), where('category', '==', 'LostFound'), limit(5))),
         getDocs(query(collection(db, 'notifications'), where('recipientId', '==', currentUser.uid), where('read', '==', false), limit(20))),
+        getRecommendedEvents(currentUser.uid, 3),
+        getRecommendedOpportunities(currentUser.uid, 3),
+        getSuggestedGroups(currentUser.uid, 3),
       ]);
 
       setPosts(postsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
@@ -72,6 +92,10 @@ export const CampusHome: React.FC = () => {
       setListings(listingsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
       setLostFound(lostFoundSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
       setUnreadNotificationsCount(notifsSnap.docs.length);
+
+      setRecommendedEvents(recEvts);
+      setRecommendedOpps(recOpps);
+      setSuggestedGroups(suggGrps);
     } catch (err) {
       console.error('Failed to load dashboard feeds:', err);
       toast.error('Failed to load home dashboard widgets.');
@@ -82,6 +106,21 @@ export const CampusHome: React.FC = () => {
 
   useEffect(() => {
     loadDashboardData();
+  }, [currentUser]);
+
+  // Subscribe to real-time conversation unread counts
+  useEffect(() => {
+    if (!currentUser) return;
+    const qConvs = query(collection(db, 'conversations'), where('participantIds', 'array-contains', currentUser.uid));
+    const unsubscribe = onSnapshot(qConvs, (snap) => {
+      let total = 0;
+      snap.docs.forEach((docSnap) => {
+        const data = docSnap.data();
+        total += data.unreadCounts?.[currentUser.uid] || 0;
+      });
+      setUnreadDMsCount(total);
+    });
+    return () => unsubscribe();
   }, [currentUser]);
 
   return (
@@ -147,19 +186,102 @@ export const CampusHome: React.FC = () => {
           </div>
         </section>
 
-        {/* Unread Alert Banner */}
-        {unreadNotificationsCount > 0 && (
-          <div
-            onClick={() => navigate('/notifications')}
-            className="p-3.5 bg-sky-500/10 border border-sky-500/30 rounded-2xl flex items-center justify-between cursor-pointer hover:bg-sky-500/15 transition-all"
-          >
-            <div className="flex items-center gap-2">
-              <Bell className="w-4 h-4 text-sky-400 animate-bounce" />
-              <span className="text-xs text-sky-300 font-bold">You have {unreadNotificationsCount} unread notification(s). Tap to view.</span>
+        {/* Unread Alert Banners */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 shrink-0">
+          {unreadNotificationsCount > 0 && (
+            <div
+              onClick={() => navigate('/notifications')}
+              className="p-3.5 bg-sky-500/10 border border-sky-500/30 rounded-2xl flex items-center justify-between cursor-pointer hover:bg-sky-500/15 transition-all shadow-md"
+            >
+              <div className="flex items-center gap-2">
+                <Bell className="w-4 h-4 text-sky-400 animate-bounce" />
+                <span className="text-xs text-sky-300 font-bold">You have {unreadNotificationsCount} unread notification(s).</span>
+              </div>
+              <span className="text-[10px] text-sky-400 font-mono font-bold">View →</span>
             </div>
-            <span className="text-[10px] text-sky-400 font-mono font-bold">Open →</span>
+          )}
+
+          {unreadDMsCount > 0 && (
+            <div
+              onClick={() => navigate('/messages')}
+              className="p-3.5 bg-indigo-500/10 border border-indigo-500/30 rounded-2xl flex items-center justify-between cursor-pointer hover:bg-indigo-500/15 transition-all shadow-md"
+            >
+              <div className="flex items-center gap-2">
+                <MessageSquare className="w-4 h-4 text-indigo-400 animate-bounce" />
+                <span className="text-xs text-indigo-300 font-bold">You have {unreadDMsCount} unread private message(s).</span>
+              </div>
+              <span className="text-[10px] text-indigo-400 font-mono font-bold">Chat →</span>
+            </div>
+          )}
+        </div>
+
+        {/* Smart Recommendations Section */}
+        <section className="p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-4 shadow-xl shrink-0">
+          <div className="flex items-center gap-1.5 pb-2 border-b border-slate-800">
+            <Lightbulb className="w-4.5 h-4.5 text-amber-400" />
+            <h3 className="text-xs font-bold text-slate-300 uppercase font-mono">
+              Smart Recommendations For You
+            </h3>
           </div>
-        )}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Suggested Group */}
+            <div className="p-4 bg-slate-950/40 border border-slate-850 rounded-2xl space-y-2">
+              <span className="text-[10px] font-bold text-indigo-400 uppercase font-mono block">Recommended Group</span>
+              {suggestedGroups.length > 0 ? (
+                <div>
+                  <h4 className="text-xs font-bold text-white truncate">{suggestedGroups[0].name}</h4>
+                  <p className="text-[10px] text-slate-400 mt-1 line-clamp-1">{suggestedGroups[0].explanation}</p>
+                  <button
+                    onClick={() => navigate(`/groups/${suggestedGroups[0].id}`)}
+                    className="mt-2.5 px-3 py-1 bg-indigo-500 hover:bg-indigo-450 text-slate-950 font-bold text-[10px] rounded-lg transition-all"
+                  >
+                    View Group
+                  </button>
+                </div>
+              ) : (
+                <p className="text-[11px] text-slate-500 italic">No suggestions.</p>
+              )}
+            </div>
+
+            {/* Recommended Event */}
+            <div className="p-4 bg-slate-950/40 border border-slate-850 rounded-2xl space-y-2">
+              <span className="text-[10px] font-bold text-purple-400 uppercase font-mono block">Recommended Event</span>
+              {recommendedEvents.length > 0 ? (
+                <div>
+                  <h4 className="text-xs font-bold text-white truncate">{recommendedEvents[0].title}</h4>
+                  <p className="text-[10px] text-slate-400 mt-1 line-clamp-1">{recommendedEvents[0].explanation}</p>
+                  <button
+                    onClick={() => navigate('/events')}
+                    className="mt-2.5 px-3 py-1 bg-purple-500 hover:bg-purple-450 text-slate-950 font-bold text-[10px] rounded-lg transition-all"
+                  >
+                    View Events
+                  </button>
+                </div>
+              ) : (
+                <p className="text-[11px] text-slate-500 italic">No suggestions.</p>
+              )}
+            </div>
+
+            {/* Recommended Opportunity */}
+            <div className="p-4 bg-slate-950/40 border border-slate-850 rounded-2xl space-y-2">
+              <span className="text-[10px] font-bold text-cyan-400 uppercase font-mono block">Recommended Career Opportunity</span>
+              {recommendedOpps.length > 0 ? (
+                <div>
+                  <h4 className="text-xs font-bold text-white truncate">{recommendedOpps[0].title}</h4>
+                  <p className="text-[10px] text-slate-400 mt-1 line-clamp-1">{recommendedOpps[0].explanation}</p>
+                  <button
+                    onClick={() => navigate('/opportunities/applications')}
+                    className="mt-2.5 px-3 py-1 bg-cyan-500 hover:bg-cyan-455 text-slate-950 font-bold text-[10px] rounded-lg transition-all"
+                  >
+                    View Career
+                  </button>
+                </div>
+              ) : (
+                <p className="text-[11px] text-slate-500 italic">No suggestions.</p>
+              )}
+            </div>
+          </div>
+        </section>
 
         {/* Dashboard Grid Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

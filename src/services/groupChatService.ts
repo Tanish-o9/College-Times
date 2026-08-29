@@ -11,6 +11,7 @@ import {
   serverTimestamp,
   runTransaction,
   QueryDocumentSnapshot,
+  increment,
 } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import type { User as FirebaseUser } from 'firebase/auth';
@@ -392,6 +393,28 @@ export const editGroupMessage = async (
 /**
  * Soft deletes a group chat message by updating status to 'deleted'.
  */
+/**
+ * Helper to fetch a user's role in a group.
+ */
+export const getUserGroupRole = async (groupId: string, uid: string): Promise<string | null> => {
+  if (!groupId || !uid) return null;
+  const actualGroupId = groupId.startsWith('group-') ? groupId.replace('group-', '') : groupId;
+  try {
+    const memberRef = doc(db, 'groups', actualGroupId, 'members', uid);
+    const snap = await getDoc(memberRef);
+    if (snap.exists()) {
+      return snap.data().role || 'member';
+    }
+    return null;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Soft deletes a group chat message by updating status to 'deleted'.
+ * Author or group owners/admins/moderators can delete messages.
+ */
 export const deleteGroupMessage = async (
   channelId: string,
   messageId: string,
@@ -399,14 +422,24 @@ export const deleteGroupMessage = async (
 ): Promise<void> => {
   if (!channelId || !messageId || !currentUser) return;
 
+  const actualGroupId = channelId.replace('group-', '');
   const msgRef = doc(db, 'channels', channelId, 'messages', messageId);
   const snap = await getDoc(msgRef);
-
   if (!snap.exists()) return;
+
+  const msgData = snap.data();
+  const userRole = await getUserGroupRole(actualGroupId, currentUser.uid);
+  const isAdminOrMod = userRole === 'owner' || userRole === 'admin' || userRole === 'moderator' || msgData.senderRole === 'admin';
+
+  if (msgData.senderId !== currentUser.uid && !isAdminOrMod) {
+    throw new Error('Access denied: Unauthorized to remove this message.');
+  }
 
   await updateDoc(msgRef, {
     status: 'deleted',
-    content: 'This message was deleted.',
+    content: 'This message was deleted by a moderator.',
+    deletedAt: serverTimestamp(),
+    deletedBy: currentUser.uid,
     updatedAt: serverTimestamp(),
   });
 
@@ -414,7 +447,7 @@ export const deleteGroupMessage = async (
 };
 
 /**
- * Pins a group chat message (max 20 pins per channel).
+ * Pins a group chat message (max 5 pins per channel, owner/admin/moderator only).
  */
 export const pinGroupChatMessage = async (
   channelId: string,
@@ -423,11 +456,19 @@ export const pinGroupChatMessage = async (
 ): Promise<void> => {
   if (!channelId || !messageId || !currentUser) return;
 
-  const pinnedColRef = collection(db, 'channels', channelId, 'pinnedMessages');
-  const snap = await getDocs(query(pinnedColRef, limit(20)));
+  const actualGroupId = channelId.replace('group-', '');
+  const userRole = await getUserGroupRole(actualGroupId, currentUser.uid);
+  const isAuthorized = userRole === 'owner' || userRole === 'admin' || userRole === 'moderator';
+  if (!isAuthorized) {
+    throw new Error('Only owners, admins, or moderators can pin messages.');
+  }
 
-  if (snap.size >= 20) {
-    throw new Error('Maximum limit of 20 pinned messages reached for this chat.');
+  const pinnedColRef = collection(db, 'channels', channelId, 'pinnedMessages');
+  const snap = await getDocs(query(pinnedColRef, limit(10)));
+  const activePins = snap.docs.filter(d => d.data().status !== 'removed');
+
+  if (activePins.length >= 5) {
+    throw new Error('Maximum limit of 5 pinned messages reached for this chat.');
   }
 
   const pinDocRef = doc(pinnedColRef, messageId);
@@ -435,7 +476,11 @@ export const pinGroupChatMessage = async (
     messageId,
     pinnedBy: currentUser.uid,
     pinnedAt: serverTimestamp(),
+    status: 'pinned',
   });
+
+  // Post system message
+  await sendGroupChatSystemMessage(actualGroupId, `A message was pinned.`, currentUser);
 
   logAnalyticsEvent('group_chat_message_pinned', { channelId, messageId });
 };
@@ -445,12 +490,20 @@ export const pinGroupChatMessage = async (
  */
 export const unpinGroupChatMessage = async (
   channelId: string,
-  messageId: string
+  messageId: string,
+  currentUser: FirebaseUser
 ): Promise<void> => {
-  if (!channelId || !messageId) return;
+  if (!channelId || !messageId || !currentUser) return;
+
+  const actualGroupId = channelId.replace('group-', '');
+  const userRole = await getUserGroupRole(actualGroupId, currentUser.uid);
+  const isAuthorized = userRole === 'owner' || userRole === 'admin' || userRole === 'moderator';
+  if (!isAuthorized) {
+    throw new Error('Only owners, admins, or moderators can unpin messages.');
+  }
 
   const pinDocRef = doc(db, 'channels', channelId, 'pinnedMessages', messageId);
-  await updateDoc(pinDocRef, { status: 'removed', updatedAt: serverTimestamp() }).catch(() => {});
+  await updateDoc(pinDocRef, { status: 'removed', updatedAt: serverTimestamp() });
 
   logAnalyticsEvent('group_chat_message_unpinned', { channelId, messageId });
 };
@@ -482,5 +535,88 @@ export const searchGroupChatMessages = async (
   });
 
   return results.slice(0, boundedSize);
+};
+
+/**
+ * Sends a system notification message inside a group chat channel.
+ */
+export const sendGroupChatSystemMessage = async (
+  groupId: string,
+  content: string,
+  _currentUser: FirebaseUser
+): Promise<void> => {
+  const channelId = groupId.startsWith('group-') ? groupId : `group-${groupId}`;
+  const messagesRef = collection(db, 'channels', channelId, 'messages');
+  await addDoc(messagesRef, {
+    channelId,
+    senderId: 'system',
+    senderName: 'System',
+    senderRole: 'admin',
+    content,
+    status: 'active',
+    createdAt: serverTimestamp(),
+  });
+};
+
+/**
+ * Transactionally updates or toggles emoji reactions on a group chat message.
+ */
+export const toggleGroupMessageReaction = async (
+  channelId: string,
+  messageId: string,
+  userId: string,
+  emoji: string
+): Promise<void> => {
+  if (!channelId || !messageId || !userId || !emoji) return;
+
+  const reactionRef = doc(db, 'channels', channelId, 'messages', messageId, 'reactions', userId);
+  const messageRef = doc(db, 'channels', channelId, 'messages', messageId);
+
+  await runTransaction(db, async (transaction) => {
+    const messageSnap = await transaction.get(messageRef);
+    if (!messageSnap.exists()) {
+      throw new Error('Message no longer exists.');
+    }
+
+    const reactionSnap = await transaction.get(reactionRef);
+
+    if (!reactionSnap.exists()) {
+      transaction.set(reactionRef, {
+        emoji,
+        userId,
+        createdAt: serverTimestamp(),
+      });
+      transaction.update(messageRef, {
+        [`reactionCounts.${emoji}`]: increment(1),
+      });
+    } else {
+      const existingEmoji = reactionSnap.data().emoji;
+
+      if (existingEmoji === emoji) {
+        transaction.delete(reactionRef);
+        const currentCounts = messageSnap.data().reactionCounts || {};
+        const currentVal = currentCounts[emoji] || 0;
+        const newVal = Math.max(0, currentVal - 1);
+        transaction.update(messageRef, {
+          [`reactionCounts.${emoji}`]: newVal,
+        });
+      } else {
+        transaction.set(reactionRef, {
+          emoji,
+          userId,
+          updatedAt: serverTimestamp(),
+        });
+        const currentCounts = messageSnap.data().reactionCounts || {};
+        const oldVal = currentCounts[existingEmoji] || 0;
+        const newOldVal = Math.max(0, oldVal - 1);
+        transaction.update(messageRef, {
+          [`reactionCounts.${existingEmoji}`]: newOldVal,
+          [`reactionCounts.${emoji}`]: increment(1),
+        });
+      }
+    }
+  });
+
+  logAnalyticsEvent('group_message_reaction_toggled', { channelId, emoji });
 };
 

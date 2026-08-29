@@ -24,6 +24,8 @@ import { RealtimeGroupActivity } from './RealtimeGroupActivity';
 import { GroupPosts } from './GroupPosts';
 import { GroupEvents } from './GroupEvents';
 import { GroupResources } from './GroupResources';
+import { GroupTasks } from './GroupTasks';
+import { GroupFiles } from './GroupFiles';
 import { GroupAnalyticsDashboard } from './GroupAnalyticsDashboard';
 import {
   ArrowLeft,
@@ -48,6 +50,8 @@ import {
   Calendar,
   FileText,
   BookOpen,
+  ListTodo,
+  FolderOpen,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { doc, getDoc, collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
@@ -66,6 +70,8 @@ export type GroupTab =
   | 'search'
   | 'invites'
   | 'resources'
+  | 'tasks'
+  | 'files'
   | 'analytics'
   | 'chat';
 
@@ -490,6 +496,30 @@ export const GroupDetailPage: React.FC = () => {
                   </button>
 
                   <button
+                    onClick={() => handleTabChange('tasks')}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+                      activeTab === 'tasks'
+                        ? 'bg-sky-500/10 text-sky-400 border border-sky-500/30'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <ListTodo className="w-4 h-4" />
+                    <span>Tasks</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleTabChange('files')}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+                      activeTab === 'files'
+                        ? 'bg-sky-500/10 text-sky-400 border border-sky-500/30'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <FolderOpen className="w-4 h-4" />
+                    <span>Files</span>
+                  </button>
+
+                  <button
                     onClick={() => handleTabChange('analytics')}
                     className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
                       activeTab === 'analytics'
@@ -608,6 +638,14 @@ export const GroupDetailPage: React.FC = () => {
 
                 {activeTab === 'resources' && (
                   <GroupResources groupId={group.id} isMember={isMember} userRole={userRole} />
+                )}
+
+                {activeTab === 'tasks' && (
+                  <GroupTasks groupId={group.id} isMember={isMember} />
+                )}
+
+                {activeTab === 'files' && (
+                  <GroupFiles groupId={group.id} isMember={isMember} />
                 )}
 
                 {activeTab === 'analytics' && (

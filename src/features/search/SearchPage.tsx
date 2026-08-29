@@ -8,6 +8,11 @@ import {
   removeRecentSearch,
   clearRecentSearches,
 } from '../../services/searchService';
+import {
+  getSearchHistory,
+  saveSearchHistory,
+  clearSearchHistory,
+} from '../../services/recommendationService';
 import type { SearchCategory, SearchResultItem } from '../../types/search';
 import {
   Search as SearchIcon,
@@ -57,8 +62,18 @@ export const SearchPage: React.FC = () => {
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
 
   useEffect(() => {
-    setRecentSearches(getRecentSearches());
-  }, []);
+    if (currentUser) {
+      getSearchHistory(currentUser.uid).then((history) => {
+        if (history.length > 0) {
+          setRecentSearches(history);
+        } else {
+          setRecentSearches(getRecentSearches());
+        }
+      });
+    } else {
+      setRecentSearches(getRecentSearches());
+    }
+  }, [currentUser]);
 
   // Debounced search trigger (300ms)
   useEffect(() => {
@@ -76,8 +91,14 @@ export const SearchPage: React.FC = () => {
       try {
         const res = await searchUnifiedCampus(clean, activeCategory, 20, currentUser);
         setResults(res.items);
-        saveRecentSearch(clean);
-        setRecentSearches(getRecentSearches());
+        if (currentUser) {
+          await saveSearchHistory(currentUser.uid, clean);
+          const history = await getSearchHistory(currentUser.uid);
+          setRecentSearches(history);
+        } else {
+          saveRecentSearch(clean);
+          setRecentSearches(getRecentSearches());
+        }
       } catch (err) {
         toast.error('Search failed.');
       } finally {
@@ -115,8 +136,12 @@ export const SearchPage: React.FC = () => {
     setRecentSearches(getRecentSearches());
   };
 
-  const handleClearAllRecent = () => {
-    clearRecentSearches();
+  const handleClearAllRecent = async () => {
+    if (currentUser) {
+      await clearSearchHistory(currentUser.uid);
+    } else {
+      clearRecentSearches();
+    }
     setRecentSearches([]);
   };
 

@@ -14,6 +14,7 @@ import {
   deleteDoc,
   increment,
   startAfter,
+  Timestamp,
   type QueryDocumentSnapshot,
 } from 'firebase/firestore';
 import { ref as rtdbRef, set as rtdbSet, onValue, serverTimestamp as rtdbServerTimestamp } from 'firebase/database';
@@ -157,6 +158,10 @@ export const sendDirectMessage = async (
     attachment?: { url: string; filename: string; size?: number; mimeType?: string };
     replyToMessageId?: string;
     replyToPreview?: string;
+    replyTo?: { messageId: string; senderId: string; preview: string };
+    forwardedFromMessageId?: string;
+    forwardedFromConversationId?: string;
+    originalSenderId?: string;
   }
 ): Promise<DirectMessage> => {
   if (!currentUser || !conversationId) throw new Error('Authentication required.');
@@ -190,6 +195,10 @@ export const sendDirectMessage = async (
     attachment: options?.attachment || undefined,
     replyToMessageId: options?.replyToMessageId || undefined,
     replyToPreview: options?.replyToPreview || undefined,
+    replyTo: options?.replyTo || undefined,
+    forwardedFromMessageId: options?.forwardedFromMessageId || undefined,
+    forwardedFromConversationId: options?.forwardedFromConversationId || undefined,
+    originalSenderId: options?.originalSenderId || undefined,
     status: 'active' as const,
     createdAt: serverTimestamp(),
   };
@@ -198,6 +207,7 @@ export const sendDirectMessage = async (
   const preview = cleanContent ? cleanContent.slice(0, 80) : `[${(options?.messageType || 'attachment').toUpperCase()}]`;
 
   // Update conversation parent metadata & status
+  const recipientId = convData.participantIds.find((id) => id !== uid);
   await setDoc(
     convRef,
     {
@@ -207,14 +217,34 @@ export const sendDirectMessage = async (
       lastMessageSenderId: uid,
       updatedAt: serverTimestamp(),
       ...(convData.status === 'pending' ? { status: 'active' } : {}),
+      ...(recipientId ? { [`unreadCounts.${recipientId}`]: increment(1) } : {}),
     },
     { merge: true }
   );
 
   // Targeted 1-to-1 notification for recipient
-  const recipientId = convData.participantIds.find((id) => id !== uid);
   if (recipientId) {
-    const isMuted = convData.participantMeta?.[recipientId]?.muted === true;
+    let isMuted = convData.participantMeta?.[recipientId]?.muted === true;
+    try {
+      const prefRef = doc(db, 'users', recipientId, 'conversationPreferences', conversationId);
+      const prefSnap = await getDoc(prefRef);
+      if (prefSnap.exists()) {
+        const prefData = prefSnap.data();
+        if (prefData.muted === true) {
+          if (prefData.mutedUntil) {
+            const until = prefData.mutedUntil.toDate ? prefData.mutedUntil.toDate() : new Date(prefData.mutedUntil);
+            if (until.getTime() > Date.now()) {
+              isMuted = true;
+            }
+          } else {
+            isMuted = true;
+          }
+        }
+      }
+    } catch {
+      // fallback to participantMeta if error
+    }
+
     if (!isMuted) {
       createNotification({
         recipientId,
@@ -225,6 +255,7 @@ export const sendDirectMessage = async (
         deepLink: `/messages/${conversationId}`,
       }).catch(() => {});
     }
+
     try {
       const { incrementScopeUnread } = await import('./activityStateService');
       await incrementScopeUnread(recipientId, 'messages');
@@ -543,7 +574,109 @@ export const updateConversationReadState = async (
     convRef,
     {
       [`participantMeta.${currentUser.uid}.lastReadAt`]: serverTimestamp(),
+      [`unreadCounts.${currentUser.uid}`]: 0,
     },
     { merge: true }
   ).catch(() => {});
 };
+
+/**
+ * Edits a message sent by the current user within 15 minutes.
+ */
+export const editDirectMessage = async (
+  conversationId: string,
+  messageId: string,
+  newContent: string,
+  currentUser: FirebaseUser
+): Promise<void> => {
+  if (!currentUser || !conversationId || !messageId) throw new Error('Authentication required.');
+  const msgRef = doc(db, 'conversations', conversationId, 'messages', messageId);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(msgRef);
+    if (!snap.exists()) throw new Error('Message not found.');
+
+    const data = snap.data();
+    if (data.senderId !== currentUser.uid) {
+      throw new Error('Only the author can edit this message.');
+    }
+
+    const createdAt = data.createdAt?.toDate ? data.createdAt.toDate().getTime() : (data.createdAt ? new Date(data.createdAt).getTime() : Date.now());
+    if (Date.now() - createdAt > 15 * 60 * 1000) {
+      throw new Error('The edit window (15 minutes) has expired.');
+    }
+
+    tx.update(msgRef, {
+      content: newContent.trim().slice(0, 2000),
+      editedAt: serverTimestamp(),
+      isEdited: true,
+      updatedAt: serverTimestamp(),
+    });
+  });
+};
+
+/**
+ * Forwards a message from one conversation to another.
+ */
+export const forwardDirectMessage = async (
+  sourceConversationId: string,
+  destinationConversationId: string,
+  messageId: string,
+  currentUser: FirebaseUser
+): Promise<DirectMessage> => {
+  if (!currentUser || !sourceConversationId || !destinationConversationId || !messageId) {
+    throw new Error('All parameters required.');
+  }
+
+  const srcConvRef = doc(db, 'conversations', sourceConversationId);
+  const srcSnap = await getDoc(srcConvRef);
+  if (!srcSnap.exists()) throw new Error('Source conversation not found.');
+  const srcData = srcSnap.data() as DirectConversation;
+  if (!srcData.participantIds.includes(currentUser.uid)) {
+    throw new Error('Access denied to source conversation.');
+  }
+
+  const dstConvRef = doc(db, 'conversations', destinationConversationId);
+  const dstSnap = await getDoc(dstConvRef);
+  if (!dstSnap.exists()) throw new Error('Destination conversation not found.');
+  const dstData = dstSnap.data() as DirectConversation;
+  if (!dstData.participantIds.includes(currentUser.uid)) {
+    throw new Error('Access denied to destination conversation.');
+  }
+
+  const msgRef = doc(db, 'conversations', sourceConversationId, 'messages', messageId);
+  const msgSnap = await getDoc(msgRef);
+  if (!msgSnap.exists()) throw new Error('Message not found.');
+  const msgData = msgSnap.data();
+
+  return sendDirectMessage(destinationConversationId, msgData.content || '', currentUser, {
+    messageType: msgData.messageType || 'text',
+    attachment: msgData.attachment || undefined,
+    forwardedFromMessageId: messageId,
+    forwardedFromConversationId: sourceConversationId,
+    originalSenderId: msgData.senderId,
+  });
+};
+
+/**
+ * Saves mute preference for a conversation under users/{uid}/conversationPreferences/{conversationId}
+ */
+export const muteConversationPref = async (
+  conversationId: string,
+  muted: boolean,
+  durationMinutes: number | null,
+  currentUser: FirebaseUser
+): Promise<void> => {
+  if (!currentUser || !conversationId) throw new Error('Authentication required.');
+  const uid = currentUser.uid;
+  const prefRef = doc(db, 'users', uid, 'conversationPreferences', conversationId);
+
+  const now = new Date();
+  const mutedUntil = (muted && durationMinutes) ? new Date(now.getTime() + durationMinutes * 60 * 1000) : null;
+
+  await setDoc(prefRef, {
+    muted,
+    mutedUntil: mutedUntil ? Timestamp.fromDate(mutedUntil) : null,
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
+};
+

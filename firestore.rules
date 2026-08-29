@@ -98,6 +98,16 @@ service cloud.firestore {
         allow read, create, update, delete: if isOwner(userId);
       }
 
+      // Phase 8: Saved Resources Sub-collection
+      match /savedResources/{resourceId} {
+        allow read, create, update, delete: if isOwner(userId);
+      }
+
+      // Phase 8: Preferences Sub-collection (e.g. searchHistory)
+      match /preferences/{prefId} {
+        allow read, create, update, delete: if isOwner(userId);
+      }
+
       // Phase 41, 46 & 50: User Notifications Sub-collection
       match /notifications/{notificationId} {
         allow read: if isOwner(userId);
@@ -916,10 +926,25 @@ service cloud.firestore {
           get(/databases/$(database)/documents/groups/$(groupId)).data.visibility != 'private' ||
           isAdmin()
         );
-        allow create, update, delete: if isAuthenticated() && (
+        allow create, delete: if isAuthenticated() && (
           get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['owner', 'admin', 'moderator'] ||
           isAdmin()
         );
+        allow update: if isAuthenticated() && (
+          get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['owner', 'admin', 'moderator'] ||
+          request.resource.data.diff(resource.data).affectedKeys().hasAny(['reactionCounts', 'status']) ||
+          isAdmin()
+        );
+
+        match /reads/{userId} {
+          allow read: if isAuthenticated();
+          allow create, update, delete: if isAuthenticated() && userId == request.auth.uid;
+        }
+
+        match /reactions/{userId} {
+          allow read: if isAuthenticated();
+          allow create, update, delete: if isAuthenticated() && userId == request.auth.uid;
+        }
       }
 
       // Phase 35 & 37: Group Member Reports & Moderation Logs
@@ -989,6 +1014,39 @@ service cloud.firestore {
         );
         allow delete: if isAuthenticated() && (
           resource.data.createdBy == request.auth.uid ||
+          get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['owner', 'admin', 'moderator'] ||
+          isAdmin()
+        );
+        allow update: if isAuthenticated() && (
+          request.resource.data.diff(resource.data).affectedKeys().hasAny(['viewCount', 'downloadCount', 'reactionCounts']) ||
+          isAdmin()
+        );
+      }
+
+      // Collaborative Tasks Sub-collection
+      match /tasks/{taskId} {
+        allow read: if isAuthenticated() && (
+          exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)) ||
+          isAdmin()
+        );
+        allow create, update, delete: if isAuthenticated() && (
+          exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)) ||
+          isAdmin()
+        );
+      }
+
+      // Shared Files Sub-collection
+      match /files/{fileId} {
+        allow read: if isAuthenticated() && (
+          exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)) ||
+          isAdmin()
+        );
+        allow create: if isAuthenticated() && (
+          exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)) ||
+          isAdmin()
+        );
+        allow delete: if isAuthenticated() && (
+          resource.data.uploadedBy == request.auth.uid ||
           get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['owner', 'admin', 'moderator'] ||
           isAdmin()
         );

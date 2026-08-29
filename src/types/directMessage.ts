@@ -22,6 +22,7 @@ export interface DirectConversation {
   status: ConversationStatus;
   blockedBy?: string;
   participantMeta?: Record<string, ParticipantMeta>;
+  unreadCounts?: Record<string, number>;
 }
 
 export interface DirectMessage {
@@ -40,6 +41,15 @@ export interface DirectMessage {
   };
   replyToMessageId?: string;
   replyToPreview?: string;
+  replyTo?: {
+    messageId: string;
+    senderId: string;
+    preview: string;
+  };
+  forwardedFromMessageId?: string;
+  forwardedFromConversationId?: string;
+  originalSenderId?: string;
+  isEdited?: boolean;
   reactionCounts?: Record<string, number>;
   status: 'active' | 'deleted';
   createdAt: any;

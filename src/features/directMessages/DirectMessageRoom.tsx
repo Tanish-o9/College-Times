@@ -14,6 +14,8 @@ import {
   deleteDirectMessage,
   updateConversationReadState,
   getDirectMessagesPaginated,
+  editDirectMessage,
+  muteConversationPref,
 } from '../../services/directMessageService';
 import { subscribeToMemberPresence } from '../../services/presenceService';
 import { doc, onSnapshot, collection, query, orderBy, limit, getDocs, where } from 'firebase/firestore';
@@ -37,6 +39,9 @@ import {
   User,
   Trash2,
   ChevronUp,
+  Bell,
+  BellOff,
+  Edit3,
 } from 'lucide-react';
 
 export const DirectMessageRoom: React.FC = () => {
@@ -54,10 +59,13 @@ export const DirectMessageRoom: React.FC = () => {
 
   // Rich Messaging States
   const [replyingTo, setReplyingTo] = useState<DirectMessage | null>(null);
+  const [editingMsg, setEditingMsg] = useState<DirectMessage | null>(null);
+  const [isMuted, setIsMuted] = useState<boolean>(false);
   const [forwardingMsg, setForwardingMsg] = useState<DirectMessage | null>(null);
   const [forwardChats, setForwardChats] = useState<DirectConversation[]>([]);
   const [activeReactionPickerMsgId, setActiveReactionPickerMsgId] = useState<string | null>(null);
   const [uploading, setUploading] = useState<boolean>(false);
+
 
   // Typing indicator state
   const [typingUids, setTypingUids] = useState<string[]>([]);
@@ -148,6 +156,30 @@ export const DirectMessageRoom: React.FC = () => {
     updateConversationReadState(conversationId, currentUser).catch(() => {});
   }, [conversationId, currentUser]);
 
+  // Listen to mute state preference
+  useEffect(() => {
+    if (!currentUser || !conversationId) return;
+    const prefRef = doc(db, 'users', currentUser.uid, 'conversationPreferences', conversationId);
+    const unsub = onSnapshot(prefRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data.muted === true) {
+          if (data.mutedUntil) {
+            const until = data.mutedUntil.toDate ? data.mutedUntil.toDate() : new Date(data.mutedUntil);
+            setIsMuted(until.getTime() > Date.now());
+          } else {
+            setIsMuted(true);
+          }
+        } else {
+          setIsMuted(false);
+        }
+      } else {
+        setIsMuted(false);
+      }
+    });
+    return () => unsub();
+  }, [currentUser, conversationId]);
+
   // Load other chats for forwarding when modal opens
   useEffect(() => {
     if (!currentUser || !forwardingMsg) return;
@@ -181,12 +213,22 @@ export const DirectMessageRoom: React.FC = () => {
 
     setSending(true);
     try {
-      await sendDirectMessage(conversationId, inputContent, currentUser, {
-        replyToMessageId: replyingTo?.id || undefined,
-        replyToPreview: replyingTo ? (replyingTo.messageType === 'text' ? replyingTo.content : `[${replyingTo.messageType.toUpperCase()}]`) : undefined
-      });
+      if (editingMsg) {
+        await editDirectMessage(conversationId, editingMsg.id, inputContent, currentUser);
+        setEditingMsg(null);
+      } else {
+        await sendDirectMessage(conversationId, inputContent, currentUser, {
+          replyToMessageId: replyingTo?.id || undefined,
+          replyToPreview: replyingTo ? (replyingTo.messageType === 'text' ? replyingTo.content : `[${replyingTo.messageType.toUpperCase()}]`) : undefined,
+          replyTo: replyingTo ? {
+            messageId: replyingTo.id,
+            senderId: replyingTo.senderId,
+            preview: replyingTo.messageType === 'text' ? replyingTo.content : `[${replyingTo.messageType.toUpperCase()}]`
+          } : undefined
+        });
+        setReplyingTo(null);
+      }
       setInputContent('');
-      setReplyingTo(null);
     } catch (err: any) {
       toast.error(err.message || 'Failed to send message.');
     } finally {
@@ -232,6 +274,17 @@ export const DirectMessageRoom: React.FC = () => {
     } finally {
       setUploading(false);
       e.target.value = '';
+    }
+  };
+
+  const scrollToMessage = (msgId: string) => {
+    const el = document.getElementById(`msg-${msgId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('bg-indigo-500/20 animate-pulse');
+      setTimeout(() => {
+        el.classList.remove('bg-indigo-500/20', 'animate-pulse');
+      }, 2000);
     }
   };
 
@@ -334,6 +387,25 @@ export const DirectMessageRoom: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
+          {!isBlocked && (
+            <button
+              onClick={async () => {
+                try {
+                  const nextMuted = !isMuted;
+                  await muteConversationPref(conversationId!, nextMuted, nextMuted ? 1440 : null, currentUser!);
+                  setIsMuted(nextMuted);
+                  toast.success(nextMuted ? 'Muted notifications for 24h' : 'Notifications unmuted');
+                } catch {
+                  toast.error('Failed to update mute state');
+                }
+              }}
+              className="p-2 bg-slate-950 hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl border border-slate-800 transition-all"
+              title={isMuted ? "Unmute Notifications" : "Mute Notifications"}
+            >
+              {isMuted ? <BellOff className="w-4 h-4 text-amber-500" /> : <Bell className="w-4 h-4" />}
+            </button>
+          )}
+
           {isBlocked ? (
             blockedByMe && (
               <button
@@ -414,10 +486,14 @@ export const DirectMessageRoom: React.FC = () => {
             const isMe = msg.senderId === currentUser?.uid;
             const isDeleted = msg.status === 'deleted';
 
+            const msgTime = msg.createdAt ? new Date(msg.createdAt).getTime() : Date.now();
+            const canEdit = isMe && !isDeleted && (Date.now() - msgTime < 15 * 60 * 1000);
+
             return (
               <div
                 key={msg.id}
-                className={`flex flex-col relative ${isMe ? 'items-end' : 'items-start'}`}
+                id={`msg-${msg.id}`}
+                className={`flex flex-col relative p-1.5 rounded-2xl transition-all duration-300 ${isMe ? 'items-end' : 'items-start'}`}
               >
                 <div className={`flex items-center gap-2 group ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                   {/* Message Bubble itself */}
@@ -429,7 +505,11 @@ export const DirectMessageRoom: React.FC = () => {
                     }`}
                   >
                     {msg.replyToMessageId && (
-                      <div className="mb-2 p-2 bg-slate-950/60 rounded-xl border-l-2 border-indigo-400 text-[10px] text-slate-300 truncate">
+                      <div
+                        onClick={() => scrollToMessage(msg.replyToMessageId!)}
+                        className="mb-2 p-2 bg-slate-950/60 rounded-xl border-l-2 border-indigo-400 text-[10px] text-slate-300 truncate cursor-pointer hover:bg-slate-950/90 transition-all"
+                        title="Jump to original message"
+                      >
                         <span className="font-bold text-indigo-300 block">Replying to:</span>
                         {msg.replyToPreview}
                       </div>
@@ -455,15 +535,20 @@ export const DirectMessageRoom: React.FC = () => {
                         </a>
                       </div>
                     ) : (
-                      <p className="text-xs leading-relaxed whitespace-pre-wrap break-words">
-                        {msg.content}
-                      </p>
+                      <div className="space-y-1">
+                        <p className="text-xs leading-relaxed whitespace-pre-wrap break-words">
+                          {msg.content}
+                        </p>
+                        {msg.isEdited && (
+                          <span className="text-[9px] text-indigo-300/70 italic block mt-0.5">edited</span>
+                        )}
+                      </div>
                     )}
 
                     {/* Emoji Reaction Picker Dropdown */}
                     {activeReactionPickerMsgId === msg.id && (
                       <div className="absolute z-20 bottom-full mb-1 flex items-center gap-1.5 bg-slate-950 border border-slate-800 p-2 rounded-2xl shadow-2xl animate-in fade-in slide-in-from-bottom-2">
-                        {['👍', '❤️', '😂', '😮', '😢', '🔥'].map((emoji) => (
+                        {['👍', '❤️', '😂', '🎉', '🤝', '💡'].map((emoji) => (
                           <button
                             key={emoji}
                             onClick={() => {
@@ -496,6 +581,18 @@ export const DirectMessageRoom: React.FC = () => {
                       >
                         <CornerUpLeft className="w-3.5 h-3.5" />
                       </button>
+                      {canEdit && (
+                        <button
+                          onClick={() => {
+                            setEditingMsg(msg);
+                            setInputContent(msg.content);
+                          }}
+                          className="p-1 text-slate-400 hover:text-indigo-400 rounded-lg transition-colors"
+                          title="Edit Message"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       <button
                         onClick={() => setForwardingMsg(msg)}
                         className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors"
@@ -523,9 +620,9 @@ export const DirectMessageRoom: React.FC = () => {
                       .filter(([_, count]) => count > 0)
                       .map(([emoji, count]) => (
                         <button
-                          key={emoji}
-                          onClick={() => toggleDMReaction(conversationId!, msg.id, currentUser!.uid, emoji)}
-                          className="flex items-center gap-1 bg-slate-950/80 hover:bg-slate-800/80 border border-slate-800/60 rounded-full px-2 py-0.5 text-[9px] transition-all"
+                           key={emoji}
+                           onClick={() => toggleDMReaction(conversationId!, msg.id, currentUser!.uid, emoji)}
+                           className="flex items-center gap-1 bg-slate-950/80 hover:bg-slate-800/80 border border-slate-800/60 rounded-full px-2 py-0.5 text-[9px] transition-all"
                         >
                           <span>{emoji}</span>
                           <span className="text-slate-400 font-bold">{count}</span>
@@ -587,6 +684,29 @@ export const DirectMessageRoom: React.FC = () => {
         </div>
       )}
 
+      {/* Editing Status Strip */}
+      {editingMsg && (
+        <div className="flex items-center justify-between p-3 bg-slate-950 border border-slate-800 rounded-2xl mb-2 shrink-0 animate-in fade-in slide-in-from-bottom-2">
+          <div className="truncate space-y-0.5 border-l-2 border-amber-500 pl-3">
+            <span className="text-[10px] font-bold text-amber-400 block">
+              Editing Message
+            </span>
+            <p className="text-xs text-slate-400 truncate">
+              {editingMsg.content}
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              setEditingMsg(null);
+              setInputContent('');
+            }}
+            className="text-slate-500 hover:text-white p-1"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Bottom Composer Bar */}
       {isBlocked ? (
         blockedByMe ? (
@@ -639,7 +759,7 @@ export const DirectMessageRoom: React.FC = () => {
               type="text"
               value={inputContent}
               onChange={handleInputChange}
-              placeholder="Type a private message..."
+              placeholder={editingMsg ? "Edit message..." : "Type a private message..."}
               disabled={sending || uploading}
               className="flex-1 bg-slate-900 border border-slate-800 rounded-2xl px-4 py-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 font-medium"
             />
@@ -649,7 +769,7 @@ export const DirectMessageRoom: React.FC = () => {
               disabled={sending || uploading || !inputContent.trim()}
               className="p-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white rounded-2xl text-xs font-bold shadow-lg shadow-indigo-500/20 disabled:opacity-50 transition-all shrink-0"
             >
-              {sending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              {sending ? <RefreshCw className="w-4 h-4 animate-spin" /> : editingMsg ? <Check className="w-4 h-4 text-emerald-400" /> : <Send className="w-4 h-4" />}
             </button>
           </form>
         </div>

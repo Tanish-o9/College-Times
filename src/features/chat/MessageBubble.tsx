@@ -38,7 +38,7 @@ interface MessageBubbleProps {
   onReply?: (message: ChatMessage) => void;
 }
 
-const COMMON_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
+const COMMON_EMOJIS = ['👍', '❤️', '😂', '🎉', '🤝', '💡'];
 const REPORT_REASONS: Array<ChatReportPayload['reason']> = [
   'Spam',
   'Abuse',
@@ -329,7 +329,24 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
         {/* Quoted Reply Target Block */}
         {message.replyToMessageId && (
-          <div className="p-2 bg-slate-950/50 rounded-xl border border-slate-800 flex items-start gap-1.5 text-[11px] text-slate-300">
+          <div
+            onClick={() => {
+              if (message.replyToMessageId) {
+                const el = document.getElementById(`message-${message.replyToMessageId}`);
+                if (el) {
+                  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  el.classList.add('bg-indigo-500/20');
+                  setTimeout(() => {
+                    el.classList.remove('bg-indigo-500/20');
+                  }, 2000);
+                } else {
+                  toast.error('Original message not found in history.');
+                }
+              }
+            }}
+            className="p-2 bg-slate-950/50 rounded-xl border border-slate-800 flex items-start gap-1.5 text-[11px] text-slate-300 cursor-pointer hover:bg-slate-950/80 transition-all"
+            title="Scroll to original message"
+          >
             <CornerDownRight className="w-3.5 h-3.5 text-sky-400 shrink-0 mt-0.5" />
             <div className="min-w-0">
               <span className="font-bold text-sky-300 block text-[10px]">

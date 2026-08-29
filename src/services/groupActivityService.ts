@@ -22,7 +22,9 @@ export type GroupActivityType =
   | 'moment'
   | 'post'
   | 'membership_change'
-  | 'moderation';
+  | 'moderation'
+  | 'file_shared'
+  | 'task';
 
 export interface GroupActivityEvent {
   id?: string;

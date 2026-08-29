@@ -5,8 +5,11 @@ import {
   deleteDoc,
   query,
   getDocs,
+  setDoc,
   serverTimestamp,
   orderBy,
+  increment,
+  runTransaction,
 } from 'firebase/firestore';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { db, logAnalyticsEvent } from '../lib/firebase';
@@ -112,4 +115,75 @@ export const deleteGroupResource = async (
   const resourceRef = doc(db, 'groups', groupId, 'resources', resourceId);
   await deleteDoc(resourceRef);
   logAnalyticsEvent('group_resource_deleted', { groupId, resourceId });
+};
+
+/**
+ * Saves/bookmarks a resource link for the current user.
+ */
+export const saveResource = async (
+  resourceId: string,
+  groupId: string,
+  title: string,
+  currentUser: FirebaseUser
+): Promise<void> => {
+  if (!currentUser || !resourceId || !groupId) throw new Error('Authentication required.');
+
+  const saveRef = doc(db, 'users', currentUser.uid, 'savedResources', resourceId);
+  await setDoc(saveRef, {
+    resourceId,
+    groupId,
+    title,
+    savedAt: serverTimestamp(),
+  });
+
+  logAnalyticsEvent('group_resource_saved', { groupId, resourceId });
+};
+
+/**
+ * Reports a group resource for moderation.
+ */
+export const reportResource = async (
+  groupId: string,
+  resourceId: string,
+  reason: string,
+  currentUser: FirebaseUser
+): Promise<void> => {
+  if (!currentUser || !resourceId || !groupId) throw new Error('Authentication required.');
+
+  const reportRef = doc(db, 'reports', `resource_${resourceId}_${currentUser.uid}`);
+  await setDoc(reportRef, {
+    reportedEntityId: resourceId,
+    reportedEntityType: 'resource',
+    groupId,
+    reason,
+    reporterId: currentUser.uid,
+    status: 'OPEN',
+    createdAt: serverTimestamp(),
+  });
+
+  logAnalyticsEvent('group_resource_reported', { groupId, resourceId });
+};
+
+/**
+ * Transactionally increments resource download or view counts.
+ */
+export const incrementResourceCount = async (
+  groupId: string,
+  resourceId: string,
+  type: 'view' | 'download'
+): Promise<void> => {
+  if (!groupId || !resourceId) return;
+
+  const resourceRef = doc(db, 'groups', groupId, 'resources', resourceId);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(resourceRef);
+    if (!snap.exists()) return;
+
+    const field = type === 'view' ? 'viewCount' : 'downloadCount';
+    tx.update(resourceRef, {
+      [field]: increment(1),
+    });
+  });
+
+  logAnalyticsEvent('group_resource_count_incremented', { groupId, resourceId, type });
 };

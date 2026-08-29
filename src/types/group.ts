@@ -163,7 +163,7 @@ export interface GroupAnnouncement {
   updatedAt?: Timestamp | FieldValue | any;
   priority?: 'normal' | 'important' | 'urgent';
   pinned: boolean;
-  status: 'active' | 'deleted';
+  status: 'active' | 'deleted' | 'scheduled' | 'archived';
 }
 
 export interface GroupMemberReport {

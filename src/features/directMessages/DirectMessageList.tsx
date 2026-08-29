@@ -202,12 +202,14 @@ export const DirectMessageList: React.FC = () => {
 
             const isOnline = targetUid ? onlineMap[targetUid] : false;
             const myMeta = conv.participantMeta?.[uid];
-            const isUnread =
+            const unreadCount = (conv as any).unreadCounts?.[uid] || 0;
+            const isUnread = unreadCount > 0 || (
               conv.lastMessageSenderId !== uid &&
               conv.lastMessageId &&
               (!myMeta?.lastReadAt ||
                 (conv.lastMessageAt?.toMillis ? conv.lastMessageAt.toMillis() : new Date(conv.lastMessageAt).getTime()) >
-                (myMeta.lastReadAt?.toMillis ? myMeta.lastReadAt.toMillis() : new Date(myMeta.lastReadAt).getTime()));
+                (myMeta.lastReadAt?.toMillis ? myMeta.lastReadAt.toMillis() : new Date(myMeta.lastReadAt).getTime()))
+            );
 
             return (
               <div
@@ -238,7 +240,9 @@ export const DirectMessageList: React.FC = () => {
                         </span>
                       )}
                       {isUnread && (
-                        <span className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse" />
+                        <span className="px-1.5 py-0.5 bg-indigo-500 text-white rounded-full text-[9px] font-black min-w-[16px] h-[16px] flex items-center justify-center animate-pulse">
+                          {unreadCount > 0 ? unreadCount : '!'}
+                        </span>
                       )}
                     </div>
 
