@@ -696,13 +696,13 @@ service cloud.firestore {
     // Community Channels & Scalable Chat Sub-collections
     match /channels/{channelId} {
       allow read: if isAuthenticated() && (
-        !channelId.startsWith('group-') ||
+        !channelId.matches('^group-.*') ||
         exists(path('/databases/' + database + '/documents/groups/' + resource.data.groupId + '/members/' + request.auth.uid)) ||
         isAdmin()
       );
       allow create: if isAdmin() || (
         isAuthenticated() &&
-        channelId.startsWith('group-') &&
+        channelId.matches('^group-.*') &&
         exists(path('/databases/' + database + '/documents/groups/' + request.resource.data.groupId + '/members/' + request.auth.uid)) &&
         request.resource.data.keys().hasAll(['name', 'description', 'category', 'type', 'createdAt', 'createdBy', 'memberCount', 'isArchived'])
       );
@@ -735,7 +735,7 @@ service cloud.firestore {
       // Messages Sub-collection: Bounded content length, member & mute check
       match /messages/{messageId} {
         allow read: if isAuthenticated() && (
-          !channelId.startsWith('group-') ||
+          !channelId.matches('^group-.*') ||
           exists(path('/databases/' + database + '/documents/groups/' + get(/databases/$(database)/documents/channels/$(channelId)).data.groupId + '/members/' + request.auth.uid)) ||
           isAdmin()
         );
@@ -857,12 +857,12 @@ service cloud.firestore {
       // Helper function to check group membership for group chat channels ('group-{groupId}')
       function isGroupChannelMember() {
         return isAuthenticated() && (
-          !channelId.startsWith('group-') ||
-          exists(/databases/$(database)/documents/groups/$(channelId.replace('group-', ''))/members/$(request.auth.uid)) ||
-          get(/databases/$(database)/documents/groups/$(channelId.replace('group-', ''))).data.createdBy == request.auth.uid ||
+          !channelId.matches('^group-.*') ||
+          exists(/databases/$(database)/documents/groups/$(channelId[6:])/members/$(request.auth.uid)) ||
+          get(/databases/$(database)/documents/groups/$(channelId[6:])).data.createdBy == request.auth.uid ||
           (
-            'ownerId' in get(/databases/$(database)/documents/groups/$(channelId.replace('group-', ''))).data &&
-            get(/databases/$(database)/documents/groups/$(channelId.replace('group-', ''))).data.ownerId == request.auth.uid
+            'ownerId' in get(/databases/$(database)/documents/groups/$(channelId[6:])).data &&
+            get(/databases/$(database)/documents/groups/$(channelId[6:])).data.ownerId == request.auth.uid
           ) ||
           isAdmin()
         );
