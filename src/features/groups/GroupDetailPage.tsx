@@ -57,7 +57,7 @@ import {
   FolderOpen,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { doc, getDoc, collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, limit, getDocs, onSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 
 export type GroupTab =
@@ -166,39 +166,48 @@ export const GroupDetailPage: React.FC = () => {
     }
   };
 
-  const loadGroupPolls = async () => {
-    if (!groupId || !isMember) return;
-    setLoadingPolls(true);
-    try {
-      const postsRef = collection(db, 'posts');
-      const q = query(
-        postsRef,
-        where('groupId', '==', groupId),
-        where('status', '==', 'active'),
-        orderBy('timestamp', 'desc'),
-        limit(20)
-      );
-      const snap = await getDocs(q);
-      const polls = snap.docs
-        .map((d) => ({ id: d.id, ...(d.data() as Post) }))
-        .filter((p) => p.poll);
-      setGroupPolls(polls);
-    } catch (err) {
-      console.error('Failed to load group polls:', err);
-    } finally {
-      setLoadingPolls(false);
-    }
-  };
-
   useEffect(() => {
     loadGroupDetails();
   }, [groupId, currentUser]);
 
   useEffect(() => {
-    if (activeTab === 'polls' && isMember) {
-      loadGroupPolls();
-    }
-  }, [activeTab, groupId, isMember]);
+    if (activeTab !== 'polls' || !groupId) return;
+
+    setLoadingPolls(true);
+    const cleanGroupId = (groupId || '').replace(/^group-/, '');
+    const postsRef = collection(db, 'posts');
+    const q = query(postsRef, where('groupId', '==', cleanGroupId));
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snap) => {
+        const polls = snap.docs
+          .map((d) => ({ id: d.id, ...(d.data() as Post) }))
+          .filter((p) => p.poll && p.status !== 'deleted' && p.status !== 'hidden')
+          .sort((a, b) => {
+            const aTime = a.timestamp?.toMillis
+              ? a.timestamp.toMillis()
+              : a.timestamp?.seconds
+              ? a.timestamp.seconds * 1000
+              : Date.now();
+            const bTime = b.timestamp?.toMillis
+              ? b.timestamp.toMillis()
+              : b.timestamp?.seconds
+              ? b.timestamp.seconds * 1000
+              : Date.now();
+            return bTime - aTime;
+          });
+        setGroupPolls(polls);
+        setLoadingPolls(false);
+      },
+      (err) => {
+        console.error('Failed to load group polls:', err);
+        setLoadingPolls(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [activeTab, groupId]);
 
   const handleTabChange = (tab: GroupTab) => {
     if (tab === 'chat') {
@@ -720,7 +729,11 @@ export const GroupDetailPage: React.FC = () => {
           isOpen={isPollModalOpen}
           onClose={() => setIsPollModalOpen(false)}
           groupId={group.id}
-          onPollCreated={loadGroupPolls}
+          onPollCreated={(createdPost) => {
+            if (createdPost && createdPost.poll) {
+              setGroupPolls((prev) => [createdPost, ...prev.filter((p) => p.id !== createdPost.id)]);
+            }
+          }}
         />
       )}
 
