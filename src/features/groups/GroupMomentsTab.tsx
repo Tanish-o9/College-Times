@@ -138,20 +138,21 @@ export const GroupMomentsTab: React.FC<GroupMomentsTabProps> = ({
   };
 
   const filteredMoments = moments.filter((m) => {
+    const isOwner = m.senderId === currentUser?.uid;
+
+    // OWNER ALWAYS SEES THEIR OWN CREATED MOMENT (so they can manage/delete it)
+    if (isOwner) {
+      return true;
+    }
+
+    // FOR OTHER MEMBERS: ONE-VIEW ONLY RULE (Hide once viewed)
     const isViewedLocally = viewedIds.has(m.id);
     const isViewedInFirestore = Array.isArray(m.viewedBy) && m.viewedBy.includes(currentUser?.uid || '');
 
-    // ONE-VIEW RULE: Hide moment once user has viewed it
     if (isViewedLocally || isViewedInFirestore) {
-      if (activeFilter === 'mine' && m.senderId === currentUser?.uid) {
-        return true;
-      }
       return false;
     }
 
-    if (activeFilter === 'mine') {
-      return m.senderId === currentUser?.uid;
-    }
     return true;
   });
 

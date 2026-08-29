@@ -79,6 +79,12 @@ export const GroupInstantCarousel: React.FC<GroupInstantCarouselProps> = ({
   };
 
   const unviewedInstants = instants.filter((m) => {
+    const isOwner = m.senderId === currentUser?.uid;
+
+    // OWNER ALWAYS SEES THEIR OWN CREATED MOMENT (so they can manage/delete it)
+    if (isOwner) return true;
+
+    // FOR OTHER MEMBERS: ONE-VIEW ONLY RULE
     const isViewedLocally = viewedIds.has(m.id);
     const isViewedInFirestore = Array.isArray(m.viewedBy) && m.viewedBy.includes(currentUser?.uid || '');
     return !isViewedLocally && !isViewedInFirestore;
