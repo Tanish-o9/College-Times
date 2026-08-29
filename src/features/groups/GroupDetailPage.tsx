@@ -99,6 +99,7 @@ export const GroupDetailPage: React.FC = () => {
   const [loadingPolls, setLoadingPolls] = useState<boolean>(false);
   const [isPollModalOpen, setIsPollModalOpen] = useState<boolean>(false);
   const [isJoinCodeModalOpen, setIsJoinCodeModalOpen] = useState<boolean>(false);
+  const [groupHealth, setGroupHealth] = useState<{ score: number; status: string; color: string } | null>(null);
 
   const loadGroupDetails = async () => {
     if (!groupId || !currentUser) return;
@@ -112,12 +113,42 @@ export const GroupDetailPage: React.FC = () => {
       setGroup(g);
       setIsMember(memberStatus);
 
-      if (g && g.createdBy) {
-        getDoc(doc(db, 'users', g.createdBy)).then((userSnap) => {
-          if (userSnap.exists()) {
-            setOwnerName(userSnap.data().displayName || 'Campus Peer');
-          }
-        }).catch((err) => console.warn('Failed to fetch group owner name:', err));
+      if (g) {
+        if (g.createdBy) {
+          getDoc(doc(db, 'users', g.createdBy)).then((userSnap) => {
+            if (userSnap.exists()) {
+              setOwnerName(userSnap.data().displayName || 'Campus Peer');
+            }
+          }).catch((err) => console.warn('Failed to fetch group owner name:', err));
+        }
+
+        // Compute Group Health
+        const postsRef = collection(db, 'posts');
+        const postsSnap = await getDocs(query(postsRef, where('groupId', '==', groupId), limit(50)));
+        const postCount = postsSnap.size;
+
+        // Base: 100
+        let score = 100;
+        if (g.memberCount < 5) {
+          score -= (5 - g.memberCount) * 10;
+        }
+        if (postCount < 3) {
+          score -= 30;
+        } else if (postCount === 0) {
+          score -= 50;
+        }
+
+        score = Math.max(0, Math.min(100, score));
+        let status = 'Excellent';
+        let color = 'text-emerald-450 bg-emerald-500/10 border-emerald-500/25';
+        if (score < 50) {
+          status = 'Critical / Inactive';
+          color = 'text-rose-455 bg-rose-500/10 border-rose-500/25';
+        } else if (score < 80) {
+          status = 'Average / At Risk';
+          color = 'text-amber-455 bg-amber-500/10 border-amber-500/25';
+        }
+        setGroupHealth({ score, status, color });
       }
 
       // Fetch user role
@@ -344,6 +375,11 @@ export const GroupDetailPage: React.FC = () => {
                   <div className="flex items-center gap-1.5">
                     <Building2 className="w-4 h-4 text-indigo-400" />
                     <span>Dept {group.departmentId.toUpperCase()}</span>
+                  </div>
+                )}
+                {groupHealth && (
+                  <div className={`px-2.5 py-1 rounded-2xl border text-[10px] font-bold flex items-center gap-1.5 ${groupHealth.color}`}>
+                    <span>Health Score: {groupHealth.score} ({groupHealth.status})</span>
                   </div>
                 )}
               </div>

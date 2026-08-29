@@ -191,3 +191,86 @@ export const clearSearchHistory = async (userId: string): Promise<void> => {
     console.error('Error clearing search history:', err);
   }
 };
+
+export interface RecommendedPerson {
+  uid: string;
+  displayName: string;
+  photoURL?: string;
+  departmentId?: string;
+  year?: string;
+  score: number;
+  explanation: string;
+}
+
+/**
+ * Recommends campus peers based on department, year, and interests.
+ */
+export const getRecommendedPeople = async (
+  userId: string,
+  limitCount: number = 5
+): Promise<RecommendedPerson[]> => {
+  if (!userId) return [];
+  try {
+    const userDoc = await getDoc(doc(db, 'users', userId));
+    const profile = userDoc.exists() ? userDoc.data() : null;
+    if (!profile) return [];
+
+    const usersSnap = await getDocs(query(collection(db, 'users'), limit(100)));
+    const recommendedList: RecommendedPerson[] = [];
+
+    const friendsSnap = await getDocs(collection(db, 'users', userId, 'friends'));
+    const friendIds = friendsSnap.docs.map((d) => d.id);
+
+    const blockedSnap = await getDocs(collection(db, 'users', userId, 'blockedUsers'));
+    const blockedIds = blockedSnap.docs.map((d) => d.id);
+
+    usersSnap.forEach((d) => {
+      const uData = d.data();
+      if (d.id === userId) return;
+      if (friendIds.includes(d.id)) return;
+      if (blockedIds.includes(d.id)) return;
+
+      let score = 0;
+      let explanation = 'A student in your campus';
+
+      if (profile.departmentId && uData.departmentId === profile.departmentId) {
+        score += 40;
+        explanation = `In your department (${profile.departmentId})`;
+      }
+
+      if (profile.year && uData.year === profile.year) {
+        score += 20;
+        if (score > 40) explanation += ' and same graduation year';
+        else explanation = `Same graduation year (${profile.year})`;
+      }
+
+      if (profile.interests && uData.interests && Array.isArray(profile.interests) && Array.isArray(uData.interests)) {
+        const mutualInterests = profile.interests.filter((i: string) =>
+          uData.interests.some((ui: string) => ui.toLowerCase() === i.toLowerCase())
+        );
+        if (mutualInterests.length > 0) {
+          score += mutualInterests.length * 15;
+          explanation = `Mutual interests in ${mutualInterests.join(', ')}`;
+        }
+      }
+
+      if (score > 0) {
+        recommendedList.push({
+          uid: d.id,
+          displayName: uData.displayName || 'Campus Student',
+          photoURL: uData.photoURL || undefined,
+          departmentId: uData.departmentId,
+          year: uData.year,
+          score,
+          explanation,
+        });
+      }
+    });
+
+    recommendedList.sort((a, b) => b.score - a.score);
+    return recommendedList.slice(0, limitCount);
+  } catch (err) {
+    console.error('Error generating people recommendations:', err);
+    return [];
+  }
+};

@@ -13,7 +13,7 @@ import {
   DollarSign,
   SlidersHorizontal,
 } from 'lucide-react';
-import { collection, query, limit, getDocs } from 'firebase/firestore';
+import { collection, query, limit, getDocs, where } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../hooks/useAuth';
 import { getSavedListings } from '../../services/marketplaceService';
@@ -47,6 +47,7 @@ export const MarketplacePage: React.FC = () => {
   const [maxPrice, setMaxPrice] = useState('');
   const [sortBy, setSortBy] = useState<'newest' | 'price_asc' | 'price_desc'>('newest');
   const [viewSaved, setViewSaved] = useState(false);
+  const [viewMyListings, setViewMyListings] = useState(false);
 
   const loadListings = async () => {
     setLoading(true);
@@ -54,6 +55,12 @@ export const MarketplacePage: React.FC = () => {
       if (viewSaved && currentUser) {
         const savedList = await getSavedListings(currentUser);
         setListings(savedList);
+      } else if (viewMyListings && currentUser) {
+        const colRef = collection(db, 'marketplaceListings');
+        const snap = await getDocs(query(colRef, where('sellerId', '==', currentUser.uid), limit(40)));
+        const items: MarketplaceListing3[] = [];
+        snap.docs.forEach((d) => items.push({ id: d.id, ...d.data() } as MarketplaceListing3));
+        setListings(items);
       } else {
         const colRef = collection(db, 'marketplaceListings');
         const snap = await getDocs(query(colRef, limit(40)));
@@ -70,7 +77,7 @@ export const MarketplacePage: React.FC = () => {
 
   useEffect(() => {
     loadListings();
-  }, [viewSaved, currentUser]);
+  }, [viewSaved, viewMyListings, currentUser]);
 
   const filteredAndSortedListings = React.useMemo(() => {
     let result = listings.filter((l) => {
@@ -87,7 +94,7 @@ export const MarketplacePage: React.FC = () => {
       const matchesMax = isNaN(maxNum) || priceNum <= maxNum;
 
       // Only display active listings, unless it's own listing or saved listings
-      const isVisible = l.status === 'active' || l.sellerId === currentUser?.uid || viewSaved;
+      const isVisible = l.status === 'active' || l.sellerId === currentUser?.uid || viewSaved || viewMyListings;
 
       return matchesCat && matchesSearch && matchesMin && matchesMax && isVisible;
     });
@@ -106,7 +113,7 @@ export const MarketplacePage: React.FC = () => {
     }
 
     return result;
-  }, [listings, selectedCategory, searchQuery, minPrice, maxPrice, sortBy, currentUser, viewSaved]);
+  }, [listings, selectedCategory, searchQuery, minPrice, maxPrice, sortBy, currentUser, viewSaved, viewMyListings]);
 
   return (
     <div className="min-h-screen bg-slate-950 text-white flex flex-col">
@@ -127,17 +134,36 @@ export const MarketplacePage: React.FC = () => {
 
         <div className="flex items-center gap-2">
           {currentUser && (
-            <button
-              onClick={() => setViewSaved(!viewSaved)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 border transition-all ${
-                viewSaved
-                  ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
-                  : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
-              }`}
-            >
-              <Bookmark className={`w-3.5 h-3.5 ${viewSaved ? 'fill-amber-400 text-amber-400' : ''}`} />
-              <span className="hidden sm:inline">Saved</span>
-            </button>
+            <>
+              <button
+                onClick={() => {
+                  setViewSaved(!viewSaved);
+                  setViewMyListings(false);
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 border transition-all ${
+                  viewSaved
+                    ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                    : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
+                }`}
+              >
+                <Bookmark className={`w-3.5 h-3.5 ${viewSaved ? 'fill-amber-400 text-amber-400' : ''}`} />
+                <span className="hidden sm:inline">Saved</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setViewMyListings(!viewMyListings);
+                  setViewSaved(false);
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 border transition-all ${
+                  viewMyListings
+                    ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                    : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
+                }`}
+              >
+                <span className="hidden sm:inline">My Listings</span>
+              </button>
+            </>
           )}
 
           <button
@@ -268,7 +294,14 @@ export const MarketplacePage: React.FC = () => {
                 </div>
 
                 <div className="flex items-center justify-between border-t border-slate-800/80 pt-2 mt-2">
-                  <p className="text-sm font-mono font-bold text-amber-400">₹{item.price}</p>
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-mono font-bold text-amber-400">₹{item.price}</p>
+                    {viewMyListings && (
+                      <p className="text-[10px] text-slate-500 font-mono">
+                        👀 {item.viewCount || 0} views • 💾 {item.saveCount || 0} saves
+                      </p>
+                    )}
+                  </div>
                   {item.status !== 'active' && (
                     <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-rose-500/10 text-rose-400 border border-rose-500/20">
                       {item.status}

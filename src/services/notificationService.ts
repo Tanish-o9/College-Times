@@ -181,6 +181,22 @@ export const createNotification = async (params: CreateNotificationParams): Prom
     }
   }
 
+  // Retention cleanup task (bounded size max 100)
+  try {
+    const notifColRef = collection(db, 'users', recipientId, 'notifications');
+    const qSnap = await getDocs(query(notifColRef, orderBy('createdAt', 'desc'), limit(150)));
+    if (qSnap.size > 100) {
+      const pruneBatch = writeBatch(db);
+      qSnap.docs.slice(100).forEach((d) => {
+        pruneBatch.delete(d.ref);
+        pruneBatch.delete(doc(db, 'notifications', d.id));
+      });
+      await pruneBatch.commit();
+    }
+  } catch (err) {
+    console.warn('Pruning notifications failed:', err);
+  }
+
   logAnalyticsEvent('notification_received', { category, priority, suppressed: isSuppressed });
 };
 
@@ -235,9 +251,14 @@ export const getUserNotificationsPage = async (
   const rawList: NotificationItem[] = snap.docs.map(toNotificationItem);
   const newLastDoc = snap.docs.length > 0 ? snap.docs[snap.docs.length - 1] : null;
 
-  const filtered = categoryFilter && categoryFilter !== 'all'
-    ? rawList.filter((n) => n.category === categoryFilter)
-    : rawList;
+  const filtered = rawList.filter((n) => {
+    if (categoryFilter && categoryFilter !== 'all' && n.category !== categoryFilter) return false;
+    if (n.expiresAt) {
+      const expDate = n.expiresAt.toDate ? n.expiresAt.toDate() : new Date(n.expiresAt);
+      if (expDate < new Date()) return false;
+    }
+    return true;
+  });
 
   return { notifications: filtered, lastDoc: newLastDoc };
 };
@@ -261,7 +282,15 @@ export const subscribeToNotifications = (
   const unsubscribe = onSnapshot(
     q,
     (snap) => {
-      const items = snap.docs.map(toNotificationItem);
+      const items = snap.docs
+        .map(toNotificationItem)
+        .filter((n) => {
+          if (n.expiresAt) {
+            const expDate = n.expiresAt.toDate ? n.expiresAt.toDate() : new Date(n.expiresAt);
+            if (expDate < new Date()) return false;
+          }
+          return true;
+        });
       callback(items);
     },
     (err) => {

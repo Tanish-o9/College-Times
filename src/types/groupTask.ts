@@ -10,6 +10,7 @@ export interface GroupTask {
   status: 'todo' | 'in_progress' | 'completed';
   priority: 'low' | 'medium' | 'high';
   dueDate?: any;
+  milestone?: string;
   createdAt: any;
   updatedAt?: any;
 }

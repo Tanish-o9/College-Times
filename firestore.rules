@@ -33,7 +33,34 @@ service cloud.firestore {
 
       // On update: owner only, role immutable, points or recentMessageTimestamps can update;
       // non-owners can only update friendsCount, followersCount, and followingCount; admins have full override.
-      allow update: if (isOwner(userId) && request.resource.data.role == resource.data.role)
+      allow update: if (
+          isOwner(userId) 
+          && request.resource.data.role == resource.data.role
+          // Points increment / reset validation
+          && (
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['points', 'reputationPoints', 'weeklyPoints', 'monthlyPoints'])
+            || (
+              (
+                !request.resource.data.diff(resource.data).affectedKeys().hasAny(['points']) 
+                || (request.resource.data.points >= (resource.data.points ? resource.data.points : 0) && request.resource.data.points - (resource.data.points ? resource.data.points : 0) <= 250)
+              ) &&
+              (
+                !request.resource.data.diff(resource.data).affectedKeys().hasAny(['reputationPoints']) 
+                || (request.resource.data.reputationPoints >= (resource.data.reputationPoints ? resource.data.reputationPoints : 0) && request.resource.data.reputationPoints - (resource.data.reputationPoints ? resource.data.reputationPoints : 0) <= 250)
+              ) &&
+              (
+                !request.resource.data.diff(resource.data).affectedKeys().hasAny(['weeklyPoints']) 
+                || (request.resource.data.weeklyPoints >= (resource.data.weeklyPoints ? resource.data.weeklyPoints : 0) && request.resource.data.weeklyPoints - (resource.data.weeklyPoints ? resource.data.weeklyPoints : 0) <= 250)
+                || request.resource.data.weeklyPoints == 0
+              ) &&
+              (
+                !request.resource.data.diff(resource.data).affectedKeys().hasAny(['monthlyPoints']) 
+                || (request.resource.data.monthlyPoints >= (resource.data.monthlyPoints ? resource.data.monthlyPoints : 0) && request.resource.data.monthlyPoints - (resource.data.monthlyPoints ? resource.data.monthlyPoints : 0) <= 250)
+                || request.resource.data.monthlyPoints == 0
+              )
+            )
+          )
+        )
         || isAdmin()
         || (isAuthenticated()
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['friendsCount', 'followersCount', 'followingCount'])
@@ -667,13 +694,13 @@ service cloud.firestore {
     match /channels/{channelId} {
       allow read: if isAuthenticated() && (
         !channelId.startsWith('group-') ||
-        exists(/databases/$(database)/documents/groups/$(channelId.replace('group-', ''))/members/$(request.auth.uid)) ||
+        exists(path('/databases/' + database + '/documents/groups/' + channelId.split('group-')[1] + '/members/' + request.auth.uid)) ||
         isAdmin()
       );
       allow create: if isAdmin() || (
         isAuthenticated() &&
         channelId.startsWith('group-') &&
-        exists(/databases/$(database)/documents/groups/$(channelId.replace('group-', ''))/members/$(request.auth.uid)) &&
+        exists(path('/databases/' + database + '/documents/groups/' + channelId.split('group-')[1] + '/members/' + request.auth.uid)) &&
         request.resource.data.keys().hasAll(['name', 'description', 'category', 'type', 'createdAt', 'createdBy', 'memberCount', 'isArchived'])
       );
       allow update: if isAdmin() || (
@@ -706,7 +733,7 @@ service cloud.firestore {
       match /messages/{messageId} {
         allow read: if isAuthenticated() && (
           !channelId.startsWith('group-') ||
-          exists(/databases/$(database)/documents/groups/$(channelId.replace('group-', ''))/members/$(request.auth.uid)) ||
+          exists(path('/databases/' + database + '/documents/groups/' + channelId.split('group-')[1] + '/members/' + request.auth.uid)) ||
           isAdmin()
         );
         allow create: if isAuthenticated()
@@ -969,6 +996,7 @@ service cloud.firestore {
       // Phase 35 & 37: Group Banned Members Sub-collection
       match /bannedMembers/{uid} {
         allow read: if isAuthenticated() && (
+          uid == request.auth.uid ||
           exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)) ||
           isAdmin()
         );
@@ -1264,6 +1292,130 @@ service cloud.firestore {
         allow read: if isAuthenticated();
         allow write: if isAuthenticated();
       }
+    }
+
+    // -------------------------------------------------------------------------
+    // Campus Challenges — challenges/{challengeId}
+    // -------------------------------------------------------------------------
+    match /challenges/{challengeId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+
+      match /participants/{uid} {
+        allow read: if isAuthenticated();
+        allow write: if isAuthenticated() && uid == request.auth.uid;
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // User Challenge Progress & Reputation History
+    // -------------------------------------------------------------------------
+    match /users/{userId}/challengeProgress/{challengeId} {
+      allow read, write: if isOwner(userId) || isAdmin();
+    }
+    match /users/{userId}/reputationHistory/{historyId} {
+      allow read, write: if isOwner(userId) || isAdmin();
+    }
+
+    // -------------------------------------------------------------------------
+    // Campus Feedback System — feedback/{feedbackId}
+    // -------------------------------------------------------------------------
+    match /feedback/{feedbackId} {
+      allow read: if isAuthenticated() && (resource.data.authorId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.authorId == request.auth.uid;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // -------------------------------------------------------------------------
+    // Polls & Voting 2.0 — polls/{pollId}
+    // -------------------------------------------------------------------------
+    match /polls/{pollId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAdmin();
+
+      match /votes/{uid} {
+        allow read: if isAuthenticated();
+        allow write: if isAuthenticated() && uid == request.auth.uid;
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // Subjects & Academic Hub — subjects/{subjectId}
+    // -------------------------------------------------------------------------
+    match /subjects/{subjectId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+
+      match /resources/{resourceId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated();
+        allow update, delete: if isAdmin() || resource.data.uploaderId == request.auth.uid;
+      }
+
+      match /questions/{questionId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated();
+        allow update: if isAuthenticated();
+        allow delete: if isAdmin() || resource.data.uploaderId == request.auth.uid;
+
+        match /answers/{answerId} {
+          allow read: if isAuthenticated();
+          allow create: if isAuthenticated();
+          allow update, delete: if isAdmin() || resource.data.uploaderId == request.auth.uid;
+        }
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // Support Ticket System — supportTickets/{ticketId}
+    // -------------------------------------------------------------------------
+    match /supportTickets/{ticketId} {
+      allow read: if isAuthenticated() && (resource.data.creatorId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (resource.data.creatorId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
+
+      match /replies/{replyId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated();
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // Student Identity Verification — verificationRequests/{requestId}
+    // -------------------------------------------------------------------------
+    match /verificationRequests/{requestId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // -------------------------------------------------------------------------
+    // Campus Activities (Phase 26)
+    // -------------------------------------------------------------------------
+    match /campusActivities/{activityId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
+
+    // -------------------------------------------------------------------------
+    // User Notification Subcollection & Opportunity Application Subcollection
+    // -------------------------------------------------------------------------
+    match /users/{userId}/notifications/{notificationId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create, update: if isAuthenticated();
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    match /users/{userId}/opportunityApplications/{opportunityId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create, update: if isOwner(userId) || isAdmin();
+      allow delete: if isOwner(userId) || isAdmin();
     }
 
   }

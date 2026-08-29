@@ -6,6 +6,7 @@ import {
   orderBy, 
   limit, 
   getDocs, 
+  getDoc,
   updateDoc,
   writeBatch,
   where, 
@@ -19,6 +20,8 @@ import type { User as FirebaseUser } from 'firebase/auth';
 import { db, logAnalyticsEvent } from '../lib/firebase';
 import type { Post, User, PostAudience, PostPriority } from '../types';
 import { logGroupActivityEvent } from './groupActivityService';
+import { awardReputation } from './reputationService';
+import { trackChallengeAction } from './challengeService';
 
 export interface PaginatedPostsResult {
   posts: Post[];
@@ -201,6 +204,10 @@ export const createPost = async (
       );
     }
 
+    // Award reputation and track challenge
+    awardReputation(currentUser.uid, newDocId, 'create_post', 10, `Created post: ${payload.title}`).catch((e) => console.warn(e));
+    trackChallengeAction(currentUser.uid, 'posts', 1).catch((e) => console.warn(e));
+
     logAnalyticsEvent('post_created', { category: payload.category });
     logAnalyticsEvent('campus_post_audience_selected', { audienceType: audience.type });
     logAnalyticsEvent('campus_post_priority_selected', { priority: postPriority });
@@ -324,7 +331,7 @@ export const getLostFoundPosts = async (limitCount: number = 20): Promise<Post[]
     const postsRef = collection(db, 'posts');
     const q = query(
       postsRef,
-      where('postType', 'in', ['lost', 'found']),
+      where('category', '==', 'LostFound'),
       orderBy('timestamp', 'desc'),
       limit(limitCount)
     );
@@ -451,8 +458,22 @@ export const dismissPostReports = async (postId: string): Promise<void> => {
  */
 export const deletePost = async (postId: string): Promise<void> => {
   try {
-    const batch = writeBatch(db);
     const postRef = doc(db, 'posts', postId);
+    const postSnap = await getDoc(postRef);
+
+    const batch = writeBatch(db);
+
+    if (postSnap.exists()) {
+      const postData = postSnap.data();
+      const authorId = postData.authorId;
+      if (authorId) {
+        const userRef = doc(db, 'users', authorId);
+        batch.update(userRef, {
+          points: increment(-10),
+          reputationPoints: increment(-10),
+        });
+      }
+    }
 
     // Fetch and delete likes sub-collection docs
     const likesSnap = await getDocs(collection(db, 'posts', postId, 'likes'));

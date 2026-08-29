@@ -4,6 +4,8 @@ import { db, logAnalyticsEvent } from '../lib/firebase';
 import type { Post, User } from '../types/models';
 import type { PollData, PollOption, PollVoteRecord } from '../types/poll';
 import { logGroupActivityEvent } from './groupActivityService';
+import { awardReputation } from './reputationService';
+import { trackChallengeAction } from './challengeService';
 
 export interface CreatePollParams {
   question: string;
@@ -89,6 +91,10 @@ export const createPollPost = async (
       `Created poll: ${params.question}`
     );
   }
+
+  // Award reputation and track challenge
+  awardReputation(currentUser.uid, newDocId, 'create_poll', 15, `Created poll: ${params.question}`).catch((e) => console.warn(e));
+  trackChallengeAction(currentUser.uid, 'polls', 1).catch((e) => console.warn(e));
 
   logAnalyticsEvent('group_poll_created', { optionCount: pollOptions.length });
 

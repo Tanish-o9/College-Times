@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Post } from '../../types/models';
 import type { CampusGroup } from '../../types/group';
@@ -109,6 +109,8 @@ export const AdminDashboard: React.FC = () => {
   // Audit Logs Tab
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [loadingAudits, setLoadingAudits] = useState(false);
+  const [auditActionFilter, setAuditActionFilter] = useState<string>('ALL');
+  const [auditSeverityFilter, setAuditSeverityFilter] = useState<string>('ALL');
 
   // Fetching Functions
 
@@ -238,6 +240,27 @@ export const AdminDashboard: React.FC = () => {
       setLoadingAudits(false);
     }
   };
+
+  const filteredAuditLogs = useMemo(() => {
+    return auditLogs.map((log) => {
+      let severity: 'critical' | 'warning' | 'info' = 'info';
+      const actionLower = log.action.toLowerCase();
+      if (actionLower.includes('ban') || actionLower.includes('delete_group') || actionLower.includes('delete_user') || actionLower.includes('admin')) {
+        severity = 'critical';
+      } else if (actionLower.includes('delete') || actionLower.includes('warn') || actionLower.includes('reject') || actionLower.includes('remove')) {
+        severity = 'warning';
+      }
+      return { ...log, severity };
+    }).filter((log) => {
+      if (auditActionFilter !== 'ALL' && log.action.toLowerCase() !== auditActionFilter.toLowerCase()) {
+        return false;
+      }
+      if (auditSeverityFilter !== 'ALL' && log.severity !== auditSeverityFilter.toLowerCase()) {
+        return false;
+      }
+      return true;
+    });
+  }, [auditLogs, auditActionFilter, auditSeverityFilter]);
 
   useEffect(() => {
     if (activeTab === 'dashboard') fetchUnifiedReports();
@@ -1162,36 +1185,80 @@ export const AdminDashboard: React.FC = () => {
         {/* Moderator Logs Tab */}
         {activeTab === 'audit-logs' && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
-                <ClipboardList className="w-5 h-5 text-purple-400" />
-                <span>Immutable Moderator Audit Trail Logs ({auditLogs.length})</span>
-              </h2>
-              <button onClick={fetchAudits} className="p-1.5 bg-slate-900 border border-slate-850 rounded-xl text-slate-400 hover:text-white">
-                <RefreshCw className="w-3.5 h-3.5" />
-              </button>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-3.5">
+              <div className="space-y-0.5">
+                <h2 className="text-base font-bold text-white flex items-center gap-2">
+                  <ClipboardList className="w-5 h-5 text-purple-400" />
+                  <span>Immutable Moderator Audit Trail Logs ({filteredAuditLogs.length})</span>
+                </h2>
+                <p className="text-[10px] text-slate-505 font-mono">Immutable audit history for regulatory security tracking</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2.5">
+                <select
+                  value={auditActionFilter}
+                  onChange={(e) => setAuditActionFilter(e.target.value)}
+                  className="bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1.5 text-[11px] font-bold text-slate-300 focus:outline-none"
+                >
+                  <option value="ALL">All Action Types</option>
+                  <option value="delete_post">Delete Post</option>
+                  <option value="ban_user">Ban User</option>
+                  <option value="resolve_report">Resolve Report</option>
+                  <option value="delete_group">Delete Group</option>
+                  <option value="create_broadcast">Create Broadcast</option>
+                  <option value="warn_user">Warn User</option>
+                </select>
+                <select
+                  value={auditSeverityFilter}
+                  onChange={(e) => setAuditSeverityFilter(e.target.value)}
+                  className="bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1.5 text-[11px] font-bold text-slate-300 focus:outline-none"
+                >
+                  <option value="ALL">All Severities</option>
+                  <option value="Critical">Critical Actions</option>
+                  <option value="Warning">Warning Actions</option>
+                  <option value="Info">Info Actions</option>
+                </select>
+                <button onClick={fetchAudits} className="p-2 bg-slate-900 border border-slate-850 rounded-xl text-slate-400 hover:text-white transition-all">
+                  <RefreshCw className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
 
             {loadingAudits ? (
               <p className="text-xs text-slate-400 text-center py-6">Loading audit trail...</p>
+            ) : filteredAuditLogs.length === 0 ? (
+              <p className="text-xs text-slate-500 italic text-center py-8">No matching audit logs found.</p>
             ) : (
               <div className="space-y-3">
-                {auditLogs.map((log) => (
-                  <div key={log.id} className="p-3 bg-slate-950 border border-slate-850 rounded-xl text-xs flex items-center justify-between gap-4">
-                    <div className="space-y-0.5">
-                      <p className="text-slate-400 font-bold">
-                        Mod ID: <span className="text-purple-300 font-mono">{log.moderatorId}</span>
-                      </p>
-                      <p className="text-white">
-                        Action: <span className="font-bold text-sky-400 font-mono">{log.action}</span> on {log.targetType} ({log.targetId})
-                      </p>
-                      {log.reason && <p className="text-slate-500 text-[10px]">Reason: {log.reason}</p>}
+                {filteredAuditLogs.map((log: any) => {
+                  let severityColor = 'text-sky-400 bg-sky-500/10 border-sky-500/25';
+                  if (log.severity === 'critical') {
+                    severityColor = 'text-rose-455 bg-rose-500/10 border-rose-500/25';
+                  } else if (log.severity === 'warning') {
+                    severityColor = 'text-amber-455 bg-amber-500/10 border-amber-500/25';
+                  }
+
+                  return (
+                    <div key={log.id} className="p-4 bg-slate-950 border border-slate-850 rounded-2xl text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-0.5 rounded-full border text-[9px] font-bold uppercase font-mono ${severityColor}`}>
+                            {log.severity}
+                          </span>
+                          <p className="text-slate-400 font-bold text-[10px]">
+                            Mod ID: <span className="text-purple-300 font-mono">{log.moderatorId}</span>
+                          </p>
+                        </div>
+                        <p className="text-white">
+                          Action: <span className="font-bold text-sky-400 font-mono">{log.action}</span> on {log.targetType} ({log.targetId})
+                        </p>
+                        {log.reason && <p className="text-slate-500 text-[10px]">Reason: {log.reason}</p>}
+                      </div>
+                      <span className="text-[10px] text-slate-605 font-mono whitespace-nowrap shrink-0 self-start sm:self-center">
+                        {log.timestamp ? new Date(log.timestamp.toMillis?.() || log.timestamp).toLocaleString() : ''}
+                      </span>
                     </div>
-                    <span className="text-[10px] text-slate-600 font-mono whitespace-nowrap shrink-0">
-                      {log.timestamp ? new Date(log.timestamp.toMillis?.() || log.timestamp).toLocaleString() : ''}
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

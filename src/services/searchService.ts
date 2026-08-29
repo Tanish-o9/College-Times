@@ -73,6 +73,16 @@ const calculateResultScore = (title: string = '', text: string = '', queryLower:
   else if (tLower.startsWith(queryLower)) score += 40; // Title prefix match
   else if (tLower.includes(queryLower)) score += 30; // Title substring match
 
+  // Split terms matching boost
+  const queryWords = queryLower.split(/\s+/).filter(Boolean);
+  if (queryWords.length > 1) {
+    const titleMatchesAll = queryWords.every((word) => tLower.includes(word));
+    if (titleMatchesAll) score += 35;
+
+    const descMatchesAll = queryWords.every((word) => descLower.includes(word));
+    if (descMatchesAll) score += 15;
+  }
+
   if (descLower.includes(queryLower)) score += 20; // Description substring match
 
   return score;
@@ -85,7 +95,8 @@ export const searchUnifiedCampus = async (
   queryStr: string,
   category: SearchCategory = 'all',
   limitCount: number = 10,
-  currentUser?: FirebaseUser | null
+  currentUser?: FirebaseUser | null,
+  joinedGroupIds: string[] = []
 ): Promise<UnifiedSearchResult> => {
   const cleanQuery = queryStr.trim().toLowerCase();
 
@@ -173,8 +184,8 @@ export const searchUnifiedCampus = async (
 
         snap.docs.forEach((docSnap) => {
           const post = docSnap.data() as Post;
-          if (post.groupId) return; // Skip private group posts in global search
-          if (post.authorId && blockedUserIds.includes(post.authorId)) return; // Filter blocked posts
+          if (post.groupId && !joinedGroupIds.includes(post.groupId)) return;
+          if (post.authorId && blockedUserIds.includes(post.authorId)) return;
 
           const textMatch = `${post.title || ''} ${post.content || ''}`.toLowerCase();
           if (textMatch.includes(cleanQuery)) {
@@ -207,6 +218,7 @@ export const searchUnifiedCampus = async (
         snap.docs.forEach((docSnap) => {
           const event = docSnap.data() as CampusEvent;
           if (event.createdBy && blockedUserIds.includes(event.createdBy)) return; // Filter blocked event creators
+          if (event.groupId && !joinedGroupIds.includes(event.groupId)) return; // Filter private group events
 
           const textMatch = `${event.title} ${event.description || ''} ${event.location || ''} ${event.category || ''}`.toLowerCase();
           if (textMatch.includes(cleanQuery)) {
@@ -335,6 +347,7 @@ export const searchUnifiedCampus = async (
         snap.docs.forEach((docSnap) => {
           const res = docSnap.data();
           if (res.createdBy && blockedUserIds.includes(res.createdBy)) return; // Filter blocked creators
+          if (res.groupId && !joinedGroupIds.includes(res.groupId)) return; // Filter private group resources
 
           const textMatch = `${res.title} ${res.description || ''} ${res.creatorName || ''}`.toLowerCase();
           if (textMatch.includes(cleanQuery)) {

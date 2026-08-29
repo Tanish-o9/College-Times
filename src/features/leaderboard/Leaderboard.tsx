@@ -1,23 +1,29 @@
 import React, { useEffect, useState } from 'react';
 import type { User } from '../../types';
-import { getTopUsers, getUserRank } from '../../services/userService';
+import { getTopUsersByTimeframe, getUserRankByTimeframe } from '../../services/userService';
 import { useAuth } from '../../hooks/useAuth';
 import { Trophy, Medal, Award, User as UserIcon, RefreshCw } from 'lucide-react';
 
 export const Leaderboard: React.FC = () => {
   const { currentUser, userProfile } = useAuth();
+  const profile = userProfile as any;
   const [topUsers, setTopUsers] = useState<User[]>([]);
   const [userRank, setUserRank] = useState<number | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [timeframe, setTimeframe] = useState<'all_time' | 'weekly' | 'monthly'>('all_time');
 
   const fetchLeaderboard = async () => {
     setLoading(true);
     try {
-      const users = await getTopUsers(10);
+      const users = await getTopUsersByTimeframe(timeframe, 10);
       setTopUsers(users);
 
-      if (userProfile && userProfile.points !== undefined) {
-        const rank = await getUserRank(userProfile.points);
+      if (profile) {
+        let pts = profile.points || 0;
+        if (timeframe === 'weekly') pts = profile.weeklyPoints || 0;
+        else if (timeframe === 'monthly') pts = profile.monthlyPoints || 0;
+
+        const rank = await getUserRankByTimeframe(timeframe, pts);
         setUserRank(rank);
       }
     } catch (error) {
@@ -29,7 +35,7 @@ export const Leaderboard: React.FC = () => {
 
   useEffect(() => {
     fetchLeaderboard();
-  }, [userProfile]);
+  }, [userProfile, timeframe]);
 
   const getRankBadge = (index: number) => {
     switch (index) {
@@ -78,7 +84,7 @@ export const Leaderboard: React.FC = () => {
         </div>
 
         {/* Current User Card */}
-        {userProfile && (
+        {profile && (
           <div className="px-4 py-3 bg-slate-950/80 border border-amber-500/30 rounded-2xl flex items-center gap-3 shrink-0">
             <div className="text-right">
               <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Your Rank</span>
@@ -87,10 +93,34 @@ export const Leaderboard: React.FC = () => {
             <div className="h-8 w-px bg-slate-800" />
             <div>
               <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Your Points</span>
-              <span className="text-lg font-black text-white font-mono">{userProfile.points ?? 0} pts</span>
+              <span className="text-lg font-black text-white font-mono">
+                {timeframe === 'weekly'
+                  ? profile.weeklyPoints || 0
+                  : timeframe === 'monthly'
+                  ? profile.monthlyPoints || 0
+                  : profile.points || 0}{' '}
+                pts
+              </span>
             </div>
           </div>
         )}
+      </div>
+
+      {/* Timeframe Filters */}
+      <div className="flex gap-2 p-1.5 bg-slate-900 border border-slate-800 rounded-2xl max-w-xs sm:max-w-sm">
+        {(['all_time', 'weekly', 'monthly'] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTimeframe(t)}
+            className={`flex-1 py-2 text-center text-xs font-bold rounded-xl transition-all capitalize ${
+              timeframe === t
+                ? 'bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/20'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            {t.replace('_', ' ')}
+          </button>
+        ))}
       </div>
 
       {/* Leaderboard Table List */}
@@ -144,7 +174,11 @@ export const Leaderboard: React.FC = () => {
 
                 {/* Points Counter */}
                 <div className="px-4 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-amber-400 font-extrabold text-sm font-mono shrink-0 shadow-inner">
-                  {user.points ?? 0} <span className="text-[10px] text-slate-500 font-normal">pts</span>
+                  {timeframe === 'weekly'
+                    ? (user as any).weeklyPoints || 0
+                    : timeframe === 'monthly'
+                    ? (user as any).monthlyPoints || 0
+                    : user.points || 0} <span className="text-[10px] text-slate-505 font-normal">pts</span>
                 </div>
               </div>
             );

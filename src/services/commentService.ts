@@ -20,6 +20,8 @@ import { db, logAnalyticsEvent } from '../lib/firebase';
 import { createNotification } from './notificationService';
 import { getUidByUsername } from './usernameService';
 import { isUserBlocked } from './directMessageService';
+import { awardReputation } from './reputationService';
+import { trackChallengeAction } from './challengeService';
 import type { Comment, User } from '../types';
 
 export interface PaginatedCommentsResult {
@@ -170,6 +172,12 @@ export const addComment = async (
     await setDoc(newCommentRef, newCommentData);
     await updateDoc(postRef, { commentCount: increment(1) }).catch(() => {});
     await setDoc(userRef, { points: increment(2) }, { merge: true }).catch(() => {});
+  }
+
+  // Award reputation and track challenge if comment is a reply
+  if (parentCommentId) {
+    awardReputation(currentUser.uid, commentId, 'helpful_reply', 5, `Replied to comment in post: ${postId}`).catch((e) => console.warn(e));
+    trackChallengeAction(currentUser.uid, 'replies', 1).catch((e) => console.warn(e));
   }
 
   // Trigger main comment notification

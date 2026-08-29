@@ -3,6 +3,7 @@ import {
   doc,
   getDocs,
   setDoc,
+  addDoc,
   query,
   where,
   orderBy,
@@ -203,4 +204,30 @@ export const escalateAlertPriority = async (
     transaction.update(alertRef, { priority: newPriority, updatedAt: serverTimestamp() });
     transaction.update(postRef, { priority: newPriority });
   });
+};
+
+export const createActiveAlert = async (
+  title: string,
+  priority: 'general' | 'important' | 'emergency',
+  audienceType: 'campus' | 'department' | 'batch' | 'community',
+  audienceId: string,
+  currentUser: FirebaseUser,
+  userProfile?: User | null
+): Promise<string> => {
+  if (!currentUser || userProfile?.role !== 'admin') {
+    throw new Error('Unauthorized: Admin role required to create alert.');
+  }
+
+  const alertRef = collection(db, 'activeAlerts');
+  const docRef = await addDoc(alertRef, {
+    title: title.trim(),
+    priority,
+    audienceType,
+    audienceId: audienceId.trim() || null,
+    pinned: false,
+    createdBy: currentUser.uid,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return docRef.id;
 };

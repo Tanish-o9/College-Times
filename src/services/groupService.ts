@@ -11,6 +11,7 @@ import {
   runTransaction,
   serverTimestamp,
   increment,
+  setDoc,
   type QueryDocumentSnapshot,
 } from 'firebase/firestore';
 import type { User as FirebaseUser } from 'firebase/auth';
@@ -18,6 +19,8 @@ import { db, logAnalyticsEvent } from '../lib/firebase';
 import type { User } from '../types/models';
 import type { CampusGroup, CampusGroupType, GroupMember, UserGroupMembership } from '../types/group';
 import { createInviteCodeForGroup } from './groupInviteService';
+import { awardReputation } from './reputationService';
+import { trackChallengeAction } from './challengeService';
 import { logGroupActivityEvent } from './groupActivityService';
 
 export interface PaginatedGroupsResult {
@@ -418,6 +421,10 @@ export const joinGroup = async (
     'joined the group'
   );
 
+  // Award reputation and track challenge
+  awardReputation(currentUser.uid, groupId, 'join_group', 5, 'Joined a campus group').catch((e) => console.warn(e));
+  trackChallengeAction(currentUser.uid, 'groups', 1).catch((e) => console.warn(e));
+
   logAnalyticsEvent('group_joined', { groupType, groupId });
 };
 
@@ -561,4 +568,34 @@ export const seedStandardCampusGroups = async (
       // Group may already exist — skip
     }
   }
+};
+
+export interface GroupWelcomeConfig {
+  welcomeMessage: string;
+  checklistItems: string[];
+}
+
+/**
+ * Fetches the welcome onboarding configuration for a group.
+ */
+export const getGroupWelcomeConfig = async (groupId: string): Promise<GroupWelcomeConfig | null> => {
+  try {
+    const docRef = doc(db, 'groups', groupId, 'settings', 'welcome');
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) return null;
+    return snap.data() as GroupWelcomeConfig;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Saves or updates the welcome onboarding configuration for a group.
+ */
+export const saveGroupWelcomeConfig = async (
+  groupId: string,
+  config: GroupWelcomeConfig
+): Promise<void> => {
+  const docRef = doc(db, 'groups', groupId, 'settings', 'welcome');
+  await setDoc(docRef, config, { merge: true });
 };

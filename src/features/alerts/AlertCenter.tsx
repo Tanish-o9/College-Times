@@ -11,14 +11,15 @@ import {
   type QueryDocumentSnapshot,
 } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { isUserEligibleForAlertAudience, recordAlertReadForUser } from '../../services/activeAlertService';
+import { isUserEligibleForAlertAudience, recordAlertReadForUser, createActiveAlert } from '../../services/activeAlertService';
 import { getUserGroupIds } from '../../services/groupService';
 import type { ActiveAlertDoc } from '../../types/alert';
 import {
   Bell,
   RefreshCw,
   ArrowRight,
-  Pin
+  Pin,
+  Plus
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -31,6 +32,14 @@ export const AlertCenter: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
   const [hasMore, setHasMore] = useState<boolean>(true);
+
+  // Admin Publish Form State
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [alertTitle, setAlertTitle] = useState('');
+  const [alertPriority, setAlertPriority] = useState<'general' | 'important' | 'emergency'>('general');
+  const [alertAudienceType, setAlertAudienceType] = useState<'campus' | 'department' | 'batch' | 'community'>('campus');
+  const [alertAudienceId, setAlertAudienceId] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const loadAlerts = async (isInitial = true) => {
     if (!currentUser) return;
@@ -83,6 +92,32 @@ export const AlertCenter: React.FC = () => {
     }
   };
 
+  const handlePublishAlert = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser || submitting || !alertTitle.trim()) return;
+
+    setSubmitting(true);
+    try {
+      await createActiveAlert(
+        alertTitle,
+        alertPriority,
+        alertAudienceType,
+        alertAudienceId,
+        currentUser,
+        userProfile
+      );
+      toast.success('Active alert published successfully! 📢');
+      setAlertTitle('');
+      setAlertAudienceId('');
+      setShowAddForm(false);
+      loadAlerts(true);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to publish alert.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 text-white flex flex-col">
       {/* Header */}
@@ -97,17 +132,97 @@ export const AlertCenter: React.FC = () => {
           </div>
         </div>
 
-        <button
-          onClick={() => loadAlerts(true)}
-          className="p-2 bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 rounded-xl transition-all"
-          title="Refresh Alerts"
-        >
-          <RefreshCw className="w-4 h-4" />
-        </button>
+        <div className="flex gap-2">
+          {userProfile?.role === 'admin' && (
+            <button
+              onClick={() => setShowAddForm(!showAddForm)}
+              className="px-3.5 py-1.5 bg-rose-500 hover:bg-rose-455 text-slate-950 font-bold text-xs rounded-xl flex items-center gap-1 shadow-md"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Publish Alert</span>
+            </button>
+          )}
+
+          <button
+            onClick={() => loadAlerts(true)}
+            className="p-2 bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 rounded-xl transition-all"
+            title="Refresh Alerts"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+        </div>
       </header>
 
       {/* Main Container */}
       <main className="flex-1 max-w-3xl w-full mx-auto p-4 sm:p-6 space-y-4">
+        {showAddForm && userProfile?.role === 'admin' && (
+          <form onSubmit={handlePublishAlert} className="p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-4 shadow-xl">
+            <h2 className="text-sm font-bold text-white uppercase font-mono tracking-wider">Publish Active Alert</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="md:col-span-2">
+                <label className="text-[10px] font-bold text-slate-400 uppercase font-mono block mb-1">Alert Title / Broadcast</label>
+                <input
+                  type="text"
+                  required
+                  value={alertTitle}
+                  onChange={(e) => setAlertTitle(e.target.value)}
+                  placeholder="e.g. Server maintenance today at 6 PM"
+                  className="w-full bg-slate-950 border border-slate-805 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-650 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase font-mono block mb-1">Priority</label>
+                <select
+                  value={alertPriority}
+                  onChange={(e) => setAlertPriority(e.target.value as any)}
+                  className="w-full bg-slate-950 border border-slate-805 rounded-xl px-3 py-2 text-xs text-slate-350 focus:outline-none"
+                >
+                  <option value="general" className="bg-slate-950">General</option>
+                  <option value="important" className="bg-slate-950">Important</option>
+                  <option value="emergency" className="bg-slate-950">Emergency</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase font-mono block mb-1">Audience Targeting</label>
+                <select
+                  value={alertAudienceType}
+                  onChange={(e) => setAlertAudienceType(e.target.value as any)}
+                  className="w-full bg-slate-950 border border-slate-805 rounded-xl px-3 py-2 text-xs text-slate-350 focus:outline-none"
+                >
+                  <option value="campus" className="bg-slate-950">All Users (Campus)</option>
+                  <option value="department" className="bg-slate-950">Department</option>
+                  <option value="batch" className="bg-slate-950">Batch Year</option>
+                  <option value="community" className="bg-slate-950">Group/Community</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase font-mono block mb-1">Audience ID (Filter Value)</label>
+                <input
+                  type="text"
+                  value={alertAudienceId}
+                  onChange={(e) => setAlertAudienceId(e.target.value)}
+                  placeholder="e.g. computer_science, 2028, or group_123"
+                  disabled={alertAudienceType === 'campus'}
+                  className="w-full bg-slate-950 border border-slate-805 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-650 focus:outline-none disabled:bg-slate-900"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full py-2 bg-rose-500 hover:bg-rose-455 disabled:bg-slate-850 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-md"
+            >
+              Broadcast Alert
+            </button>
+          </form>
+        )}
+
         {loading ? (
           <div className="p-12 bg-slate-900/40 border border-slate-800 rounded-3xl flex items-center justify-center gap-3 text-slate-400 text-xs">
             <RefreshCw className="w-4 h-4 animate-spin text-sky-400" />

@@ -125,7 +125,10 @@ export const ProfilePage: React.FC = () => {
           profileVisibility: data.profileVisibility || 'public',
           profileStatus: data.profileStatus || 'active',
           createdAt: data.createdAt,
-        };
+          reputationPoints: data.reputationPoints || 0,
+          level: data.level || 1,
+          badges: data.badges || ['Campus Novice'],
+        } as any;
         // Add extra privacy fields loaded from db
         (profData as any).friendListVisibility = data.friendListVisibility || 'public';
         (profData as any).postVisibility = data.postVisibility || 'public';
@@ -525,10 +528,14 @@ export const ProfilePage: React.FC = () => {
               </div>
 
               {/* Stats Strip */}
-              <div className="flex items-center gap-8 pt-4 border-t border-slate-800 text-xs font-mono">
+              <div className="flex items-center gap-8 pt-4 border-t border-slate-800 text-xs font-mono flex-wrap">
                 <div>
                   <span className="font-bold text-white text-sm">{profile.followersCount || 0}</span>
                   <span className="text-slate-400 ml-1.5">Friends</span>
+                </div>
+                <div>
+                  <span className="font-bold text-purple-400 text-sm">Lvl {(profile as any).level || 1}</span>
+                  <span className="text-slate-400 ml-1.5">({(profile as any).reputationPoints || 0} XP)</span>
                 </div>
                 {!isSelf && mutualFriendsCount > 0 && (
                   <div>

@@ -38,6 +38,7 @@ export const GroupTasks: React.FC<GroupTasksProps> = ({ groupId, isMember }) => 
   const [assignedTo, setAssignedTo] = useState<string>('');
   const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium');
   const [dueDate, setDueDate] = useState<string>('');
+  const [milestone, setMilestone] = useState<string>('');
 
   useEffect(() => {
     if (!groupId) return;
@@ -91,7 +92,8 @@ export const GroupTasks: React.FC<GroupTasksProps> = ({ groupId, isMember }) => 
           status: 'todo',
           priority,
           dueDate: dueDate ? new Date(dueDate) : undefined,
-        },
+          milestone: milestone.trim() || undefined,
+        } as any,
         currentUser,
         userProfile?.displayName || currentUser.displayName || 'Campus Member'
       );
@@ -103,6 +105,7 @@ export const GroupTasks: React.FC<GroupTasksProps> = ({ groupId, isMember }) => 
       setAssignedTo('');
       setPriority('medium');
       setDueDate('');
+      setMilestone('');
       toast.success('Group task created!');
     } catch (err: any) {
       toast.error(err.message || 'Failed to create task.');
@@ -333,6 +336,17 @@ export const GroupTasks: React.FC<GroupTasksProps> = ({ groupId, isMember }) => 
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
                 />
               </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-400 mb-1">Milestone / Sprint</label>
+                <input
+                  type="text"
+                  value={milestone}
+                  onChange={(e) => setMilestone(e.target.value)}
+                  placeholder="e.g. Milestone 1, Phase 2"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
+                />
+              </div>
             </div>
 
             <button
@@ -385,6 +399,12 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onStatusChange, onDelete }) =
         <span className={`px-2 py-0.5 border rounded-full text-[9px] font-black uppercase ${priorityColors[task.priority]}`}>
           {task.priority}
         </span>
+
+        {task.milestone && (
+          <span className="px-2 py-0.5 bg-purple-550/10 border border-purple-500/20 text-purple-400 rounded-full text-[9px] font-bold font-mono">
+            🏁 {task.milestone}
+          </span>
+        )}
 
         {task.assignedToName ? (
           <div className="flex items-center gap-1 text-[10px] text-slate-300 font-medium">

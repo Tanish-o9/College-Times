@@ -13,7 +13,9 @@ import { getChannelCache, setChannelCache } from '../../services/chatCacheServic
 import { subscribeToMemberPresence } from '../../services/presenceService';
 import { useChatHistorySentinel } from '../../hooks/useChatHistorySentinel';
 import type { Channel, ChatMessage, TypingUser, ChatFileAttachment } from '../../types/chat';
-import type { QueryDocumentSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, type QueryDocumentSnapshot } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
+import { toggleMuteGroupChat } from '../../services/groupChatService';
 import { MessageBubble } from './MessageBubble';
 import { MessageInput } from './MessageInput';
 import { Skeleton } from '../../components/Skeleton';
@@ -29,7 +31,8 @@ import {
   Inbox,
   Lock,
   Search,
-  Bell
+  Bell,
+  BellOff
 } from 'lucide-react';
 import { useChatAccess } from '../../hooks/useChatAccess';
 import { markChannelAsRead } from '../../services/chatReadStateService';
@@ -51,6 +54,7 @@ export const ChatRoom: React.FC = () => {
   const [replyingToMessage, setReplyingToMessage] = useState<ChatMessage | null>(null);
   const [newMessagesCount, setNewMessagesCount] = useState<number>(0);
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
+  const [isMuted, setIsMuted] = useState<boolean>(false);
 
   const targetMsgId = searchParams.get('msgId');
 
@@ -188,10 +192,25 @@ export const ChatRoom: React.FC = () => {
 
     initChannel();
 
+    // Start Group Chat Mute Status Listener
+    let unsubMute: (() => void) | null = null;
+    if (channelId.startsWith('group-')) {
+      const actualGroupId = channelId.replace('group-', '');
+      const ref = doc(db, 'users', currentUser.uid, 'groupChatReadState', actualGroupId);
+      unsubMute = onSnapshot(ref, (snap) => {
+        if (snap.exists()) {
+          setIsMuted(!!snap.data().isMuted);
+        } else {
+          setIsMuted(false);
+        }
+      });
+    }
+
     return () => {
       isSubscribed = false;
       if (unsubTyping) unsubTyping();
       if (unsubscribeMessages) unsubscribeMessages();
+      if (unsubMute) unsubMute();
     };
   }, [channelId, currentUser, isEligible, userProfile]);
 
@@ -265,7 +284,7 @@ export const ChatRoom: React.FC = () => {
 
   // 4. One-Time Historical Cursor Pagination with Scroll Anchor
   const handleLoadOlderHistory = async () => {
-    if (!channelId || loadingHistory || !hasMoreHistory) return;
+    if (!channelId || loadingHistory || !hasMoreHistory || error || loadingInitial) return;
 
     const currentChannelId = channelId;
     const container = scrollContainerRef.current;
@@ -336,7 +355,7 @@ export const ChatRoom: React.FC = () => {
     targetRef: sentinelRef,
     scrollContainerRef,
     onLoadOlder: handleLoadOlderHistory,
-    hasMore: hasMoreHistory,
+    hasMore: hasMoreHistory && !error && !loadingInitial && messages.length > 0,
     isLoadingOlder: loadingHistory,
   });
 
@@ -527,6 +546,30 @@ export const ChatRoom: React.FC = () => {
             <Bell className="w-4 h-4 text-amber-400" />
             <span className="hidden md:inline font-semibold text-slate-200">Alerts</span>
           </button>
+
+          {channelId?.startsWith('group-') && (
+            <button
+              onClick={async () => {
+                try {
+                  const result = await toggleMuteGroupChat(channelId, currentUser!.uid);
+                  setIsMuted(result);
+                  toast.success(result ? 'Group notifications muted' : 'Group notifications unmuted');
+                } catch {
+                  toast.error('Failed to update mute preferences.');
+                }
+              }}
+              className={`p-2 rounded-xl border transition-all text-xs flex items-center gap-1.5 ${
+                isMuted 
+                  ? 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border-rose-500/30' 
+                  : 'bg-slate-900 hover:bg-slate-800 text-slate-400 border-slate-800'
+              }`}
+              title={isMuted ? 'Unmute Chat' : 'Mute Chat'}
+              aria-label={isMuted ? 'Unmute Chat' : 'Mute Chat'}
+            >
+              {isMuted ? <BellOff className="w-4 h-4 text-rose-400" /> : <Bell className="w-4 h-4 text-slate-400" />}
+              <span className="hidden md:inline font-semibold text-slate-200">{isMuted ? 'Muted' : 'Mute'}</span>
+            </button>
+          )}
         </div>
       </div>
 

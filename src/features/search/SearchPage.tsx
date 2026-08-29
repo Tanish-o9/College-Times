@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import { useGlobalCache } from '../../context/GlobalCacheContext';
 import {
   searchUnifiedCampus,
   getRecentSearches,
@@ -51,6 +52,7 @@ export const SearchPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { currentUser } = useAuth();
+  const { joinedGroupIds } = useGlobalCache();
 
   const initialQuery = searchParams.get('q') || '';
   const initialCategory = (searchParams.get('category') as SearchCategory) || 'all';
@@ -89,7 +91,7 @@ export const SearchPage: React.FC = () => {
 
     const timer = setTimeout(async () => {
       try {
-        const res = await searchUnifiedCampus(clean, activeCategory, 20, currentUser);
+        const res = await searchUnifiedCampus(clean, activeCategory, 20, currentUser, joinedGroupIds);
         setResults(res.items);
         if (currentUser) {
           await saveSearchHistory(currentUser.uid, clean);

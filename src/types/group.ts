@@ -1,6 +1,6 @@
 import type { Timestamp, FieldValue } from 'firebase/firestore';
 
-export type CampusGroupType = 'campus' | 'department' | 'batch' | 'community';
+export type CampusGroupType = 'campus' | 'department' | 'batch' | 'community' | 'club' | 'organization';
 export type CampusGroupVisibility = 'public' | 'private';
 
 export interface CampusGroup {

@@ -22,6 +22,8 @@ import type { User as FirebaseUser } from 'firebase/auth';
 import { db } from '../lib/firebase';
 import type { CampusEvent, User } from '../types';
 import { logGroupActivityEvent } from './groupActivityService';
+import { awardReputation } from './reputationService';
+import { trackChallengeAction } from './challengeService';
 
 export interface CreateEventPayload {
   title: string;
@@ -138,6 +140,10 @@ export const createEvent = async (
         `Created event: ${payload.title}`
       );
     }
+
+    // Award reputation and track challenge
+    awardReputation(currentUser.uid, docRef.id, 'create_event', 20, `Created event: ${payload.title}`).catch((e) => console.warn(e));
+    trackChallengeAction(currentUser.uid, 'events', 1).catch((e) => console.warn(e));
 
     return {
       id: docRef.id,
@@ -275,14 +281,26 @@ export const toggleRsvpStatus = async (
   userId: string,
   newStatus: 'going' | 'interested' | 'maybe' | 'cancelled',
   userProfile?: User | null
-): Promise<{ status: string; rsvpCount: number; interestedCount: number }> => {
+): Promise<{ status: string; rsvpCount: number; interestedCount: number; waitlisted?: boolean }> => {
   if (!eventId || !userId) throw new Error('Event ID and User ID required.');
 
   const eventRef = doc(db, 'events', eventId);
   const rsvpRef = doc(db, 'events', eventId, 'rsvps', userId);
+  const waitlistUserRef = doc(db, 'events', eventId, 'waitlist', userId);
+
+  // Fetch next waitlist candidate outside transaction
+  const waitlistRef = collection(db, 'events', eventId, 'waitlist');
+  const waitlistSnap = await getDocs(query(waitlistRef, orderBy('joinedAt', 'asc'), limit(1)));
+  let nextWaitlistUid: string | null = null;
+  let nextWaitlistData: any = null;
+  if (!waitlistSnap.empty) {
+    nextWaitlistUid = waitlistSnap.docs[0].id;
+    nextWaitlistData = waitlistSnap.docs[0].data();
+  }
 
   let updatedRsvpCount = 0;
   let updatedInterestedCount = 0;
+  let waitlisted = false;
 
   await runTransaction(db, async (transaction) => {
     const eventSnap = await transaction.get(eventRef);
@@ -300,8 +318,18 @@ export const toggleRsvpStatus = async (
     const rsvpSnap = await transaction.get(rsvpRef);
     const prevStatus = rsvpSnap.exists() ? rsvpSnap.data().status : null;
 
+    // Handle joining waitlist if going is requested but capacity is reached
     if (newStatus === 'going' && capacity > 0 && prevStatus !== 'going' && currentRsvp >= capacity) {
-      throw new Error(`Registration capacity (${capacity}) has been reached.`);
+      // Add to waitlist instead of RSVPing
+      transaction.set(waitlistUserRef, {
+        userId,
+        userName: userProfile?.displayName || 'Student',
+        joinedAt: serverTimestamp(),
+      });
+      waitlisted = true;
+      updatedRsvpCount = currentRsvp;
+      updatedInterestedCount = currentInterested;
+      return;
     }
 
     let deltaRsvp = 0;
@@ -314,6 +342,23 @@ export const toggleRsvpStatus = async (
     // Add new status counts
     if (newStatus === 'going') deltaRsvp += 1;
     if (newStatus === 'interested') deltaInterested += 1;
+
+    // If a going seat is vacated and there is someone in the waitlist, promote them!
+    if (prevStatus === 'going' && newStatus !== 'going' && nextWaitlistUid) {
+      const nextPersonRef = doc(db, 'events', eventId, 'waitlist', nextWaitlistUid);
+      transaction.delete(nextPersonRef);
+
+      const nextRsvpRef = doc(db, 'events', eventId, 'rsvps', nextWaitlistUid);
+      transaction.set(nextRsvpRef, {
+        userId: nextWaitlistUid,
+        status: 'going',
+        userName: nextWaitlistData.userName || 'Student',
+        updatedAt: serverTimestamp(),
+      });
+      
+      // Because we vacant one (deltaRsvp -= 1) and promote one (deltaRsvp += 1), net deltaRsvp is 0
+      deltaRsvp += 1; 
+    }
 
     updatedRsvpCount = Math.max(0, currentRsvp + deltaRsvp);
     updatedInterestedCount = Math.max(0, currentInterested + deltaInterested);
@@ -329,12 +374,31 @@ export const toggleRsvpStatus = async (
       });
     }
 
+    // Remove from waitlist if changing to non-going status
+    if (newStatus !== 'going') {
+      transaction.delete(waitlistUserRef);
+    }
+
     transaction.update(eventRef, {
       rsvpCount: updatedRsvpCount,
       interestedCount: updatedInterestedCount,
       updatedAt: serverTimestamp(),
     });
   });
+
+  if (waitlisted) {
+    return {
+      status: 'waitlist',
+      rsvpCount: updatedRsvpCount,
+      interestedCount: updatedInterestedCount,
+      waitlisted: true,
+    };
+  }
+
+  if (newStatus === 'going') {
+    awardReputation(userId, `rsvp_${eventId}`, 'attend_event', 10, 'RSVPed to event').catch((e) => console.warn(e));
+    trackChallengeAction(userId, 'events', 1).catch((e) => console.warn(e));
+  }
 
   return {
     status: newStatus,

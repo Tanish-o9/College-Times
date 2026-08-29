@@ -163,6 +163,67 @@ export const getAggregatedCalendarItems = async (userId: string): Promise<Calend
         }
       }
     }
+
+    // 4. Fetch Academic Assignments
+    try {
+      const { getUserAssignments } = await import('./academicService');
+      const assignments = await getUserAssignments(userId);
+      assignments.forEach((asm) => {
+        if (asm.deadline) {
+          items.push({
+            id: asm.id || '',
+            title: `Assignment: ${asm.title}`,
+            description: `Checklist item for subject ${asm.subjectCode}`,
+            type: 'deadline',
+            date: new Date(asm.deadline),
+            status: asm.status,
+          });
+        }
+      });
+    } catch (e) {
+      console.warn('Failed to load assignments for calendar:', e);
+    }
+
+    // 5. Fetch Challenges
+    try {
+      const { getActiveChallenges } = await import('./challengeService');
+      const challenges = await getActiveChallenges();
+      challenges.forEach((ch) => {
+        if (ch.endDate) {
+          const dateObj = ch.endDate.toDate ? ch.endDate.toDate() : new Date(ch.endDate);
+          items.push({
+            id: ch.id || '',
+            title: `Challenge End: ${ch.title}`,
+            description: ch.description,
+            type: 'deadline',
+            date: dateObj,
+          });
+        }
+      });
+    } catch (e) {
+      console.warn('Failed to load challenges for calendar:', e);
+    }
+
+    // 6. Fetch Support Tickets
+    try {
+      const { getUserSupportTickets } = await import('./supportTicketService');
+      const tickets = await getUserSupportTickets(userId);
+      tickets.forEach((t) => {
+        const dateObj = t.createdAt.toDate ? t.createdAt.toDate() : new Date(t.createdAt);
+        const deadlineDate = new Date(dateObj.getTime() + 3 * 24 * 60 * 60 * 1000);
+        items.push({
+          id: t.id || '',
+          title: `Support Ticket Due: ${t.title}`,
+          description: `Category: ${t.category} • Status: ${t.status}`,
+          type: 'deadline',
+          date: deadlineDate,
+          priority: t.priority === 'medium' ? 'normal' : (t.priority === 'high' ? 'important' : t.priority),
+          status: t.status,
+        });
+      });
+    } catch (e) {
+      console.warn('Failed to load support tickets for calendar:', e);
+    }
   } catch (err) {
     console.error('Error aggregating calendar events:', err);
   }

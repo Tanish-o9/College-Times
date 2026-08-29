@@ -72,6 +72,13 @@ export const createListing = async (
     throw new Error(`Listing contains prohibited term ("${prohibitedTerm}").`);
   }
 
+  // Duplicate Check
+  const isDuplicate = await checkForDuplicateListing(currentUser.uid, title);
+  if (isDuplicate) {
+    throw new Error('A listing with this exact title already exists.');
+  }
+
+
   const listingsRef = collection(db, 'marketplaceListings');
   const sellerName = currentUser.displayName || 'Campus Student';
 
@@ -471,4 +478,69 @@ export const updateListingStatus = async (
     status,
     updatedAt: serverTimestamp(),
   });
+};
+
+export interface SellerMetrics {
+  averageRating: number;
+  totalReviews: number;
+  activeListingsCount: number;
+  responseRate: number;
+}
+
+/**
+ * Checks if seller already has an active listing with the exact same title.
+ */
+export const checkForDuplicateListing = async (
+  sellerId: string,
+  title: string
+): Promise<boolean> => {
+  try {
+    const q = query(
+      collection(db, 'marketplaceListings'),
+      where('sellerId', '==', sellerId),
+      where('title', '==', title.trim())
+    );
+    const snap = await getDocs(q);
+    return snap.docs.some((d) => d.data().status === 'active');
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Fetches reviews and calculated metrics for a seller.
+ */
+export const getSellerMetrics = async (sellerId: string): Promise<SellerMetrics> => {
+  try {
+    const reviewsSnap = await getDocs(
+      query(collection(db, 'marketplaceReviews'), where('sellerId', '==', sellerId))
+    );
+    let totalRating = 0;
+    reviewsSnap.forEach((d) => {
+      totalRating += d.data().rating || 5;
+    });
+    const avg = reviewsSnap.empty ? 5.0 : totalRating / reviewsSnap.size;
+
+    const listingsSnap = await getDocs(
+      query(
+        collection(db, 'marketplaceListings'),
+        where('sellerId', '==', sellerId),
+        where('status', '==', 'active')
+      )
+    );
+
+    return {
+      averageRating: Math.round(avg * 10) / 10,
+      totalReviews: reviewsSnap.size,
+      activeListingsCount: listingsSnap.size,
+      responseRate: 98,
+    };
+  } catch {
+    return {
+      averageRating: 5.0,
+      totalReviews: 0,
+      activeListingsCount: 0,
+      responseRate: 100,
+    };
+  }
 };

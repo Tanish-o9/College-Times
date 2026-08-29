@@ -15,6 +15,8 @@ import type { User as FirebaseUser } from 'firebase/auth';
 import { db, logAnalyticsEvent } from '../lib/firebase';
 import type { User } from '../types/models';
 import { logGroupActivityEvent } from './groupActivityService';
+import { awardReputation } from './reputationService';
+import { trackChallengeAction } from './challengeService';
 
 export interface GroupResource {
   id?: string;
@@ -100,6 +102,10 @@ export const createGroupResource = async (
     'resource',
     `Added resource: ${cleanTitle}`
   );
+
+  // Award reputation and track challenge
+  awardReputation(currentUser.uid, docRef.id, 'helpful_resource', 10, `Shared resource: ${cleanTitle}`).catch((e) => console.warn(e));
+  trackChallengeAction(currentUser.uid, 'resources', 1).catch((e) => console.warn(e));
 
   logAnalyticsEvent('group_resource_created', { groupId, type });
 

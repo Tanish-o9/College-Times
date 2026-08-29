@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useGlobalCache } from '../context/GlobalCacheContext';
 import { subscribeToActivityState } from '../services/activityStateService';
 import { searchUnifiedCampus } from '../services/searchService';
 import type { SearchSuggestion } from '../types/search';
@@ -20,8 +21,10 @@ import {
   Bookmark,
   Users,
   X,
-  Settings
+  Settings,
+  Activity
 } from 'lucide-react';
+
 
 import { useChatAccess } from '../hooks/useChatAccess';
 import { useChatUnreadState } from '../hooks/useChatUnreadState';
@@ -30,6 +33,7 @@ import type { Channel } from '../types/chat';
 
 export const Navbar: React.FC = () => {
   const { currentUser } = useAuth();
+  const { joinedGroupIds } = useGlobalCache();
   const navigate = useNavigate();
   const { isEligible: isChatEligible } = useChatAccess();
   const [myChannels, setMyChannels] = useState<Channel[]>([]);
@@ -104,7 +108,7 @@ export const Navbar: React.FC = () => {
 
     const timer = setTimeout(async () => {
       try {
-        const res = await searchUnifiedCampus(clean, 'all', 10, currentUser);
+        const res = await searchUnifiedCampus(clean, 'all', 10, currentUser, joinedGroupIds);
         setSuggestions(res.suggestions);
         setShowSuggestions(true);
       } catch {
@@ -113,7 +117,7 @@ export const Navbar: React.FC = () => {
     }, 250);
 
     return () => clearTimeout(timer);
-  }, [navSearchQuery, currentUser]);
+  }, [navSearchQuery, currentUser, joinedGroupIds]);
 
   // Close suggestions when clicking outside
   useEffect(() => {
@@ -231,6 +235,12 @@ export const Navbar: React.FC = () => {
             <Calendar className="w-4 h-4 text-purple-400" />
             <span className="hidden sm:inline">Events</span>
           </NavLink>
+
+          <NavLink to="/activity" className={linkClass}>
+            <Activity className="w-4 h-4 text-sky-400 animate-pulse" />
+            <span className="hidden sm:inline">Activity</span>
+          </NavLink>
+
 
           {isChatEligible && (
             <NavLink to="/channels" className={linkClass}>
