@@ -53,7 +53,7 @@ export const uploadInstantMediaFile = async (
   file: File,
   currentUser: FirebaseUser
 ): Promise<UploadedInstantMedia> => {
-  const rawType = file.type || '';
+  const rawType = file.type || 'image/jpeg';
   const baseMime = rawType.split(';')[0].trim().toLowerCase();
   const isVideo = baseMime.startsWith('video/');
   const maxBytes = isVideo ? 25 * 1024 * 1024 : 10 * 1024 * 1024;
@@ -71,59 +71,66 @@ export const uploadInstantMediaFile = async (
   const readFileAsDataUrl = (f: File): Promise<string> => {
     return new Promise((res, rej) => {
       const reader = new FileReader();
-      reader.onload = () => res(reader.result as string);
+      reader.onload = () => res((reader.result as string) || '');
       reader.onerror = (e) => rej(e);
       reader.readAsDataURL(f);
     });
   };
 
-  return new Promise<UploadedInstantMedia>((resolve) => {
-    let isDone = false;
+  // Convert to Data URL fallback immediately so data is never lost
+  let dataUrl = '';
+  try {
+    dataUrl = await readFileAsDataUrl(file);
+  } catch (err) {
+    console.error('Data URL conversion error:', err);
+  }
 
-    const finishWithFallback = async () => {
-      if (!isDone) {
-        isDone = true;
-        try {
-          const dataUrl = await readFileAsDataUrl(file);
-          resolve({ downloadUrl: dataUrl, storagePath, fileSize: file.size, mimeType: file.type || 'image/jpeg' });
-        } catch {
-          resolve({ downloadUrl: '', storagePath, fileSize: file.size, mimeType: file.type || 'image/jpeg' });
-        }
-      }
-    };
-
-    // 2-second timeout for Storage fallback
-    const timeoutTimer = setTimeout(finishWithFallback, 2000);
-
-    try {
+  // Attempt Storage upload if storage is initialized
+  try {
+    if (storage) {
       const storageRef = ref(storage, storagePath);
-      const uploadTask = uploadBytesResumable(storageRef, file, { contentType: file.type || 'image/jpeg' });
+      const uploadTask = uploadBytesResumable(storageRef, file, { contentType: rawType });
 
-      uploadTask.on(
-        'state_changed',
-        null,
-        async () => {
-          clearTimeout(timeoutTimer);
-          await finishWithFallback();
-        },
-        async () => {
-          if (!isDone) {
-            isDone = true;
-            clearTimeout(timeoutTimer);
+      const downloadUrl = await new Promise<string>((resolve) => {
+        const timer = setTimeout(() => resolve(''), 3000);
+        uploadTask.on(
+          'state_changed',
+          () => {},
+          () => {
+            clearTimeout(timer);
+            resolve('');
+          },
+          async () => {
+            clearTimeout(timer);
             try {
               const url = await getDownloadURL(uploadTask.snapshot.ref);
-              resolve({ downloadUrl: url, storagePath, fileSize: file.size, mimeType: file.type || 'image/jpeg' });
+              resolve(url || '');
             } catch {
-              await finishWithFallback();
+              resolve('');
             }
           }
-        }
-      );
-    } catch {
-      clearTimeout(timeoutTimer);
-      finishWithFallback();
+        );
+      });
+
+      if (downloadUrl) {
+        return {
+          downloadUrl,
+          storagePath,
+          fileSize: file.size,
+          mimeType: rawType,
+        };
+      }
     }
-  });
+  } catch {
+    // Fall back to Data URL
+  }
+
+  return {
+    downloadUrl: dataUrl,
+    storagePath,
+    fileSize: file.size,
+    mimeType: rawType,
+  };
 };
 
 /**
