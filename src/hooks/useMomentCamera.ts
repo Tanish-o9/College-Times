@@ -56,15 +56,22 @@ export const useMomentCamera = () => {
     setState((prev) => ({ ...prev, isStreaming: false, isRecording: false, recordingTime: 0 }));
   }, []);
 
+  const attachStreamToVideo = useCallback((stream: MediaStream) => {
+    if (videoRef.current) {
+      videoRef.current.srcObject = stream;
+      videoRef.current.play().catch(() => {});
+    }
+  }, []);
+
   const startCamera = useCallback(
     async (facingMode: CameraFacingMode = 'user') => {
       stopTracks();
-      setState((prev) => ({ ...prev, error: null, permissionDenied: false }));
+      setState((prev) => ({ ...prev, error: null, permissionDenied: false, isStreaming: false }));
 
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         setState((prev) => ({
           ...prev,
-          error: 'Camera access is not supported by your browser or environment.',
+          error: 'Camera access is not supported by your browser.',
           permissionDenied: true,
         }));
         return;
@@ -77,26 +84,20 @@ export const useMomentCamera = () => {
             width: { ideal: 1280 },
             height: { ideal: 720 },
           },
-          audio: true, // Request audio for video recording
+          audio: false, // Do not request mic audio by default to avoid permission issues
         };
 
         let stream: MediaStream;
         try {
           stream = await navigator.mediaDevices.getUserMedia(constraints);
         } catch {
-          // Fallback to video only if audio permission fails
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: { ideal: facingMode } },
-          });
+          // Fallback constraint
+          stream = await navigator.mediaDevices.getUserMedia({ video: true });
         }
 
         mediaStreamRef.current = stream;
 
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          await videoRef.current.play().catch(() => {});
-        }
-
+        // Update state to trigger render, then attach stream
         setState((prev) => ({
           ...prev,
           isStreaming: true,
@@ -104,17 +105,21 @@ export const useMomentCamera = () => {
           permissionDenied: false,
           error: null,
         }));
+
+        // Attach stream immediately and retry after tick to ensure video element is bound
+        attachStreamToVideo(stream);
+        setTimeout(() => attachStreamToVideo(stream), 100);
       } catch (err: any) {
         let errorMsg = 'Failed to access camera.';
         let isDenied = false;
 
         if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-          errorMsg = 'Camera access was denied. You can still upload a photo/video from your gallery.';
+          errorMsg = 'Camera access was denied by browser settings.';
           isDenied = true;
         } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
           errorMsg = 'No camera device found on this device.';
         } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-          errorMsg = 'Camera is currently in use by another application.';
+          errorMsg = 'Camera is currently in use by another app.';
         }
 
         setState((prev) => ({
@@ -125,7 +130,7 @@ export const useMomentCamera = () => {
         }));
       }
     },
-    [stopTracks]
+    [stopTracks, attachStreamToVideo]
   );
 
   const toggleCamera = useCallback(() => {
@@ -136,24 +141,26 @@ export const useMomentCamera = () => {
   const capturePhoto = useCallback((): Promise<{ file: File; width: number; height: number }> => {
     return new Promise((resolve, reject) => {
       const video = videoRef.current;
-      if (!video || !mediaStreamRef.current) {
-        reject(new Error('Camera stream is not active.'));
+      const stream = mediaStreamRef.current;
+
+      if (!video || !stream) {
+        reject(new Error('Camera stream is not active. Please retry.'));
         return;
       }
 
-      const canvas = document.createElement('canvas');
       const width = video.videoWidth || 1280;
       const height = video.videoHeight || 720;
+
+      const canvas = document.createElement('canvas');
       canvas.width = width;
       canvas.height = height;
 
       const ctx = canvas.getContext('2d');
       if (!ctx) {
-        reject(new Error('Failed to create canvas context.'));
+        reject(new Error('Failed to create canvas context for photo.'));
         return;
       }
 
-      // Flip horizontally if front camera for natural mirror effect
       if (state.facingMode === 'user') {
         ctx.translate(width, 0);
         ctx.scale(-1, 1);
@@ -163,8 +170,8 @@ export const useMomentCamera = () => {
 
       canvas.toBlob(
         (blob) => {
-          if (!blob) {
-            reject(new Error('Photo capture failed.'));
+          if (!blob || blob.size === 0) {
+            reject(new Error('Captured photo was empty. Please retry.'));
             return;
           }
           const file = new File([blob], `camera_moment_${Date.now()}.jpg`, {
@@ -174,7 +181,7 @@ export const useMomentCamera = () => {
           resolve({ file, width, height });
         },
         'image/jpeg',
-        0.92
+        0.95
       );
     });
   }, [state.facingMode]);
@@ -206,7 +213,6 @@ export const useMomentCamera = () => {
       recordTimerRef.current = setInterval(() => {
         setState((prev) => {
           if (prev.recordingTime >= 30) {
-            // Auto stop at 30 seconds max
             if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
               mediaRecorderRef.current.stop();
             }
@@ -216,7 +222,7 @@ export const useMomentCamera = () => {
         });
       }, 1000);
     } catch (err) {
-      console.error('Video recording failed:', err);
+      console.error('Video recording error:', err);
     }
   }, [state.isRecording]);
 

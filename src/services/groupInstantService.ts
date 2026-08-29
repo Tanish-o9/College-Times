@@ -329,8 +329,13 @@ export const subscribeToActiveGroupInstants = (
         .filter((inst: any) => {
           if (inst.status !== 'active') return false;
           if (inst.expiresAt) {
-            const expMs = inst.expiresAt.toMillis ? inst.expiresAt.toMillis() : new Date(inst.expiresAt).getTime();
-            if (nowMs > expMs) return false;
+            let expMs = 0;
+            if (typeof inst.expiresAt.toMillis === 'function') expMs = inst.expiresAt.toMillis();
+            else if (typeof inst.expiresAt.toDate === 'function') expMs = inst.expiresAt.toDate().getTime();
+            else if (inst.expiresAt?.seconds) expMs = inst.expiresAt.seconds * 1000;
+            else expMs = new Date(inst.expiresAt).getTime();
+
+            if (!isNaN(expMs) && expMs > 0 && nowMs > expMs) return false;
           }
           return true;
         })

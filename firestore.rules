@@ -845,15 +845,8 @@ service cloud.firestore {
 
       // Phase 34, 36A & 37: Group Instants / Permanent Moments Sub-collection
       match /instants/{instantId} {
-        allow read: if isAuthenticated() && (
-          exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)) ||
-          get(/databases/$(database)/documents/groups/$(groupId)).data.visibility != 'private' ||
-          isAdmin()
-        );
-        allow create: if isAuthenticated() && (
-          exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)) ||
-          isAdmin()
-        );
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated();
         allow update, delete: if isAuthenticated() && (
           resource.data.senderId == request.auth.uid ||
           resource.data.creatorId == request.auth.uid ||
