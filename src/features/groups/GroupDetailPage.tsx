@@ -12,7 +12,6 @@ import type { CampusGroup, GroupRole } from '../../types/group';
 import type { Post } from '../../types/models';
 import { PollCard } from './PollCard';
 import { CreatePollModal } from './CreatePollModal';
-import { GroupInviteManager } from './GroupInviteManager';
 import { JoinGroupByCodeModal } from './JoinGroupByCodeModal';
 import { JoinGroupWithPasswordModal } from './JoinGroupWithPasswordModal';
 import { GroupInstantCarousel } from './GroupInstantCarousel';
@@ -100,6 +99,7 @@ export const GroupDetailPage: React.FC = () => {
   const [loadingPolls, setLoadingPolls] = useState<boolean>(false);
   const [isPollModalOpen, setIsPollModalOpen] = useState<boolean>(false);
   const [isJoinCodeModalOpen, setIsJoinCodeModalOpen] = useState<boolean>(false);
+  const [isJoinPasswordModalOpen, setIsJoinPasswordModalOpen] = useState<boolean>(false);
   const [groupHealth, setGroupHealth] = useState<{ score: number; status: string; color: string } | null>(null);
 
   const loadGroupDetails = async () => {
@@ -149,12 +149,12 @@ export const GroupDetailPage: React.FC = () => {
           status = 'Average / At Risk';
           color = 'text-amber-455 bg-amber-500/10 border-amber-500/25';
         }
+
         setGroupHealth({ score, status, color });
       }
 
       // Fetch user role
-      const memberRef = doc(db, 'groups', groupId, 'members', currentUser.uid);
-      const snap = await getDoc(memberRef);
+      const snap = await getDoc(doc(db, 'groups', groupId, 'members', currentUser.uid));
       if (snap.exists()) {
         setUserRole(snap.data().role || 'member');
       }
@@ -211,8 +211,8 @@ export const GroupDetailPage: React.FC = () => {
   const handleToggleMembership = async () => {
     if (!group || !currentUser || actionBusy) return;
 
-    if (group.visibility === 'private' && !isMember) {
-      setIsJoinCodeModalOpen(true);
+    if ((group.visibility === 'private' || group.hasPassword) && !isMember) {
+      setIsJoinPasswordModalOpen(true);
       return;
     }
 
@@ -629,24 +629,8 @@ export const GroupDetailPage: React.FC = () => {
                   </div>
                 )}
 
-                {activeTab === 'events' && (
-                  <GroupEvents groupId={group.id} isMember={isMember} userRole={userRole} />
-                )}
-
                 {activeTab === 'members' && (
                   <GroupMembersExplorer groupId={group.id} />
-                )}
-
-                {activeTab === 'activity' && (
-                  <GroupActivityTimeline groupId={group.id} userId={currentUser?.uid || ''} />
-                )}
-
-                {activeTab === 'leaderboard' && (
-                  <GroupLeaderboard groupId={group.id} />
-                )}
-
-                {activeTab === 'search' && (
-                  <GroupSearchTab groupId={group.id} />
                 )}
 
                 {activeTab === 'polls' && (
@@ -687,8 +671,8 @@ export const GroupDetailPage: React.FC = () => {
                   </div>
                 )}
 
-                {activeTab === 'invites' && isMember && (
-                  <GroupInviteManager group={group} onGroupUpdated={(updated) => setGroup(updated)} />
+                {activeTab === 'events' && (
+                  <GroupEvents groupId={group.id} isMember={isMember} userRole={userRole} />
                 )}
 
                 {activeTab === 'resources' && (
@@ -709,6 +693,18 @@ export const GroupDetailPage: React.FC = () => {
 
                 {activeTab === 'analytics' && (
                   <GroupAnalyticsDashboard groupId={group.id} />
+                )}
+
+                {activeTab === 'leaderboard' && (
+                  <GroupLeaderboard groupId={group.id} />
+                )}
+
+                {activeTab === 'search' && (
+                  <GroupSearchTab groupId={group.id} />
+                )}
+
+                {activeTab === 'activity' && (
+                  <GroupActivityTimeline groupId={group.id} userId={currentUser?.uid || ''} />
                 )}
               </>
             )}
@@ -745,11 +741,11 @@ export const GroupDetailPage: React.FC = () => {
 
       {group && (
         <JoinGroupWithPasswordModal
-          isOpen={isJoinCodeModalOpen}
-          onClose={() => setIsJoinCodeModalOpen(false)}
+          isOpen={isJoinPasswordModalOpen}
+          onClose={() => setIsJoinPasswordModalOpen(false)}
           group={group}
           onJoined={() => {
-            setIsJoinCodeModalOpen(false);
+            setIsJoinPasswordModalOpen(false);
             setIsMember(true);
             loadGroupDetails();
           }}

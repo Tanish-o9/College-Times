@@ -133,14 +133,8 @@ export const GroupsPage: React.FC = () => {
     e.stopPropagation();
     if (!currentUser || actionGroupId) return;
 
-    if (group.hasPassword) {
+    if (group.hasPassword || group.visibility === 'private') {
       setPasswordPromptGroup(group);
-      return;
-    }
-
-    if (group.visibility === 'private') {
-      setInitialJoinCode(group.inviteCodePlaintext || '');
-      setIsJoinCodeModalOpen(true);
       return;
     }
 
@@ -148,9 +142,6 @@ export const GroupsPage: React.FC = () => {
     try {
       await joinGroup(group.id, currentUser, userProfile);
       setJoinedGroupIds((prev) => new Set([...prev, group.id]));
-      setGroups((prev) =>
-        prev.map((g) => (g.id === group.id ? { ...g, memberCount: g.memberCount + 1 } : g))
-      );
       toast.success(`Joined ${group.name}! 🎉`);
     } catch (err: any) {
       toast.error(err.message || 'Failed to join group.');
@@ -399,14 +390,13 @@ export const GroupsPage: React.FC = () => {
                         <ChevronRight className="w-3.5 h-3.5" />
                       </button>
                     </div>
-                  ) : isPrivate ? (
+                  ) : isPrivate || group.hasPassword ? (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        setInitialJoinCode(group.inviteCodePlaintext || '');
-                        setIsJoinCodeModalOpen(true);
+                        setPasswordPromptGroup(group);
                       }}
-                      className="px-3.5 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all"
+                      className="px-3.5 py-1.5 bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 text-sky-300 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all"
                     >
                       <Key className="w-3.5 h-3.5" />
                       <span>Pass Code</span>
