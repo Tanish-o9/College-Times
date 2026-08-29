@@ -109,12 +109,46 @@ export const GroupMomentsTab: React.FC<GroupMomentsTabProps> = ({
     }, 150);
   };
 
+  const [viewedIds, setViewedIds] = useState<Set<string>>(() => {
+    try {
+      const storageKey = `ct_viewed_moments_${currentUser?.uid || 'guest'}`;
+      const saved = localStorage.getItem(storageKey);
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+
+  const markAsViewed = (id: string) => {
+    setViewedIds((prev) => {
+      if (prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.add(id);
+      try {
+        const storageKey = `ct_viewed_moments_${currentUser?.uid || 'guest'}`;
+        localStorage.setItem(storageKey, JSON.stringify(Array.from(next)));
+      } catch {}
+      return next;
+    });
+  };
+
   const handleOpenViewer = (index: number) => {
     setSelectedViewerIndex(index);
     setIsViewerOpen(true);
   };
 
   const filteredMoments = moments.filter((m) => {
+    const isViewedLocally = viewedIds.has(m.id);
+    const isViewedInFirestore = Array.isArray(m.viewedBy) && m.viewedBy.includes(currentUser?.uid || '');
+
+    // ONE-VIEW RULE: Hide moment once user has viewed it
+    if (isViewedLocally || isViewedInFirestore) {
+      if (activeFilter === 'mine' && m.senderId === currentUser?.uid) {
+        return true;
+      }
+      return false;
+    }
+
     if (activeFilter === 'mine') {
       return m.senderId === currentUser?.uid;
     }
@@ -372,6 +406,7 @@ export const GroupMomentsTab: React.FC<GroupMomentsTabProps> = ({
         instants={filteredMoments}
         initialIndex={selectedViewerIndex}
         groupId={groupId}
+        onInstantViewed={markAsViewed}
       />
     </div>
   );

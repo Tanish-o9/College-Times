@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../hooks/useAuth';
 import { subscribeToActiveGroupInstants } from '../../services/groupInstantService';
 import type { GroupInstant } from '../../types/group';
 import { CreateGroupInstantModal } from './CreateGroupInstantModal';
@@ -16,9 +17,33 @@ export const GroupInstantCarousel: React.FC<GroupInstantCarouselProps> = ({
   groupName,
   isMember: _isMember,
 }) => {
+  const { currentUser } = useAuth();
 
   const [instants, setInstants] = useState<GroupInstant[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+
+  const [viewedIds, setViewedIds] = useState<Set<string>>(() => {
+    try {
+      const storageKey = `ct_viewed_moments_${currentUser?.uid || 'guest'}`;
+      const saved = localStorage.getItem(storageKey);
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+
+  const markAsViewed = (id: string) => {
+    setViewedIds((prev) => {
+      if (prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.add(id);
+      try {
+        const storageKey = `ct_viewed_moments_${currentUser?.uid || 'guest'}`;
+        localStorage.setItem(storageKey, JSON.stringify(Array.from(next)));
+      } catch {}
+      return next;
+    });
+  };
 
   // Modals
   const [isCreateOpen, setIsCreateOpen] = useState<boolean>(false);
@@ -52,6 +77,12 @@ export const GroupInstantCarousel: React.FC<GroupInstantCarouselProps> = ({
     setHasNewInstantsPill(false);
     setIsViewerOpen(true);
   };
+
+  const unviewedInstants = instants.filter((m) => {
+    const isViewedLocally = viewedIds.has(m.id);
+    const isViewedInFirestore = Array.isArray(m.viewedBy) && m.viewedBy.includes(currentUser?.uid || '');
+    return !isViewedLocally && !isViewedInFirestore;
+  });
 
   return (
     <div className="space-y-2">
@@ -93,12 +124,12 @@ export const GroupInstantCarousel: React.FC<GroupInstantCarouselProps> = ({
               <div key={i} className="w-14 h-14 rounded-full bg-slate-900 border border-slate-800 animate-pulse shrink-0" />
             ))}
           </div>
-        ) : instants.length === 0 ? (
+        ) : unviewedInstants.length === 0 ? (
           <div className="text-[11px] text-slate-500 italic py-3">
-            No group moments posted yet. Be the first to share a moment!
+            No unviewed group moments right now. Be the first to share a moment!
           </div>
         ) : (
-          instants.map((instant, idx) => (
+          unviewedInstants.map((instant, idx) => (
             <button
               key={instant.id}
               onClick={() => handleOpenViewer(idx)}
@@ -134,9 +165,10 @@ export const GroupInstantCarousel: React.FC<GroupInstantCarouselProps> = ({
       <GroupInstantViewer
         isOpen={isViewerOpen}
         onClose={() => setIsViewerOpen(false)}
-        instants={instants}
+        instants={unviewedInstants}
         initialIndex={selectedViewerIndex}
         groupId={groupId}
+        onInstantViewed={markAsViewed}
       />
     </div>
   );

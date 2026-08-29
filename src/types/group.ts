@@ -114,6 +114,7 @@ export interface GroupInstant {
   commentCount?: number;
   saveCount?: number;
   viewCount?: number;
+  viewedBy?: string[];
   shareCount?: number;
 }
 

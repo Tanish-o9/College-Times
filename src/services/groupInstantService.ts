@@ -13,6 +13,7 @@ import {
   onSnapshot,
   serverTimestamp,
   increment,
+  arrayUnion,
   runTransaction,
   startAfter,
   QueryDocumentSnapshot,
@@ -190,6 +191,7 @@ export const createGroupInstant = async (
     reactionCounts: {},
     replyCount: 0,
     viewCount: 0,
+    viewedBy: [],
   };
 
   if (userProfile?.photoURL || currentUser.photoURL) {
@@ -279,6 +281,7 @@ export const recordMomentView = async (
         });
         tx.update(instantRef, {
           viewCount: increment(1),
+          viewedBy: arrayUnion(userId),
         });
       }
     });

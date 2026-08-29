@@ -44,6 +44,7 @@ interface GroupInstantViewerProps {
   instants: GroupInstant[];
   initialIndex?: number;
   groupId: string;
+  onInstantViewed?: (instantId: string) => void;
 }
 
 const EMOJI_LIST = [
@@ -60,6 +61,7 @@ export const GroupInstantViewer: React.FC<GroupInstantViewerProps> = ({
   instants,
   initialIndex = 0,
   groupId,
+  onInstantViewed,
 }) => {
   const { currentUser, userProfile } = useAuth();
   const navigate = useNavigate();
@@ -87,20 +89,25 @@ export const GroupInstantViewer: React.FC<GroupInstantViewerProps> = ({
 
   // Record Moment View & Fetch subcollection media items & save status
   useEffect(() => {
-    if (!isOpen || !currentInstant || !groupId) return;
+    if (!isOpen || !currentInstant) return;
+    const targetGroupId = groupId || currentInstant.groupId;
+    if (!targetGroupId) return;
 
     // Record view idempotently
     if (currentUser?.uid) {
-      recordMomentView(groupId, currentInstant.id, currentUser.uid);
+      recordMomentView(targetGroupId, currentInstant.id, currentUser.uid);
+      if (onInstantViewed) {
+        onInstantViewed(currentInstant.id);
+      }
       isMomentSaved(currentInstant.id, currentUser.uid).then(setSaved);
     }
 
-    getGroupInstantMedia(groupId, currentInstant.id, 50)
+    getGroupInstantMedia(targetGroupId, currentInstant.id, 50)
       .then((mediaDocs) => {
         setSubcollectionMedia(mediaDocs && mediaDocs.length > 0 ? mediaDocs : []);
       })
       .catch(() => setSubcollectionMedia([]));
-  }, [isOpen, groupId, currentInstant?.id, currentUser]);
+  }, [isOpen, groupId, currentInstant?.id, currentUser, onInstantViewed]);
 
   // Fetch comments when comments drawer is opened
   useEffect(() => {
