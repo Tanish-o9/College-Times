@@ -175,38 +175,111 @@ export const GroupDetailPage: React.FC = () => {
 
     setLoadingPolls(true);
     const cleanGroupId = (groupId || '').replace(/^group-/, '');
-    const postsRef = collection(db, 'posts');
-    const q = query(postsRef, where('groupId', '==', cleanGroupId));
+    const possibleGroupIds = Array.from(new Set([groupId, cleanGroupId, `group-${cleanGroupId}`])).filter(Boolean);
 
-    const unsubscribe = onSnapshot(
-      q,
+    const postsRef = collection(db, 'posts');
+    const pollsRef = collection(db, 'polls');
+
+    const postsQuery = query(postsRef, where('groupId', 'in', possibleGroupIds));
+    const pollsQuery = query(pollsRef, where('groupId', 'in', possibleGroupIds));
+
+    let fetchedPostsMap = new Map<string, Post>();
+    let fetchedPollsMap = new Map<string, Post>();
+
+    const mergeAndSet = () => {
+      const combinedMap = new Map<string, Post>();
+      fetchedPostsMap.forEach((p, id) => combinedMap.set(id, p));
+      fetchedPollsMap.forEach((p, id) => {
+        if (!combinedMap.has(id)) {
+          combinedMap.set(id, p);
+        }
+      });
+
+      const sortedList = Array.from(combinedMap.values()).sort((a, b) => {
+        const aTime = a.timestamp?.toMillis
+          ? a.timestamp.toMillis()
+          : a.timestamp?.seconds
+          ? a.timestamp.seconds * 1000
+          : typeof a.timestamp === 'number'
+          ? a.timestamp
+          : Date.now();
+        const bTime = b.timestamp?.toMillis
+          ? b.timestamp.toMillis()
+          : b.timestamp?.seconds
+          ? b.timestamp.seconds * 1000
+          : typeof b.timestamp === 'number'
+          ? b.timestamp
+          : Date.now();
+        return bTime - aTime;
+      });
+
+      setGroupPolls(sortedList);
+      setLoadingPolls(false);
+    };
+
+    const unsubPosts = onSnapshot(
+      postsQuery,
       (snap) => {
-        const polls = snap.docs
-          .map((d) => ({ id: d.id, ...(d.data() as Post) }))
-          .filter((p) => p.poll && p.status !== 'deleted' && p.status !== 'hidden')
-          .sort((a, b) => {
-            const aTime = a.timestamp?.toMillis
-              ? a.timestamp.toMillis()
-              : a.timestamp?.seconds
-              ? a.timestamp.seconds * 1000
-              : Date.now();
-            const bTime = b.timestamp?.toMillis
-              ? b.timestamp.toMillis()
-              : b.timestamp?.seconds
-              ? b.timestamp.seconds * 1000
-              : Date.now();
-            return bTime - aTime;
-          });
-        setGroupPolls(polls);
-        setLoadingPolls(false);
+        const newMap = new Map<string, Post>();
+        snap.docs.forEach((d) => {
+          const data = d.data() as Post;
+          if (data.poll && data.status !== 'deleted' && data.status !== 'hidden') {
+            newMap.set(d.id, { id: d.id, ...data });
+          }
+        });
+        fetchedPostsMap = newMap;
+        mergeAndSet();
       },
       (err) => {
-        console.error('Failed to load group polls:', err);
+        console.error('Failed to load group posts polls:', err);
         setLoadingPolls(false);
       }
     );
 
-    return () => unsubscribe();
+    const unsubPolls = onSnapshot(
+      pollsQuery,
+      (snap) => {
+        const newMap = new Map<string, Post>();
+        snap.docs.forEach((d) => {
+          const data = d.data();
+          if ((data as any).status !== 'closed') {
+            newMap.set(d.id, {
+              id: d.id,
+              title: data.question,
+              content: `📊 Poll: ${data.question}`,
+              category: 'General',
+              authorId: data.createdBy,
+              authorName: data.creatorName || 'Student',
+              timestamp: data.createdAt || Date.now(),
+              likeCount: 0,
+              commentCount: 0,
+              reportCount: 0,
+              status: 'active',
+              postType: 'news',
+              groupId: data.groupId,
+              poll: {
+                question: data.question,
+                options: data.options || [],
+                allowMultiple: data.allowMultiple || false,
+                anonymous: data.anonymous || false,
+                expiresAt: data.expiresAt,
+                totalVotes: data.totalVotes || 0,
+              },
+            });
+          }
+        });
+        fetchedPollsMap = newMap;
+        mergeAndSet();
+      },
+      (err) => {
+        console.error('Failed to load canonical group polls:', err);
+      }
+    );
+
+    return () => {
+      unsubPosts();
+      unsubPolls();
+    };
   }, [activeTab, groupId]);
 
   const handleTabChange = (tab: GroupTab) => {
