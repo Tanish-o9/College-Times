@@ -348,6 +348,10 @@ export const GroupMomentsTab: React.FC<GroupMomentsTabProps> = ({
         groupId={groupId}
         groupName={groupName}
         mediaItem={composerMedia}
+        onInstantCreated={() => {
+          setIsComposerOpen(false);
+          setComposerMedia(null);
+        }}
         onRetakeCamera={() => {
           setIsComposerOpen(false);
           setIsCameraOpen(true);

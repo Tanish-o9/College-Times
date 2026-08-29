@@ -96,11 +96,24 @@ export const getGroupById = async (groupId: string): Promise<CampusGroup | null>
   try {
     const docRef = doc(db, 'groups', groupId);
     const snap = await getDoc(docRef);
-    if (!snap.exists()) return null;
-    return {
-      ...(snap.data() as CampusGroup),
-      id: snap.id,
-    };
+    if (snap.exists()) {
+      return {
+        ...(snap.data() as CampusGroup),
+        id: snap.id,
+      };
+    }
+    // Fallback: Query by slug if groupId was passed as slug
+    const colRef = collection(db, 'groups');
+    const q = query(colRef, where('slug', '==', groupId), limit(1));
+    const slugSnap = await getDocs(q);
+    if (!slugSnap.empty) {
+      const d = slugSnap.docs[0];
+      return {
+        ...(d.data() as CampusGroup),
+        id: d.id,
+      };
+    }
+    return null;
   } catch (err) {
     console.error(`Error fetching group ${groupId}:`, err);
     return null;

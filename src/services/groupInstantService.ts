@@ -53,6 +53,7 @@ export const uploadInstantMediaFile = async (
   file: File,
   currentUser: FirebaseUser
 ): Promise<UploadedInstantMedia> => {
+  const cleanGroupId = (groupId || '').replace(/^group-/, '');
   const rawType = file.type || 'image/jpeg';
   const baseMime = rawType.split(';')[0].trim().toLowerCase();
   const isVideo = baseMime.startsWith('video/');
@@ -66,7 +67,7 @@ export const uploadInstantMediaFile = async (
     .replace(/[\/\\?%*:|"<>]/g, '_')
     .replace(/\s+/g, '_')
     .slice(0, 80);
-  const storagePath = `groupInstantMedia/${groupId}/${currentUser.uid}/${instantId}/${Date.now()}_${cleanName}`;
+  const storagePath = `groupInstantMedia/${cleanGroupId}/${currentUser.uid}/${instantId}/${Date.now()}_${cleanName}`;
 
   const readFileAsDataUrl = (f: File): Promise<string> => {
     return new Promise((res, rej) => {
@@ -149,7 +150,8 @@ export const createGroupInstant = async (
     throw new Error('Group ID and authentication are required.');
   }
 
-  const instantsRef = collection(db, 'groups', groupId, 'instants');
+  const cleanGroupId = (groupId || '').replace(/^group-/, '');
+  const instantsRef = collection(db, 'groups', cleanGroupId, 'instants');
   const tempInstantId = `inst_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
   // Upload media items
@@ -158,7 +160,7 @@ export const createGroupInstant = async (
   for (let i = 0; i < files.length; i += BATCH_SIZE) {
     const batch = files.slice(i, i + BATCH_SIZE);
     const batchResults = await Promise.all(
-      batch.map((file) => uploadInstantMediaFile(groupId, tempInstantId, file, currentUser))
+      batch.map((file) => uploadInstantMediaFile(cleanGroupId, tempInstantId, file, currentUser))
     );
     batchResults.forEach((res) => {
       if (res.downloadUrl) uploadedMedia.push(res);
@@ -175,7 +177,7 @@ export const createGroupInstant = async (
 
   // Build clean document without any undefined properties
   const cleanInstantData: Record<string, any> = {
-    groupId,
+    groupId: cleanGroupId,
     senderId: currentUser.uid,
     senderName: userProfile?.displayName || currentUser.displayName || 'Campus Student',
     type: hasVideo ? 'video' : uploadedMedia.length > 0 ? 'image' : 'text',
@@ -213,7 +215,7 @@ export const createGroupInstant = async (
   const newDoc = await addDoc(instantsRef, cleanInstantData);
 
   // Write subcollection media docs safely
-  const mediaSubRef = collection(db, 'groups', groupId, 'instants', newDoc.id, 'media');
+  const mediaSubRef = collection(db, 'groups', cleanGroupId, 'instants', newDoc.id, 'media');
   for (let i = 0; i < uploadedMedia.length; i++) {
     const m = uploadedMedia[i];
     const mediaId = `m_${i}_${Date.now()}`;
@@ -221,7 +223,7 @@ export const createGroupInstant = async (
     const mediaDocData: Record<string, any> = {
       mediaId,
       instantId: newDoc.id,
-      groupId,
+      groupId: cleanGroupId,
       ownerId: currentUser.uid,
       storagePath: m.storagePath || '',
       downloadUrl: m.downloadUrl || '',
@@ -234,7 +236,7 @@ export const createGroupInstant = async (
   }
 
   await logGroupActivityEvent(
-    groupId,
+    cleanGroupId,
     'moment',
     currentUser.uid,
     userProfile?.displayName || currentUser.displayName || 'Campus Student',
@@ -244,7 +246,7 @@ export const createGroupInstant = async (
     caption && caption.trim() ? `Shared a moment: ${caption}` : 'Shared a group moment'
   );
 
-  logAnalyticsEvent('instant_created', { groupId, mediaCount: uploadedMedia.length, sourceType });
+  logAnalyticsEvent('instant_created', { groupId: cleanGroupId, mediaCount: uploadedMedia.length, sourceType });
 
   return {
     id: newDoc.id,
@@ -262,9 +264,10 @@ export const recordMomentView = async (
   userId: string
 ): Promise<void> => {
   if (!groupId || !instantId || !userId) return;
+  const cleanGroupId = (groupId || '').replace(/^group-/, '');
 
-  const viewRef = doc(db, 'groups', groupId, 'instants', instantId, 'views', userId);
-  const instantRef = doc(db, 'groups', groupId, 'instants', instantId);
+  const viewRef = doc(db, 'groups', cleanGroupId, 'instants', instantId, 'views', userId);
+  const instantRef = doc(db, 'groups', cleanGroupId, 'instants', instantId);
 
   try {
     await runTransaction(db, async (tx) => {
@@ -293,8 +296,9 @@ export const getGroupInstantMedia = async (
   limitCount: number = 50
 ): Promise<GroupInstantMedia[]> => {
   if (!groupId || !instantId) return [];
+  const cleanGroupId = (groupId || '').replace(/^group-/, '');
 
-  const mediaRef = collection(db, 'groups', groupId, 'instants', instantId, 'media');
+  const mediaRef = collection(db, 'groups', cleanGroupId, 'instants', instantId, 'media');
   const q = query(mediaRef, limit(limitCount));
   const snap = await getDocs(q);
 
@@ -311,8 +315,9 @@ export const subscribeToActiveGroupInstants = (
   limitCount: number = 30
 ) => {
   if (!groupId) return () => {};
+  const cleanGroupId = (groupId || '').replace(/^group-/, '');
 
-  const instantsRef = collection(db, 'groups', groupId, 'instants');
+  const instantsRef = collection(db, 'groups', cleanGroupId, 'instants');
   const q = query(instantsRef, limit(100));
 
   return onSnapshot(
