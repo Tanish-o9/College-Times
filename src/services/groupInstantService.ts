@@ -31,9 +31,6 @@ import type {
 import { isUserGroupChatMember } from './groupChatService';
 import { logGroupActivityEvent } from './groupActivityService';
 
-const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
-const ALLOWED_VIDEO_TYPES = new Set(['video/mp4', 'video/webm', 'video/quicktime']);
-
 export interface UploadedInstantMedia {
   downloadUrl: string;
   storagePath: string;
@@ -49,6 +46,7 @@ export interface CreateMomentOptions {
 
 /**
  * Uploads a single photo or video media item for a group moment.
+ * Fast fallback to local Data URL if Firebase Storage is unavailable or errors out.
  */
 export const uploadInstantMediaFile = async (
   groupId: string,
@@ -56,20 +54,20 @@ export const uploadInstantMediaFile = async (
   file: File,
   currentUser: FirebaseUser
 ): Promise<UploadedInstantMedia> => {
-  const isVideo = file.type.startsWith('video/');
+  const rawType = file.type || '';
+  const baseMime = rawType.split(';')[0].trim().toLowerCase();
+  const isVideo = baseMime.startsWith('video/');
   const maxBytes = isVideo ? 25 * 1024 * 1024 : 10 * 1024 * 1024;
 
   if (file.size > maxBytes) {
     throw new Error(`File '${file.name}' exceeds ${isVideo ? '25MB' : '10MB'} limit.`);
   }
 
-  if (!ALLOWED_IMAGE_TYPES.has(file.type) && !ALLOWED_VIDEO_TYPES.has(file.type)) {
-    throw new Error(`File type '${file.type}' is not supported for Moments.`);
-  }
-
-  const cleanName = file.name.replace(/[\/\\?%*:|"<>]/g, '_').replace(/\s+/g, '_').slice(0, 80);
+  const cleanName = (file.name || `moment_${Date.now()}`)
+    .replace(/[\/\\?%*:|"<>]/g, '_')
+    .replace(/\s+/g, '_')
+    .slice(0, 80);
   const storagePath = `groupInstantMedia/${groupId}/${currentUser.uid}/${instantId}/${Date.now()}_${cleanName}`;
-  const storageRef = ref(storage, storagePath);
 
   const readFileAsDataUrl = (f: File): Promise<string> => {
     return new Promise((res, rej) => {
@@ -82,57 +80,56 @@ export const uploadInstantMediaFile = async (
 
   return new Promise<UploadedInstantMedia>((resolve) => {
     let isDone = false;
-    const timeoutTimer = setTimeout(async () => {
+
+    const finishWithFallback = async () => {
       if (!isDone) {
         isDone = true;
-        console.warn(`Storage upload timed out for instant media ${file.name}, using local Data URL fallback.`);
         try {
           const dataUrl = await readFileAsDataUrl(file);
-          resolve({ downloadUrl: dataUrl, storagePath, fileSize: file.size, mimeType: file.type });
+          resolve({ downloadUrl: dataUrl, storagePath, fileSize: file.size, mimeType: file.type || 'image/jpeg' });
         } catch {
-          resolve({ downloadUrl: '', storagePath, fileSize: file.size, mimeType: file.type });
+          resolve({ downloadUrl: '', storagePath, fileSize: file.size, mimeType: file.type || 'image/jpeg' });
         }
       }
-    }, 10000);
+    };
 
-    const uploadTask = uploadBytesResumable(storageRef, file, { contentType: file.type });
+    // 2-second timeout for Storage fallback
+    const timeoutTimer = setTimeout(finishWithFallback, 2000);
 
-    uploadTask.on(
-      'state_changed',
-      null,
-      async (error) => {
-        console.error('Storage error for instant media, using fallback:', error);
-        if (!isDone) {
-          isDone = true;
+    try {
+      const storageRef = ref(storage, storagePath);
+      const uploadTask = uploadBytesResumable(storageRef, file, { contentType: file.type || 'image/jpeg' });
+
+      uploadTask.on(
+        'state_changed',
+        null,
+        async () => {
           clearTimeout(timeoutTimer);
-          try {
-            const dataUrl = await readFileAsDataUrl(file);
-            resolve({ downloadUrl: dataUrl, storagePath, fileSize: file.size, mimeType: file.type });
-          } catch {
-            resolve({ downloadUrl: '', storagePath, fileSize: file.size, mimeType: file.type });
+          await finishWithFallback();
+        },
+        async () => {
+          if (!isDone) {
+            isDone = true;
+            clearTimeout(timeoutTimer);
+            try {
+              const url = await getDownloadURL(uploadTask.snapshot.ref);
+              resolve({ downloadUrl: url, storagePath, fileSize: file.size, mimeType: file.type || 'image/jpeg' });
+            } catch {
+              await finishWithFallback();
+            }
           }
         }
-      },
-      async () => {
-        if (!isDone) {
-          isDone = true;
-          clearTimeout(timeoutTimer);
-          try {
-            const url = await getDownloadURL(uploadTask.snapshot.ref);
-            resolve({ downloadUrl: url, storagePath, fileSize: file.size, mimeType: file.type });
-          } catch {
-            const dataUrl = await readFileAsDataUrl(file);
-            resolve({ downloadUrl: dataUrl, storagePath, fileSize: file.size, mimeType: file.type });
-          }
-        }
-      }
-    );
+      );
+    } catch {
+      clearTimeout(timeoutTimer);
+      finishWithFallback();
+    }
   });
 };
 
 /**
  * Creates an Instagram-style Group Instant moment with explicit sourceType ('camera' | 'gallery'),
- * 24-hour expiration, and optional capture metadata.
+ * 24-hour expiration, and sanitized capture metadata.
  */
 export const createGroupInstant = async (
   groupId: string,
@@ -154,7 +151,7 @@ export const createGroupInstant = async (
   const instantsRef = collection(db, 'groups', groupId, 'instants');
   const tempInstantId = `inst_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
-  // Upload media items in batches of 4
+  // Upload media items
   const uploadedMedia: UploadedInstantMedia[] = [];
   const BATCH_SIZE = 4;
   for (let i = 0; i < files.length; i += BATCH_SIZE) {
@@ -168,36 +165,22 @@ export const createGroupInstant = async (
   }
 
   const sourceType: MomentSourceType = options?.sourceType || 'gallery';
-  const hasVideo = uploadedMedia.some((m) => m.mimeType.startsWith('video/'));
+  const hasVideo = uploadedMedia.some((m) => (m.mimeType || '').startsWith('video/'));
 
   // Calculate 24-hour expiration date
   const nowMs = Date.now();
   const expireHours = options?.expiresInHours || 24;
   const expiresAt = new Date(nowMs + expireHours * 60 * 60 * 1000);
 
-  const instantData: Omit<GroupInstant, 'id'> = {
+  // Build clean document without any undefined properties
+  const cleanInstantData: Record<string, any> = {
     groupId,
     senderId: currentUser.uid,
     senderName: userProfile?.displayName || currentUser.displayName || 'Campus Student',
-    ...(userProfile?.photoURL ? { senderAvatar: userProfile.photoURL } : {}),
     type: hasVideo ? 'video' : uploadedMedia.length > 0 ? 'image' : 'text',
     sourceType,
-    ...(options?.captureMetadata
-      ? {
-          captureMetadata: {
-            ...options.captureMetadata,
-            capturedAt: sourceType === 'camera' ? serverTimestamp() : null,
-          },
-        }
-      : {
-          captureMetadata: {
-            capturedAt: sourceType === 'camera' ? serverTimestamp() : null,
-            source: sourceType,
-          } as any,
-        }),
     media: uploadedMedia.map((m) => m.downloadUrl).slice(0, 5),
     mediaCount: uploadedMedia.length,
-    ...(caption.trim() ? { caption: caption.trim().slice(0, 300) } : {}),
     createdAt: serverTimestamp(),
     expiresAt,
     status: 'active',
@@ -206,26 +189,47 @@ export const createGroupInstant = async (
     viewCount: 0,
   };
 
-  const newDoc = await addDoc(instantsRef, instantData);
+  if (userProfile?.photoURL || currentUser.photoURL) {
+    cleanInstantData.senderAvatar = userProfile?.photoURL || currentUser.photoURL;
+  }
+  if (caption && caption.trim()) {
+    cleanInstantData.caption = caption.trim().slice(0, 300);
+  }
 
-  // Write scalable subcollection media docs
+  // Construct sanitized metadata object
+  const meta: Record<string, any> = { source: sourceType };
+  if (options?.captureMetadata?.mimeType || (files[0] && files[0].type)) {
+    meta.mimeType = options?.captureMetadata?.mimeType || files[0].type || 'image/jpeg';
+  }
+  if (typeof options?.captureMetadata?.width === 'number') {
+    meta.width = options.captureMetadata.width;
+  }
+  if (typeof options?.captureMetadata?.height === 'number') {
+    meta.height = options.captureMetadata.height;
+  }
+  cleanInstantData.captureMetadata = meta;
+
+  const newDoc = await addDoc(instantsRef, cleanInstantData);
+
+  // Write subcollection media docs safely
   const mediaSubRef = collection(db, 'groups', groupId, 'instants', newDoc.id, 'media');
   for (let i = 0; i < uploadedMedia.length; i++) {
     const m = uploadedMedia[i];
     const mediaId = `m_${i}_${Date.now()}`;
     const mediaDocRef = doc(mediaSubRef, mediaId);
-    await setDoc(mediaDocRef, {
+    const mediaDocData: Record<string, any> = {
       mediaId,
       instantId: newDoc.id,
       groupId,
       ownerId: currentUser.uid,
-      storagePath: m.storagePath,
-      downloadUrl: m.downloadUrl,
-      mimeType: m.mimeType,
-      fileSize: m.fileSize,
+      storagePath: m.storagePath || '',
+      downloadUrl: m.downloadUrl || '',
+      mimeType: m.mimeType || 'image/jpeg',
+      fileSize: m.fileSize || 0,
       order: i,
       createdAt: serverTimestamp(),
-    });
+    };
+    await setDoc(mediaDocRef, mediaDocData);
   }
 
   await logGroupActivityEvent(
@@ -243,7 +247,7 @@ export const createGroupInstant = async (
 
   return {
     id: newDoc.id,
-    ...instantData,
+    ...cleanInstantData,
     createdAt: new Date(),
   } as GroupInstant;
 };

@@ -90,8 +90,12 @@ export const CreateGroupInstantModal: React.FC<CreateGroupInstantModalProps> = (
 
     setSubmitting(true);
     try {
-      await createGroupInstant(groupId, caption, selectedFiles, currentUser, userProfile);
-      toast.success('Permanent Group Moment shared!');
+      const hasCameraFiles = selectedFiles.some((f) => f.name.includes('camera_moment') || f.name.includes('camera_video'));
+      await createGroupInstant(groupId, caption, selectedFiles, currentUser, userProfile, {
+        sourceType: hasCameraFiles ? 'camera' : 'gallery',
+        expiresInHours: 24,
+      });
+      toast.success('Instant Moment shared with group!');
       setCaption('');
       setSelectedFiles([]);
       setPreviews([]);
