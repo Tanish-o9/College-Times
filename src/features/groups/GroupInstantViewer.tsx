@@ -352,11 +352,25 @@ export const GroupInstantViewer: React.FC<GroupInstantViewerProps> = ({
         {/* Media / Content Viewport */}
         <div className="relative flex-1 bg-slate-950 flex items-center justify-center overflow-hidden">
           {mediaUrls.length > 0 ? (
-            <img
-              src={mediaUrls[currentMediaIndex]}
-              alt="Group moment"
-              className="w-full h-full object-contain"
-            />
+            currentInstant.type === 'video' ||
+            (mediaUrls[currentMediaIndex] || '').includes('video') ||
+            (mediaUrls[currentMediaIndex] || '').startsWith('data:video') ? (
+              <video
+                src={mediaUrls[currentMediaIndex]}
+                autoPlay
+                loop
+                muted
+                controls
+                playsInline
+                className="w-full h-full object-contain max-h-[75vh]"
+              />
+            ) : (
+              <img
+                src={mediaUrls[currentMediaIndex]}
+                alt="Group moment"
+                className="w-full h-full object-contain max-h-[75vh]"
+              />
+            )
           ) : (
             <div className="p-8 text-center space-y-3 max-w-xs">
               <p className="text-base font-medium text-white leading-relaxed">{currentInstant.caption}</p>
