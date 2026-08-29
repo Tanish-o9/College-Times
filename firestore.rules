@@ -852,10 +852,103 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Phase 32: Group Invite Pass Codes Collection
-    match /groupInviteCodes/{code} {
+    // Canonical Channels Collection & Sub-collections (Group Chat & Community Channels)
+    match /channels/{channelId} {
+      // Helper function to check group membership for group chat channels ('group-{groupId}')
+      function isGroupChannelMember() {
+        return isAuthenticated() && (
+          !channelId.startsWith('group-') ||
+          exists(/databases/$(database)/documents/groups/$(channelId.replace('group-', ''))/members/$(request.auth.uid)) ||
+          get(/databases/$(database)/documents/groups/$(channelId.replace('group-', ''))).data.createdBy == request.auth.uid ||
+          (
+            'ownerId' in get(/databases/$(database)/documents/groups/$(channelId.replace('group-', ''))).data &&
+            get(/databases/$(database)/documents/groups/$(channelId.replace('group-', ''))).data.ownerId == request.auth.uid
+          ) ||
+          isAdmin()
+        );
+      }
+
+      allow read: if isGroupChannelMember();
+      allow create, update: if isAuthenticated();
+      allow delete: if isAdmin();
+
+      // Channel Members Sub-collection
+      match /members/{memberUid} {
+        allow read: if isGroupChannelMember();
+        allow create, update, delete: if isAuthenticated();
+      }
+
+      // Channel Messages Sub-collection
+      match /messages/{messageId} {
+        allow read: if isGroupChannelMember();
+        allow create: if isGroupChannelMember()
+          && (request.resource.data.senderId == request.auth.uid || request.resource.data.senderId == 'system');
+        allow update: if isGroupChannelMember() && (
+          resource.data.senderId == request.auth.uid ||
+          request.resource.data.diff(resource.data).affectedKeys().hasAny(['reactionCounts', 'reportCount', 'status', 'isEdited', 'editedAt', 'content', 'deletedAt', 'deletedBy']) ||
+          isAdmin()
+        );
+        allow delete: if isGroupChannelMember() && (
+          resource.data.senderId == request.auth.uid ||
+          isAdmin()
+        );
+
+        // Reactions Sub-collection
+        match /reactions/{userId} {
+          allow read: if isGroupChannelMember();
+          allow create, update, delete: if isGroupChannelMember() && userId == request.auth.uid;
+        }
+
+        // Reports Sub-collection
+        match /reports/{reporterId} {
+          allow read: if isGroupChannelMember();
+          allow create, update: if isGroupChannelMember() && reporterId == request.auth.uid;
+          allow delete: if isAdmin();
+        }
+      }
+
+      // Channel Typing Sub-collection
+      match /typing/{userId} {
+        allow read: if isGroupChannelMember();
+        allow create, update, delete: if isAuthenticated() && userId == request.auth.uid;
+      }
+
+      // Channel Pinned Messages Sub-collection
+      match /pinnedMessages/{messageId} {
+        allow read: if isGroupChannelMember();
+        allow create, update, delete: if isGroupChannelMember();
+      }
+    }
+
+    // Canonical DM Conversations Collection & Sub-collections
+    match /conversations/{conversationId} {
+      function isParticipant() {
+        return isAuthenticated() && (
+          request.auth.uid in resource.data.participantIds ||
+          isAdmin()
+        );
+      }
+
       allow read: if isAuthenticated();
-      allow create, update, delete: if isAuthenticated();
+      allow create: if isAuthenticated() && request.auth.uid in request.resource.data.participantIds;
+      allow update: if isParticipant();
+      allow delete: if isParticipant();
+
+      match /messages/{messageId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated() && request.resource.data.senderId == request.auth.uid;
+        allow update: if isAuthenticated() && (
+          resource.data.senderId == request.auth.uid ||
+          request.resource.data.diff(resource.data).affectedKeys().hasAny(['reactionCounts', 'status', 'content', 'editedAt', 'isEdited']) ||
+          isAdmin()
+        );
+        allow delete: if isAuthenticated() && (resource.data.senderId == request.auth.uid || isAdmin());
+
+        match /reactions/{userId} {
+          allow read: if isAuthenticated();
+          allow create, update, delete: if isAuthenticated() && userId == request.auth.uid;
+        }
+      }
     }
 
     // Phase 32: Campus Groups Collection & Sub-collections
