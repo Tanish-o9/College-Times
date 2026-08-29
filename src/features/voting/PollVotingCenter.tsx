@@ -90,7 +90,7 @@ export const PollVotingCenter: React.FC = () => {
 
     setSubmitting(true);
     try {
-      await createVotingPoll(
+      const newPollId = await createVotingPoll(
         {
           question,
           options: cleanOpts,
@@ -103,6 +103,22 @@ export const PollVotingCenter: React.FC = () => {
         userProfile?.displayName
       );
 
+      const optimisticPoll: VotingPoll = {
+        id: newPollId,
+        question: question.trim(),
+        options: cleanOpts.map((text, idx) => ({ id: `opt_${idx + 1}`, text, voteCount: 0 })),
+        allowMultiple,
+        anonymous,
+        isPublic: true,
+        groupId: undefined,
+        expiresAt: Date.now() + durationDays * 24 * 60 * 60 * 1000,
+        createdBy: currentUser.uid,
+        creatorName: userProfile?.displayName || currentUser.displayName || 'Campus Student',
+        totalVotes: 0,
+        createdAt: Date.now(),
+      };
+
+      setPolls((prev) => [optimisticPoll, ...prev.filter((p) => p.id !== newPollId)]);
       toast.success('Campus voting poll created!');
       setQuestion('');
       setOptions(['Option 1', 'Option 2']);

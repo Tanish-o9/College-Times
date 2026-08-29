@@ -50,6 +50,16 @@ export const getPollExpiresMs = (expiresAt: any): number => {
   return isNaN(parsed) ? Date.now() + 3 * 24 * 60 * 60 * 1000 : parsed;
 };
 
+export const getPollTimeMs = (createdAt: any): number => {
+  if (!createdAt) return Date.now();
+  if (typeof createdAt === 'number') return createdAt;
+  if (typeof createdAt.toMillis === 'function') return createdAt.toMillis();
+  if (typeof createdAt.toDate === 'function') return createdAt.toDate().getTime();
+  if (createdAt.seconds) return createdAt.seconds * 1000;
+  const parsed = new Date(createdAt).getTime();
+  return isNaN(parsed) ? Date.now() : parsed;
+};
+
 /**
  * Creates a new voting poll.
  */
@@ -130,19 +140,7 @@ export const subscribeActiveCampusPolls = (
           if ((poll as any).status === 'closed') return false;
           return true;
         })
-        .sort((a, b) => {
-          const aTime = a.createdAt?.toMillis
-            ? a.createdAt.toMillis()
-            : a.createdAt?.seconds
-            ? a.createdAt.seconds * 1000
-            : Date.now();
-          const bTime = b.createdAt?.toMillis
-            ? b.createdAt.toMillis()
-            : b.createdAt?.seconds
-            ? b.createdAt.seconds * 1000
-            : Date.now();
-          return bTime - aTime;
-        });
+        .sort((a, b) => getPollTimeMs(b.createdAt) - getPollTimeMs(a.createdAt));
 
       onUpdate(activePolls);
     },
@@ -170,19 +168,7 @@ export const getActiveCampusPolls = async (): Promise<VotingPoll[]> => {
         } as VotingPoll;
       })
       .filter((poll) => (poll as any).status !== 'closed')
-      .sort((a, b) => {
-        const aTime = a.createdAt?.toMillis
-          ? a.createdAt.toMillis()
-          : a.createdAt?.seconds
-          ? a.createdAt.seconds * 1000
-          : Date.now();
-        const bTime = b.createdAt?.toMillis
-          ? b.createdAt.toMillis()
-          : b.createdAt?.seconds
-          ? b.createdAt.seconds * 1000
-          : Date.now();
-        return bTime - aTime;
-      });
+      .sort((a, b) => getPollTimeMs(b.createdAt) - getPollTimeMs(a.createdAt));
   } catch (err) {
     console.error('Failed to get campus polls:', err);
     return [];
