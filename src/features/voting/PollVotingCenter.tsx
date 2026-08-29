@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import {
   createVotingPoll,
-  getActiveCampusPolls,
+  subscribeActiveCampusPolls,
   getUserVoteRecord,
   castVote,
   type VotingPoll,
@@ -29,30 +29,30 @@ export const PollVotingCenter: React.FC = () => {
   // Selection state for active voting
   const [selectedOptionsMap, setSelectedOptionsMap] = useState<Record<string, string[]>>({});
 
-  const fetchPollsAndVotes = async () => {
-    if (!currentUser) return;
+  useEffect(() => {
+    if (!currentUser) {
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
-    try {
-      const activePolls = await getActiveCampusPolls();
+    const unsubscribe = subscribeActiveCampusPolls(async (activePolls) => {
       setPolls(activePolls);
+      setLoading(false);
 
       const votesMap: Record<string, PollVoteRecord2> = {};
       for (const p of activePolls) {
-        const record = await getUserVoteRecord(p.id!, currentUser.uid);
-        if (record) {
-          votesMap[p.id!] = record;
+        if (p.id) {
+          const record = await getUserVoteRecord(p.id, currentUser.uid);
+          if (record) {
+            votesMap[p.id] = record;
+          }
         }
       }
       setUserVotes(votesMap);
-    } catch {
-      toast.error('Failed to load campus polls.');
-    } finally {
-      setLoading(false);
-    }
-  };
+    });
 
-  useEffect(() => {
-    fetchPollsAndVotes();
+    return () => unsubscribe();
   }, [currentUser]);
 
   const handleAddOption = () => {
@@ -108,7 +108,6 @@ export const PollVotingCenter: React.FC = () => {
       setAllowMultiple(false);
       setAnonymous(false);
       setShowAddForm(false);
-      fetchPollsAndVotes();
     } catch (err: any) {
       toast.error(err.message || 'Failed to create poll.');
     } finally {
@@ -147,7 +146,6 @@ export const PollVotingCenter: React.FC = () => {
     try {
       await castVote(pollId, selected, currentUser.uid);
       toast.success('Vote registered successfully!');
-      fetchPollsAndVotes();
     } catch (err: any) {
       toast.error(err.message || 'Failed to register vote.');
     }
@@ -186,12 +184,6 @@ export const PollVotingCenter: React.FC = () => {
           >
             <Plus className="w-4 h-4" />
             <span>Create Poll</span>
-          </button>
-          <button
-            onClick={fetchPollsAndVotes}
-            className="px-3.5 py-1.5 bg-slate-950 hover:bg-slate-900 border border-slate-850 hover:border-slate-800 text-slate-300 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all shadow-md"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>

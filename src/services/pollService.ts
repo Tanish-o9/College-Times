@@ -54,6 +54,7 @@ export const createPollPost = async (
   };
 
   const postsRef = collection(db, 'posts');
+  const pollsRef = collection(db, 'polls');
   const authorName = userProfile?.displayName || currentUser.displayName || 'Student';
 
   const newPostData = {
@@ -77,6 +78,22 @@ export const createPollPost = async (
     const newPostRef = doc(postsRef);
     newDocId = newPostRef.id;
     transaction.set(newPostRef, newPostData);
+
+    const canonicalPollRef = doc(pollsRef, newDocId);
+    transaction.set(canonicalPollRef, {
+      question: params.question.trim(),
+      options: pollOptions,
+      allowMultiple: params.allowMultiple ?? false,
+      anonymous: params.anonymous ?? false,
+      isPublic: !params.groupId,
+      groupId: params.groupId || null,
+      expiresAt: expiresAtMs,
+      status: 'active',
+      createdBy: currentUser.uid,
+      creatorName: authorName,
+      totalVotes: 0,
+      createdAt: serverTimestamp(),
+    });
   });
 
   if (params.groupId) {

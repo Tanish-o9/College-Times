@@ -4,9 +4,7 @@ import {
   addDoc,
   getDoc,
   getDocs,
-  query,
-  where,
-  orderBy,
+  onSnapshot,
   serverTimestamp,
   runTransaction,
 } from 'firebase/firestore';
@@ -97,17 +95,78 @@ export const createVotingPoll = async (
 };
 
 /**
- * Gets all active campus-wide polls.
+ * Subscribes in real-time to active campus-wide polls.
+ * Avoids Firestore composite index errors by doing safe memory filtering and sorting.
+ */
+export const subscribeActiveCampusPolls = (
+  onUpdate: (polls: VotingPoll[]) => void
+): (() => void) => {
+  const colRef = collection(db, 'polls');
+
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const activePolls = snapshot.docs
+        .map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
+        } as VotingPoll))
+        .filter((poll) => {
+          // Must be public or campus-wide
+          if (poll.isPublic === false) return false;
+          // Must not be deleted or manually closed
+          if ((poll as any).status === 'closed') return false;
+          return true;
+        })
+        .sort((a, b) => {
+          const aTime = a.createdAt?.toMillis
+            ? a.createdAt.toMillis()
+            : a.createdAt?.seconds
+            ? a.createdAt.seconds * 1000
+            : Date.now();
+          const bTime = b.createdAt?.toMillis
+            ? b.createdAt.toMillis()
+            : b.createdAt?.seconds
+            ? b.createdAt.seconds * 1000
+            : Date.now();
+          return bTime - aTime;
+        });
+
+      onUpdate(activePolls);
+    },
+    (err) => {
+      console.error('Error listening to campus polls:', err);
+      onUpdate([]);
+    }
+  );
+};
+
+/**
+ * Gets all active campus-wide polls (Promise version with memory sorting).
  */
 export const getActiveCampusPolls = async (): Promise<VotingPoll[]> => {
   try {
     const colRef = collection(db, 'polls');
-    const q = query(colRef, where('isPublic', '==', true), orderBy('createdAt', 'desc'));
-    const snap = await getDocs(q);
-    return snap.docs.map((d) => ({
-      id: d.id,
-      ...d.data(),
-    } as VotingPoll));
+    const snap = await getDocs(colRef);
+    return snap.docs
+      .map((d) => ({
+        id: d.id,
+        ...d.data(),
+      } as VotingPoll))
+      .filter((poll) => poll.isPublic !== false && (poll as any).status !== 'closed')
+      .sort((a, b) => {
+        const aTime = a.createdAt?.toMillis
+          ? a.createdAt.toMillis()
+          : a.createdAt?.seconds
+          ? a.createdAt.seconds * 1000
+          : Date.now();
+        const bTime = b.createdAt?.toMillis
+          ? b.createdAt.toMillis()
+          : b.createdAt?.seconds
+          ? b.createdAt.seconds * 1000
+          : Date.now();
+        return bTime - aTime;
+      });
   } catch (err) {
     console.error('Failed to get campus polls:', err);
     return [];
@@ -121,12 +180,26 @@ export const getGroupVotingPolls = async (groupId: string): Promise<VotingPoll[]
   if (!groupId) return [];
   try {
     const colRef = collection(db, 'polls');
-    const q = query(colRef, where('groupId', '==', groupId), orderBy('createdAt', 'desc'));
-    const snap = await getDocs(q);
-    return snap.docs.map((d) => ({
-      id: d.id,
-      ...d.data(),
-    } as VotingPoll));
+    const snap = await getDocs(colRef);
+    return snap.docs
+      .map((d) => ({
+        id: d.id,
+        ...d.data(),
+      } as VotingPoll))
+      .filter((poll) => poll.groupId === groupId && (poll as any).status !== 'closed')
+      .sort((a, b) => {
+        const aTime = a.createdAt?.toMillis
+          ? a.createdAt.toMillis()
+          : a.createdAt?.seconds
+          ? a.createdAt.seconds * 1000
+          : Date.now();
+        const bTime = b.createdAt?.toMillis
+          ? b.createdAt.toMillis()
+          : b.createdAt?.seconds
+          ? b.createdAt.seconds * 1000
+          : Date.now();
+        return bTime - aTime;
+      });
   } catch (err) {
     console.error('Failed to get group polls:', err);
     return [];
