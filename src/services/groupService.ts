@@ -12,6 +12,7 @@ import {
   serverTimestamp,
   increment,
   setDoc,
+  updateDoc,
   type QueryDocumentSnapshot,
 } from 'firebase/firestore';
 import type { User as FirebaseUser } from 'firebase/auth';
@@ -342,176 +343,105 @@ export const joinGroup = async (
   const groupRef = doc(db, 'groups', groupId);
   const memberRef = doc(db, 'groups', groupId, 'members', uid);
   const userMembershipRef = doc(db, 'users', uid, 'groupMemberships', groupId);
+  const banRef = doc(db, 'groups', groupId, 'bannedMembers', uid);
 
   const trimmedPasscode = enteredPasscode?.trim() || '';
   const enteredPasscodeHash = trimmedPasscode ? await hashStringSHA256(trimmedPasscode) : '';
   const enteredPasscodeHashLower = trimmedPasscode ? await hashStringSHA256(trimmedPasscode.toLowerCase()) : '';
 
-  // 1. Attempt secure server API verification & atomic join first (if available)
-  try {
-    const idToken = await currentUser.getIdToken().catch(() => '');
-    if (idToken) {
-      const response = await fetch('/api/join-group', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({
-          groupId,
-          passcode: trimmedPasscode,
-        }),
-      }).catch(() => null);
+  // 1. Fetch group metadata
+  const groupSnap = await getDoc(groupRef);
+  if (!groupSnap.exists()) {
+    throw new Error('Group not found.');
+  }
 
-      if (response && response.ok) {
-        const data = await response.json().catch(() => ({}));
-        if (data.success) {
-          awardReputation(currentUser.uid, groupId, 'join_group', 5, 'Joined a campus group').catch((e) => console.warn(e));
-          trackChallengeAction(currentUser.uid, 'groups', 1).catch((e) => console.warn(e));
-          logAnalyticsEvent('group_joined', { groupId });
-          return;
-        }
-      } else if (response && (response.status === 400 || response.status === 403)) {
-        const errData = await response.json().catch(() => ({}));
-        if (errData.error) {
-          throw new Error(errData.error);
-        }
-      }
+  const groupData = groupSnap.data() as CampusGroup;
+  if (!groupData.active) {
+    throw new Error('Group is currently unavailable for new members.');
+  }
+
+  const banSnap = await getDoc(banRef).catch(() => null);
+  if (banSnap && banSnap.exists()) {
+    throw new Error('Access denied: You are banned from joining this group.');
+  }
+
+  // 2. Verify passcode/password if enabled
+  const hasGroupPassword = Boolean(groupData.hasPassword || groupData.passcodeHash || (groupData as any).passcode);
+  if (hasGroupPassword) {
+    if (!trimmedPasscode) {
+      throw new Error('This group is password-protected. Please enter the passcode.');
     }
-  } catch (err: any) {
-    if (
-      err.message === 'Incorrect group passcode.' ||
-      err.message === 'This group is password-protected. Please enter the passcode.' ||
-      err.message?.includes('already a member') ||
-      err.message?.includes('banned') ||
-      err.message?.includes('capacity')
-    ) {
-      throw err;
+    const isPasscodeMatch =
+      (groupData.passcodeHash && enteredPasscodeHash === groupData.passcodeHash) ||
+      (groupData.passcodeHash && enteredPasscodeHashLower === groupData.passcodeHash) ||
+      ((groupData as any).passcode && trimmedPasscode.toLowerCase() === String((groupData as any).passcode).trim().toLowerCase()) ||
+      (groupData.inviteCodePlaintext && trimmedPasscode.toUpperCase() === groupData.inviteCodePlaintext.trim().toUpperCase()) ||
+      (groupData.inviteCodeHash && trimmedPasscode.toUpperCase() === groupData.inviteCodeHash.trim().toUpperCase());
+
+    if (!isPasscodeMatch) {
+      throw new Error('Incorrect group passcode.');
+    }
+  } else if (groupData.visibility === 'private') {
+    const isCodeMatch =
+      !trimmedPasscode ||
+      (groupData.inviteCodePlaintext && trimmedPasscode.toUpperCase() === groupData.inviteCodePlaintext.trim().toUpperCase()) ||
+      (groupData.inviteCodeHash && trimmedPasscode.toUpperCase() === groupData.inviteCodeHash.trim().toUpperCase());
+
+    if (!isCodeMatch) {
+      throw new Error('This group is private. Please join using an invite pass code.');
     }
   }
 
-    // 1. Critical Path: Atomic Membership Transaction
-    let groupType: CampusGroupType = 'community';
-    console.log('[GROUP_JOIN_DEBUG] Starting membership transaction for group:', groupId, 'user:', uid);
+  const currentCount = groupData.memberCount || 0;
+  if (currentCount >= MAX_GROUP_CAPACITY) {
+    throw new Error('Group has reached its maximum capacity of 10,000 members.');
+  }
 
-    try {
-      await runTransaction(db, async (transaction) => {
-        const groupSnap = await transaction.get(groupRef);
-        if (!groupSnap.exists()) {
-          throw new Error('Group not found.');
-        }
+  // Check if already a member
+  const memberSnap = await getDoc(memberRef).catch(() => null);
+  if (memberSnap && memberSnap.exists()) {
+    return;
+  }
 
-        const banRef = doc(db, 'groups', groupId, 'bannedMembers', uid);
-        const banSnap = await transaction.get(banRef);
-        if (banSnap.exists()) {
-          throw new Error('Access denied: You are banned from joining this group.');
-        }
+  // 3. Create group member document
+  const memberData: GroupMember = {
+    uid,
+    role: 'member',
+    joinedAt: serverTimestamp(),
+    points: 0,
+    ...(userProfile?.displayName ? { displayName: userProfile.displayName } : {}),
+    ...(userProfile?.photoURL ? { photoURL: userProfile.photoURL } : {}),
+  };
 
-        const groupData = groupSnap.data() as CampusGroup;
-        if (!groupData.active) {
-          throw new Error('Group is currently unavailable for new members.');
-        }
+  const userLookupData: UserGroupMembership = {
+    groupId,
+    joinedAt: serverTimestamp(),
+  };
 
-        // Verify passcode/password if enabled
-        const hasGroupPassword = Boolean(groupData.hasPassword || groupData.passcodeHash || (groupData as any).passcode);
-        if (hasGroupPassword) {
-          if (!trimmedPasscode) {
-            throw new Error('This group is password-protected. Please enter the passcode.');
-          }
-          const isPasscodeMatch =
-            (groupData.passcodeHash && enteredPasscodeHash === groupData.passcodeHash) ||
-            (groupData.passcodeHash && enteredPasscodeHashLower === groupData.passcodeHash) ||
-            ((groupData as any).passcode && trimmedPasscode.toLowerCase() === String((groupData as any).passcode).trim().toLowerCase()) ||
-            (groupData.inviteCodePlaintext && trimmedPasscode.toUpperCase() === groupData.inviteCodePlaintext.trim().toUpperCase()) ||
-            (groupData.inviteCodeHash && trimmedPasscode.toUpperCase() === groupData.inviteCodeHash.trim().toUpperCase());
+  await setDoc(memberRef, memberData);
 
-          if (!isPasscodeMatch) {
-            console.log('[GROUP_JOIN_DEBUG] Passcode mismatch for group:', groupId);
-            throw new Error('Incorrect group passcode.');
-          }
-        } else if (groupData.visibility === 'private') {
-          const isCodeMatch =
-            !trimmedPasscode ||
-            (groupData.inviteCodePlaintext && trimmedPasscode.toUpperCase() === groupData.inviteCodePlaintext.trim().toUpperCase()) ||
-            (groupData.inviteCodeHash && trimmedPasscode.toUpperCase() === groupData.inviteCodeHash.trim().toUpperCase());
+  // Background non-blocking updates
+  setDoc(userMembershipRef, userLookupData).catch((err: any) => console.warn('userMembership write notice:', err));
+  updateDoc(groupRef, {
+    memberCount: increment(1),
+    updatedAt: serverTimestamp(),
+  }).catch((err: any) => console.warn('group memberCount update notice:', err));
 
-          if (!isCodeMatch) {
-            throw new Error('This group is private. Please join using an invite pass code.');
-          }
-        }
+  // 4. Non-critical secondary side-effects
+  logGroupActivityEvent(
+    groupId,
+    'membership_change',
+    currentUser.uid,
+    userProfile?.displayName || currentUser.displayName || 'Student',
+    userProfile?.photoURL || currentUser.photoURL || undefined,
+    undefined,
+    undefined,
+    'joined the group'
+  ).catch((e) => console.warn('Activity log notice:', e));
 
-        const currentCount = groupData.memberCount || 0;
-        if (currentCount >= MAX_GROUP_CAPACITY) {
-          throw new Error('Group has reached its maximum capacity of 10,000 members.');
-        }
-
-        groupType = groupData.type;
-
-        const memberSnap = await transaction.get(memberRef);
-        if (memberSnap.exists()) {
-          console.log('[GROUP_JOIN_DEBUG] User is already a member:', uid);
-          return;
-        }
-
-        const memberData: GroupMember = {
-          uid,
-          role: 'member',
-          joinedAt: serverTimestamp(),
-          points: 0,
-          ...(userProfile?.displayName ? { displayName: userProfile.displayName } : {}),
-          ...(userProfile?.photoURL ? { photoURL: userProfile.photoURL } : {}),
-        };
-
-        const userLookupData: UserGroupMembership = {
-          groupId,
-          joinedAt: serverTimestamp(),
-        };
-
-        transaction.set(memberRef, memberData);
-        transaction.set(userMembershipRef, userLookupData);
-        transaction.update(groupRef, {
-          memberCount: increment(1),
-          updatedAt: serverTimestamp(),
-        });
-      });
-      console.log('[GROUP_JOIN_DEBUG] Membership transaction succeeded for group:', groupId);
-    } catch (err: any) {
-      console.error('[GROUP_JOIN_DEBUG] Transaction failed:', {
-        operation: 'MEMBERSHIP_TRANSACTION',
-        code: err.code || 'custom-error',
-        message: err.message,
-        path: `groups/${groupId}/members/${uid}`,
-      });
-
-      if (err.code === 'permission-denied' || err.message?.includes('insufficient permissions')) {
-        throw new Error('You don\'t have permission to join this group right now.');
-      }
-      throw err;
-    }
-
-    // 2. Non-Critical Secondary Side-Effects (Activity Timeline, Reputation XP, Analytics)
-    try {
-      await logGroupActivityEvent(
-        groupId,
-        'membership_change',
-        currentUser.uid,
-        userProfile?.displayName || currentUser.displayName || 'Student',
-        userProfile?.photoURL || currentUser.photoURL || undefined,
-        undefined,
-        undefined,
-        'joined the group'
-      );
-    } catch (actErr) {
-      console.warn('[GROUP_JOIN_DEBUG] Activity log notice:', actErr);
-    }
-
-    try {
-      awardReputation(currentUser.uid, groupId, 'join_group', 5, 'Joined a campus group').catch((e) => console.warn(e));
-      trackChallengeAction(currentUser.uid, 'groups', 1).catch((e) => console.warn(e));
-      logAnalyticsEvent('group_joined', { groupType, groupId });
-    } catch (repErr) {
-      console.warn('[GROUP_JOIN_DEBUG] Reputation notice:', repErr);
-    }
+  awardReputation(currentUser.uid, groupId, 'join_group', 5, 'Joined a campus group').catch((e) => console.warn('Reputation notice:', e));
+  trackChallengeAction(currentUser.uid, 'groups', 1).catch((e) => console.warn('Challenge notice:', e));
+  logAnalyticsEvent('group_joined', { groupType: groupData.type, groupId });
 };
 
 /**
