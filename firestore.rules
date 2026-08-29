@@ -110,6 +110,12 @@ service cloud.firestore {
         allow read, create, update, delete: if true;
       }
 
+      // Campus Group Memberships Sub-collection: 1 per user per joined group
+      match /groupMemberships/{groupId} {
+        allow read: if isAuthenticated();
+        allow create, update, delete: if isAuthenticated() && userId == request.auth.uid;
+      }
+
       // Phase 37: Saved Group Moments Sub-collection
       match /savedGroupMoments/{instantId} {
         allow read, create, update, delete: if isOwner(userId);
