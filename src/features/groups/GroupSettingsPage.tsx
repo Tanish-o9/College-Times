@@ -7,6 +7,8 @@ import { getGroupById } from '../../services/groupService';
 import {
   transferGroupOwnership,
   archiveGroup,
+  updateGroupPasscode,
+  deleteGroupPermanently,
 } from '../../services/groupManagementService';
 import {
   getGroupNotificationPreferences,
@@ -15,7 +17,7 @@ import {
   unmuteGroupNotifications,
   type GroupNotificationPreferences,
 } from '../../services/groupNotificationPreferenceService';
-import { canEditSettings, canTransferOwnership, canArchiveGroup } from '../../services/groupPermissionService';
+import { canEditSettings, canTransferOwnership, canArchiveGroup, canDeleteGroup } from '../../services/groupPermissionService';
 import type { CampusGroup, GroupRole } from '../../types/group';
 import { GroupInviteManager } from './GroupInviteManager';
 import {
@@ -27,6 +29,8 @@ import {
   Save,
   Bell,
   BellOff,
+  Key,
+  Trash2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
@@ -41,12 +45,14 @@ export const GroupSettingsPage: React.FC = () => {
   const [userRole, setUserRole] = useState<GroupRole>('member');
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
+  const [passcodeSaving, setPasscodeSaving] = useState<boolean>(false);
 
   // Form Fields
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('General');
   const [visibility, setVisibility] = useState<'public' | 'private'>('public');
+  const [passcode, setPasscode] = useState('');
 
   // Notification Preferences State
   const [notifPrefs, setNotifPrefs] = useState<GroupNotificationPreferences | null>(null);
@@ -76,6 +82,7 @@ export const GroupSettingsPage: React.FC = () => {
         setDescription(g.description || '');
         setCategory(g.category || 'General');
         setVisibility(g.visibility);
+        setPasscode((g as any).passcode || '');
       }
 
       const memberRef = doc(db, 'groups', groupId, 'members', currentUser.uid);
@@ -120,6 +127,40 @@ export const GroupSettingsPage: React.FC = () => {
       toast.error(err.message || 'Failed to save settings.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSavePasscode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!groupId || !currentUser || passcodeSaving) return;
+
+    setPasscodeSaving(true);
+    try {
+      await updateGroupPasscode(groupId, passcode, currentUser);
+      const trimmed = passcode.trim();
+      toast.success(trimmed ? 'Group password updated! 🔑' : 'Password protection removed.');
+      setGroup((prev) => (prev ? { ...prev, hasPassword: Boolean(trimmed), passcode: trimmed } as any : null));
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update passcode.');
+    } finally {
+      setPasscodeSaving(false);
+    }
+  };
+
+  const handleDeleteGroup = async () => {
+    if (!groupId || !currentUser) return;
+    const confirmation = window.prompt(`Type DELETE to permanently delete "${group?.name}". This action CANNOT be undone!`);
+    if (confirmation !== 'DELETE') {
+      if (confirmation !== null) toast.error('Deletion cancelled.');
+      return;
+    }
+
+    try {
+      await deleteGroupPermanently(groupId, currentUser);
+      toast.success('Group permanently deleted!');
+      navigate('/groups');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete group.');
     }
   };
 
@@ -184,6 +225,7 @@ export const GroupSettingsPage: React.FC = () => {
   const canEdit = canEditSettings(userRole, userProfile?.role);
   const canTransfer = canTransferOwnership(userRole, userProfile?.role);
   const canArchive = canArchiveGroup(userRole, userProfile?.role);
+  const canDelete = canDeleteGroup(userRole, userProfile?.role);
   return (
     <div className="min-h-screen bg-slate-950 text-white flex flex-col">
       {/* Header */}
@@ -365,6 +407,54 @@ export const GroupSettingsPage: React.FC = () => {
               </form>
             )}
 
+            {/* Group Passcode / Password Management (Owner / Admin) */}
+            {canEdit && (
+              <form onSubmit={handleSavePasscode} className="p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-4">
+                <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Key className="w-4 h-4 text-amber-400" />
+                  <span>Group Joining Password / Passcode</span>
+                </h2>
+                <p className="text-slate-400 text-xs">
+                  Set or change the passcode required to join this group. Leave blank to remove password protection.
+                </p>
+
+                <div className="space-y-1.5 max-w-md">
+                  <label className="text-xs font-semibold text-slate-300">Joining Passcode / Password</label>
+                  <input
+                    type="text"
+                    value={passcode}
+                    onChange={(e) => setPasscode(e.target.value)}
+                    placeholder="e.g. Tanish or 123456"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-2.5 text-xs text-amber-300 font-mono focus:outline-none focus:border-amber-500/50"
+                  />
+                </div>
+
+                <div className="flex items-center gap-3 pt-2">
+                  <button
+                    type="submit"
+                    disabled={passcodeSaving}
+                    className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-bold text-xs rounded-xl shadow-md flex items-center gap-1.5 transition-all"
+                  >
+                    {passcodeSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    <span>Update Passcode</span>
+                  </button>
+
+                  {group?.hasPassword && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPasscode('');
+                        handleSavePasscode({ preventDefault: () => {} } as any);
+                      }}
+                      className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition-all"
+                    >
+                      Remove Password
+                    </button>
+                  )}
+                </div>
+              </form>
+            )}
+
             {/* Invite Pass Management */}
             {group && canEdit && (
               <GroupInviteManager
@@ -373,7 +463,7 @@ export const GroupSettingsPage: React.FC = () => {
               />
             )}
 
-            {/* Danger Zone: Transfer & Archive */}
+            {/* Danger Zone: Transfer, Archive, & Permanent Delete */}
             {canEdit && (
               <div className="p-6 bg-slate-900 border border-rose-500/20 rounded-3xl space-y-4">
                 <h2 className="text-sm font-bold text-rose-400 flex items-center gap-2">
@@ -381,31 +471,51 @@ export const GroupSettingsPage: React.FC = () => {
                   <span>Administrative Controls & Danger Zone</span>
                 </h2>
 
-                <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
                   {canTransfer && (
-                    <div>
-                      <h3 className="text-xs font-bold text-white">Transfer Group Ownership</h3>
-                      <p className="text-[11px] text-slate-400">Transfer owner role to another admin member.</p>
+                    <div className="p-4 bg-slate-950/60 border border-slate-800 rounded-2xl flex flex-col justify-between space-y-3">
+                      <div>
+                        <h3 className="text-xs font-bold text-white">Transfer Ownership</h3>
+                        <p className="text-[11px] text-slate-400 mt-1">Transfer owner role to another admin member.</p>
+                      </div>
                       <button
                         onClick={() => setIsTransferModalOpen(true)}
-                        className="mt-2 px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
+                        className="px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all w-full"
                       >
                         <Crown className="w-4 h-4" />
-                        <span>Transfer Ownership</span>
+                        <span>Transfer</span>
                       </button>
                     </div>
                   )}
 
                   {canArchive && (
-                    <div>
-                      <h3 className="text-xs font-bold text-white">Archive Campus Group</h3>
-                      <p className="text-[11px] text-slate-400">Make group read-only and hide from active creation.</p>
+                    <div className="p-4 bg-slate-950/60 border border-slate-800 rounded-2xl flex flex-col justify-between space-y-3">
+                      <div>
+                        <h3 className="text-xs font-bold text-white">Archive Group</h3>
+                        <p className="text-[11px] text-slate-400 mt-1">Make group read-only and hide from active list.</p>
+                      </div>
                       <button
                         onClick={handleArchive}
-                        className="mt-2 px-4 py-2 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
+                        className="px-4 py-2 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all w-full"
                       >
                         <Archive className="w-4 h-4" />
-                        <span>Archive Group</span>
+                        <span>Archive</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {canDelete && (
+                    <div className="p-4 bg-rose-950/20 border border-rose-500/30 rounded-2xl flex flex-col justify-between space-y-3">
+                      <div>
+                        <h3 className="text-xs font-bold text-rose-300">Delete Group Permanently</h3>
+                        <p className="text-[11px] text-rose-400/80 mt-1">Permanently destroy this group and all metadata.</p>
+                      </div>
+                      <button
+                        onClick={handleDeleteGroup}
+                        className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-md w-full"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        <span>Delete Group</span>
                       </button>
                     </div>
                   )}

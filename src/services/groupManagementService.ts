@@ -566,3 +566,65 @@ export const reactivateGroup = async (
   logGroupActivity(groupId, 'group_unarchived', adminUser.uid, actorName, `Reactivated campus group ${groupId}`);
   logAnalyticsEvent('group_reactivated', { groupId });
 };
+
+/**
+ * Updates or sets the group joining password/passcode for a campus group (Owner only).
+ */
+export const updateGroupPasscode = async (
+  groupId: string,
+  newPasscode: string,
+  currentUser: FirebaseUser
+): Promise<void> => {
+  if (!groupId || !currentUser) {
+    throw new Error('Authentication required.');
+  }
+
+  const trimmed = newPasscode.trim();
+  const groupRef = doc(db, 'groups', groupId);
+
+  if (!trimmed) {
+    // Remove password protection
+    await updateDoc(groupRef, {
+      hasPassword: false,
+      passcode: '',
+      passcodeHash: '',
+      updatedAt: serverTimestamp(),
+    });
+  } else {
+    // SHA-256 Hash
+    const encoder = new TextEncoder();
+    const data = encoder.encode(trimmed);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const passcodeHash = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+
+    await updateDoc(groupRef, {
+      hasPassword: true,
+      passcode: trimmed,
+      passcodeHash,
+      updatedAt: serverTimestamp(),
+    });
+  }
+
+  logAnalyticsEvent('group_passcode_updated', { groupId });
+};
+
+/**
+ * Permanently deletes a campus group and cleans up user membership index (Owner only).
+ */
+export const deleteGroupPermanently = async (
+  groupId: string,
+  currentUser: FirebaseUser
+): Promise<void> => {
+  if (!groupId || !currentUser) {
+    throw new Error('Authentication required.');
+  }
+
+  const groupRef = doc(db, 'groups', groupId);
+  const userMembershipRef = doc(db, 'users', currentUser.uid, 'groupMemberships', groupId);
+
+  await deleteDoc(groupRef);
+  await deleteDoc(userMembershipRef).catch(() => {});
+
+  logAnalyticsEvent('group_deleted_permanently', { groupId });
+};

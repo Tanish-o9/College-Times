@@ -25,6 +25,11 @@ export const canTransferOwnership = (role?: GroupRole, systemRole?: string): boo
   return role === 'owner';
 };
 
+export const canDeleteGroup = (role?: GroupRole, systemRole?: string): boolean => {
+  if (systemRole === 'admin') return true;
+  return role === 'owner';
+};
+
 export const canArchiveGroup = (role?: GroupRole, systemRole?: string): boolean => {
   if (systemRole === 'admin') return true;
   return role === 'owner' || role === 'admin';
