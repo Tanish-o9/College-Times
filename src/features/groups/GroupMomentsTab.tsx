@@ -142,10 +142,7 @@ export const GroupMomentsTab: React.FC<GroupMomentsTabProps> = ({
     });
   };
 
-  const handleOpenViewer = (index: number) => {
-    setSelectedViewerIndex(index);
-    setIsViewerOpen(true);
-  };
+  const [viewerInstants, setViewerInstants] = useState<GroupInstant[]>([]);
 
   const filteredMoments = moments.filter((m) => {
     const isOwner = m.senderId === currentUser?.uid;
@@ -165,6 +162,13 @@ export const GroupMomentsTab: React.FC<GroupMomentsTabProps> = ({
 
     return true;
   });
+
+  const handleOpenViewer = (index: number) => {
+    // Freeze moment list snapshot so real-time Firestore updates never shrink array while user is watching!
+    setViewerInstants([...filteredMoments]);
+    setSelectedViewerIndex(index);
+    setIsViewerOpen(true);
+  };
 
   return (
     <div className="space-y-6">
@@ -414,7 +418,7 @@ export const GroupMomentsTab: React.FC<GroupMomentsTabProps> = ({
       <GroupInstantViewer
         isOpen={isViewerOpen}
         onClose={() => setIsViewerOpen(false)}
-        instants={filteredMoments}
+        instants={viewerInstants}
         initialIndex={selectedViewerIndex}
         groupId={groupId}
         onInstantViewed={markAsViewed}

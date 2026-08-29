@@ -82,7 +82,10 @@ export const GroupInstantCarousel: React.FC<GroupInstantCarouselProps> = ({
     return () => unsubscribe();
   }, [groupId]);
 
+  const [viewerInstants, setViewerInstants] = useState<GroupInstant[]>([]);
+
   const handleOpenViewer = (index: number) => {
+    setViewerInstants([...unviewedInstants]);
     setSelectedViewerIndex(index);
     setHasNewInstantsPill(false);
     setIsViewerOpen(true);
@@ -181,7 +184,7 @@ export const GroupInstantCarousel: React.FC<GroupInstantCarouselProps> = ({
       <GroupInstantViewer
         isOpen={isViewerOpen}
         onClose={() => setIsViewerOpen(false)}
-        instants={unviewedInstants}
+        instants={viewerInstants}
         initialIndex={selectedViewerIndex}
         groupId={groupId}
         onInstantViewed={markAsViewed}
