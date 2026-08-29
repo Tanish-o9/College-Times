@@ -621,7 +621,7 @@ export const GroupDetailPage: React.FC = () => {
                   <GroupMomentsTab
                     groupId={group.id}
                     groupName={group.name}
-                    isMember={isMember}
+                    isMember={isAuthorized}
                     userRole={userRole}
                   />
                 )}

@@ -31,6 +31,7 @@ export const GroupMomentsTab: React.FC<GroupMomentsTabProps> = ({
 }) => {
   const { currentUser } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const canPost = isMember || Boolean(currentUser);
 
   const [moments, setMoments] = useState<GroupInstant[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -149,7 +150,7 @@ export const GroupMomentsTab: React.FC<GroupMomentsTabProps> = ({
           </div>
 
           {/* Capture & Upload Buttons */}
-          {isMember ? (
+          {canPost ? (
             <div className="flex items-center gap-2.5 shrink-0">
               <button
                 onClick={() => setIsCameraOpen(true)}
@@ -226,7 +227,7 @@ export const GroupMomentsTab: React.FC<GroupMomentsTabProps> = ({
             Be the first member to capture or upload a moment for {groupName}!
           </p>
 
-          {isMember && (
+          {canPost && (
             <button
               onClick={() => setIsCameraOpen(true)}
               className="mt-2 px-4 py-2.5 bg-purple-500 hover:bg-purple-400 text-white font-bold text-xs rounded-2xl transition-all shadow-md inline-flex items-center gap-1.5"

@@ -14,7 +14,7 @@ interface GroupInstantCarouselProps {
 export const GroupInstantCarousel: React.FC<GroupInstantCarouselProps> = ({
   groupId,
   groupName,
-  isMember,
+  isMember: _isMember,
 }) => {
 
   const [instants, setInstants] = useState<GroupInstant[]>([]);
@@ -74,11 +74,10 @@ export const GroupInstantCarousel: React.FC<GroupInstantCarouselProps> = ({
 
       <div className="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-none">
         {/* Share Instant Trigger */}
-        {isMember && (
-          <button
-            onClick={() => setIsCreateOpen(true)}
-            className="flex flex-col items-center gap-1.5 shrink-0 group"
-          >
+        <button
+          onClick={() => setIsCreateOpen(true)}
+          className="flex flex-col items-center gap-1.5 shrink-0 group"
+        >
             <div className="w-14 h-14 rounded-full bg-slate-900 border-2 border-dashed border-purple-500/50 group-hover:border-purple-400 text-purple-400 flex items-center justify-center transition-all shadow-md">
               <Plus className="w-6 h-6" />
             </div>
@@ -86,7 +85,6 @@ export const GroupInstantCarousel: React.FC<GroupInstantCarouselProps> = ({
               + Moment
             </span>
           </button>
-        )}
 
         {/* Instants Roster */}
         {loading ? (
