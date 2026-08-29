@@ -202,6 +202,7 @@ export const CreateGroupInstantModal: React.FC<CreateGroupInstantModalProps> = (
             isOpen={isCameraOpen}
             onClose={() => setIsCameraOpen(false)}
             onMediaCaptured={(captured) => {
+              setIsCameraOpen(false);
               setSelectedFiles((prev) => [...prev, captured.file]);
               setPreviews((prev) => [...prev, URL.createObjectURL(captured.file)]);
             }}

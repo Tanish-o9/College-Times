@@ -93,7 +93,7 @@ export const GroupMomentsTab: React.FC<GroupMomentsTabProps> = ({
     e.target.value = '';
   };
 
-  // Handle Camera Capture Return
+  // Handle Camera Capture Return safely without popstate collisions
   const handleMediaCaptured = (captured: {
     file: File;
     sourceType: 'camera';
@@ -103,7 +103,10 @@ export const GroupMomentsTab: React.FC<GroupMomentsTabProps> = ({
     duration?: number;
   }) => {
     setComposerMedia(captured);
-    setIsComposerOpen(true);
+    setIsCameraOpen(false);
+    setTimeout(() => {
+      setIsComposerOpen(true);
+    }, 150);
   };
 
   const handleOpenViewer = (index: number) => {
