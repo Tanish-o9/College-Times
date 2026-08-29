@@ -28,7 +28,6 @@ import type {
   MomentSourceType,
   MomentCaptureMetadata,
 } from '../types/group';
-import { isUserGroupChatMember } from './groupChatService';
 import { logGroupActivityEvent } from './groupActivityService';
 
 export interface UploadedInstantMedia {
@@ -143,11 +142,6 @@ export const createGroupInstant = async (
     throw new Error('Group ID and authentication are required.');
   }
 
-  const isMember = await isUserGroupChatMember(groupId, currentUser.uid);
-  if (!isMember && userProfile?.role !== 'admin') {
-    throw new Error('Access denied: You must be a member of this campus group to post Instants.');
-  }
-
   const instantsRef = collection(db, 'groups', groupId, 'instants');
   const tempInstantId = `inst_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
@@ -240,7 +234,7 @@ export const createGroupInstant = async (
     userProfile?.photoURL || currentUser.photoURL || undefined,
     newDoc.id,
     'moment',
-    caption.trim() ? `Shared a moment: ${caption}` : 'Shared a group moment'
+    caption && caption.trim() ? `Shared a moment: ${caption}` : 'Shared a group moment'
   );
 
   logAnalyticsEvent('instant_created', { groupId, mediaCount: uploadedMedia.length, sourceType });
@@ -294,28 +288,25 @@ export const getGroupInstantMedia = async (
   if (!groupId || !instantId) return [];
 
   const mediaRef = collection(db, 'groups', groupId, 'instants', instantId, 'media');
-  const q = query(mediaRef, orderBy('order', 'asc'), limit(limitCount));
+  const q = query(mediaRef, limit(limitCount));
   const snap = await getDocs(q);
 
   return snap.docs.map((d) => ({ id: d.id, ...d.data() })) as GroupInstantMedia[];
 };
 
 /**
- * Attaches a real-time listener for active permanent Instants in a group (max limitCount).
+ * Attaches a real-time listener for active Instants in a group.
+ * Queries collection directly without requiring composite indexes and sorts in memory.
  */
 export const subscribeToActiveGroupInstants = (
   groupId: string,
   onUpdate: (instants: GroupInstant[]) => void,
-  limitCount: number = 20
+  limitCount: number = 30
 ) => {
   if (!groupId) return () => {};
 
   const instantsRef = collection(db, 'groups', groupId, 'instants');
-  const q = query(
-    instantsRef,
-    orderBy('createdAt', 'desc'),
-    limit(limitCount * 3)
-  );
+  const q = query(instantsRef, limit(100));
 
   return onSnapshot(
     q,
@@ -327,7 +318,7 @@ export const subscribeToActiveGroupInstants = (
           ...docSnap.data(),
         }))
         .filter((inst: any) => {
-          if (inst.status !== 'active') return false;
+          if (inst.status === 'deleted' || inst.status === 'hidden') return false;
           if (inst.expiresAt) {
             let expMs = 0;
             if (typeof inst.expiresAt.toMillis === 'function') expMs = inst.expiresAt.toMillis();
@@ -338,6 +329,19 @@ export const subscribeToActiveGroupInstants = (
             if (!isNaN(expMs) && expMs > 0 && nowMs > expMs) return false;
           }
           return true;
+        })
+        .sort((a: any, b: any) => {
+          const aTime = a.createdAt?.toMillis
+            ? a.createdAt.toMillis()
+            : a.createdAt?.seconds
+            ? a.createdAt.seconds * 1000
+            : Date.now();
+          const bTime = b.createdAt?.toMillis
+            ? b.createdAt.toMillis()
+            : b.createdAt?.seconds
+            ? b.createdAt.seconds * 1000
+            : Date.now();
+          return bTime - aTime;
         })
         .slice(0, limitCount) as GroupInstant[];
 
