@@ -2,7 +2,8 @@ import React, { useState, useRef } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useOverlayBackHandler } from '../../hooks/useOverlayBackHandler';
 import { createGroupInstant } from '../../services/groupInstantService';
-import { X, Image as ImageIcon, Sparkles, RefreshCw, Send, Trash2 } from 'lucide-react';
+import { MomentCameraModal } from './MomentCameraModal';
+import { X, Image as ImageIcon, Sparkles, RefreshCw, Send, Trash2, Camera } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface CreateGroupInstantModalProps {
@@ -27,6 +28,7 @@ export const CreateGroupInstantModal: React.FC<CreateGroupInstantModalProps> = (
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
 
   const hasChanges = (
     caption.trim().length > 0 ||
@@ -168,19 +170,38 @@ export const CreateGroupInstantModal: React.FC<CreateGroupInstantModalProps> = (
                 </button>
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full py-8 border border-dashed border-slate-700 hover:border-purple-500/50 bg-slate-950/40 hover:bg-purple-500/5 rounded-2xl flex flex-col items-center justify-center gap-2 text-slate-400 hover:text-purple-300 transition-all"
-              >
-                <div className="w-10 h-10 rounded-2xl bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center">
-                  <ImageIcon className="w-5 h-5" />
-                </div>
-                <span className="text-xs font-semibold">Tap to select photos</span>
-                <span className="text-[10px] text-slate-500">JPG, PNG, WEBP, GIF up to 10MB each</span>
-              </button>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsCameraOpen(true)}
+                  className="py-6 border border-dashed border-purple-500/40 hover:border-purple-400 bg-purple-500/10 hover:bg-purple-500/20 rounded-2xl flex flex-col items-center justify-center gap-1.5 text-purple-300 transition-all"
+                >
+                  <Camera className="w-5 h-5 text-purple-400" />
+                  <span className="text-xs font-bold">Capture Camera</span>
+                  <span className="text-[9px] text-purple-400/70 font-mono">Realtime Photo/Video</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="py-6 border border-dashed border-slate-700 hover:border-sky-500/50 bg-slate-950/40 hover:bg-sky-500/5 rounded-2xl flex flex-col items-center justify-center gap-1.5 text-slate-400 hover:text-sky-300 transition-all"
+                >
+                  <ImageIcon className="w-5 h-5 text-sky-400" />
+                  <span className="text-xs font-bold">Upload Gallery</span>
+                  <span className="text-[9px] text-slate-500 font-mono">Photo/Video Files</span>
+                </button>
+              </div>
             )}
           </div>
+
+          <MomentCameraModal
+            isOpen={isCameraOpen}
+            onClose={() => setIsCameraOpen(false)}
+            onMediaCaptured={(captured) => {
+              setSelectedFiles((prev) => [...prev, captured.file]);
+              setPreviews((prev) => [...prev, URL.createObjectURL(captured.file)]);
+            }}
+          />
 
           {/* Caption Input */}
           <div className="space-y-1.5">

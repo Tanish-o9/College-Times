@@ -68,6 +68,16 @@ export interface GroupInviteCodeDoc {
 }
 
 // Phase 34 & 36A: Permanent Group Instant / Moments Experience Data Models
+export type MomentSourceType = 'camera' | 'gallery';
+
+export interface MomentCaptureMetadata {
+  capturedAt?: Timestamp | FieldValue | any;
+  deviceType?: 'mobile' | 'desktop' | 'tablet' | 'unknown';
+  mimeType?: string;
+  width?: number;
+  height?: number;
+}
+
 export interface GroupInstantMedia {
   id?: string;
   mediaId: string;
@@ -91,16 +101,19 @@ export interface GroupInstant {
   senderName: string;
   senderAvatar?: string;
   type: 'text' | 'image' | 'video';
+  sourceType?: MomentSourceType;
+  captureMetadata?: MomentCaptureMetadata;
   media: string[]; // Legacy fallback image URLs
   mediaCount?: number; // Total scalable media items in subcollection
   caption?: string;
   createdAt: Timestamp | FieldValue | any;
-  expiresAt?: Timestamp | FieldValue | any; // Optional for backward compatibility
+  expiresAt?: Timestamp | FieldValue | any; // Expiration timestamp (e.g. 24 hours from creation)
   status: 'active' | 'expired' | 'deleted' | 'hidden';
   reactionCounts?: Record<string, number>;
   replyCount?: number;
   commentCount?: number;
   saveCount?: number;
+  viewCount?: number;
   shareCount?: number;
 }
 

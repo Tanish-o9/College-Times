@@ -13,6 +13,7 @@ import {
   getMomentComments,
   addMomentComment,
   deleteMomentComment,
+  recordMomentView,
 } from '../../services/groupInstantService';
 import type { GroupInstant, GroupInstantMedia, GroupInstantComment } from '../../types/group';
 import {
@@ -31,6 +32,9 @@ import {
   Share2,
   Send,
   MessageCircle,
+  Camera,
+  Image as ImageIcon,
+  Eye,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -47,7 +51,7 @@ const EMOJI_LIST = [
   { symbol: '👍', icon: ThumbsUp, label: 'Like' },
   { symbol: '🔥', icon: Flame, label: 'Fire' },
   { symbol: '😂', icon: Smile, label: 'Laugh' },
-  { symbol: '😮', icon: AlertCircle, label: 'Wow' },
+  { symbol: '💡', icon: AlertCircle, label: 'Idea' },
 ];
 
 export const GroupInstantViewer: React.FC<GroupInstantViewerProps> = ({
@@ -64,7 +68,7 @@ export const GroupInstantViewer: React.FC<GroupInstantViewerProps> = ({
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
   const [subcollectionMedia, setSubcollectionMedia] = useState<GroupInstantMedia[]>([]);
 
-  // Phase 37 Features: Saved State & Comments Drawer
+  // Saved State & Comments Drawer
   const [saved, setSaved] = useState<boolean>(false);
   const [showComments, setShowComments] = useState<boolean>(false);
   const [comments, setComments] = useState<GroupInstantComment[]>([]);
@@ -81,19 +85,21 @@ export const GroupInstantViewer: React.FC<GroupInstantViewerProps> = ({
 
   const currentInstant = instants[currentIndex];
 
-  // Fetch subcollection media items & save status when instant changes
+  // Record Moment View & Fetch subcollection media items & save status
   useEffect(() => {
     if (!isOpen || !currentInstant || !groupId) return;
+
+    // Record view idempotently
+    if (currentUser?.uid) {
+      recordMomentView(groupId, currentInstant.id, currentUser.uid);
+      isMomentSaved(currentInstant.id, currentUser.uid).then(setSaved);
+    }
 
     getGroupInstantMedia(groupId, currentInstant.id, 50)
       .then((mediaDocs) => {
         setSubcollectionMedia(mediaDocs && mediaDocs.length > 0 ? mediaDocs : []);
       })
       .catch(() => setSubcollectionMedia([]));
-
-    if (currentUser) {
-      isMomentSaved(currentInstant.id, currentUser.uid).then(setSaved);
-    }
   }, [isOpen, groupId, currentInstant?.id, currentUser]);
 
   // Fetch comments when comments drawer is opened
@@ -267,7 +273,28 @@ export const GroupInstantViewer: React.FC<GroupInstantViewerProps> = ({
               </div>
               <div>
                 <span className="text-xs font-bold text-white block">{currentInstant.senderName}</span>
-                <span className="text-[10px] text-purple-400 font-mono font-bold">Permanent Group Moment</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-purple-400 font-mono font-bold flex items-center gap-1">
+                    {currentInstant.sourceType === 'camera' ? (
+                      <>
+                        <Camera className="w-3 h-3 text-purple-400" />
+                        <span>Captured in App</span>
+                      </>
+                    ) : (
+                      <>
+                        <ImageIcon className="w-3 h-3 text-sky-400" />
+                        <span>Uploaded</span>
+                      </>
+                    )}
+                  </span>
+
+                  {currentInstant.viewCount !== undefined && (
+                    <span className="text-[10px] text-slate-400 font-mono flex items-center gap-0.5">
+                      <Eye className="w-3 h-3 text-slate-400" />
+                      <span>{currentInstant.viewCount}</span>
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 

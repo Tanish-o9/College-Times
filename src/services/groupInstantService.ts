@@ -21,11 +21,18 @@ import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { db, storage, logAnalyticsEvent } from '../lib/firebase';
 import type { User } from '../types/models';
-import type { GroupInstant, GroupInstantMedia, GroupInstantComment } from '../types/group';
+import type {
+  GroupInstant,
+  GroupInstantMedia,
+  GroupInstantComment,
+  MomentSourceType,
+  MomentCaptureMetadata,
+} from '../types/group';
 import { isUserGroupChatMember } from './groupChatService';
 import { logGroupActivityEvent } from './groupActivityService';
 
 const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+const ALLOWED_VIDEO_TYPES = new Set(['video/mp4', 'video/webm', 'video/quicktime']);
 
 export interface UploadedInstantMedia {
   downloadUrl: string;
@@ -34,8 +41,14 @@ export interface UploadedInstantMedia {
   mimeType: string;
 }
 
+export interface CreateMomentOptions {
+  sourceType?: MomentSourceType;
+  captureMetadata?: MomentCaptureMetadata;
+  expiresInHours?: number; // default: 24 hours
+}
+
 /**
- * Uploads a single media item for a group instant.
+ * Uploads a single photo or video media item for a group moment.
  */
 export const uploadInstantMediaFile = async (
   groupId: string,
@@ -43,12 +56,15 @@ export const uploadInstantMediaFile = async (
   file: File,
   currentUser: FirebaseUser
 ): Promise<UploadedInstantMedia> => {
-  if (file.size > 10 * 1024 * 1024) {
-    throw new Error(`File '${file.name}' exceeds 10MB size limit.`);
+  const isVideo = file.type.startsWith('video/');
+  const maxBytes = isVideo ? 25 * 1024 * 1024 : 10 * 1024 * 1024;
+
+  if (file.size > maxBytes) {
+    throw new Error(`File '${file.name}' exceeds ${isVideo ? '25MB' : '10MB'} limit.`);
   }
 
-  if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
-    throw new Error(`File type '${file.type}' is not supported for Instants.`);
+  if (!ALLOWED_IMAGE_TYPES.has(file.type) && !ALLOWED_VIDEO_TYPES.has(file.type)) {
+    throw new Error(`File type '${file.type}' is not supported for Moments.`);
   }
 
   const cleanName = file.name.replace(/[\/\\?%*:|"<>]/g, '_').replace(/\s+/g, '_').slice(0, 80);
@@ -77,7 +93,7 @@ export const uploadInstantMediaFile = async (
           resolve({ downloadUrl: '', storagePath, fileSize: file.size, mimeType: file.type });
         }
       }
-    }, 6000);
+    }, 10000);
 
     const uploadTask = uploadBytesResumable(storageRef, file, { contentType: file.type });
 
@@ -115,14 +131,16 @@ export const uploadInstantMediaFile = async (
 };
 
 /**
- * Creates a permanent Group Instant moment with unlimited photos (stored in subcollection).
+ * Creates an Instagram-style Group Instant moment with explicit sourceType ('camera' | 'gallery'),
+ * 24-hour expiration, and optional capture metadata.
  */
 export const createGroupInstant = async (
   groupId: string,
   caption: string,
   files: File[],
   currentUser: FirebaseUser,
-  userProfile?: User | null
+  userProfile?: User | null,
+  options?: CreateMomentOptions
 ): Promise<GroupInstant> => {
   if (!groupId || !currentUser) {
     throw new Error('Group ID and authentication are required.');
@@ -136,7 +154,7 @@ export const createGroupInstant = async (
   const instantsRef = collection(db, 'groups', groupId, 'instants');
   const tempInstantId = `inst_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
-  // Upload images concurrently in batches of 4
+  // Upload media items in batches of 4
   const uploadedMedia: UploadedInstantMedia[] = [];
   const BATCH_SIZE = 4;
   for (let i = 0; i < files.length; i += BATCH_SIZE) {
@@ -149,19 +167,43 @@ export const createGroupInstant = async (
     });
   }
 
+  const sourceType: MomentSourceType = options?.sourceType || 'gallery';
+  const hasVideo = uploadedMedia.some((m) => m.mimeType.startsWith('video/'));
+
+  // Calculate 24-hour expiration date
+  const nowMs = Date.now();
+  const expireHours = options?.expiresInHours || 24;
+  const expiresAt = new Date(nowMs + expireHours * 60 * 60 * 1000);
+
   const instantData: Omit<GroupInstant, 'id'> = {
     groupId,
     senderId: currentUser.uid,
     senderName: userProfile?.displayName || currentUser.displayName || 'Campus Student',
     ...(userProfile?.photoURL ? { senderAvatar: userProfile.photoURL } : {}),
-    type: uploadedMedia.length > 0 ? 'image' : 'text',
-    media: uploadedMedia.map((m) => m.downloadUrl).slice(0, 5), // Legacy fallback array
+    type: hasVideo ? 'video' : uploadedMedia.length > 0 ? 'image' : 'text',
+    sourceType,
+    ...(options?.captureMetadata
+      ? {
+          captureMetadata: {
+            ...options.captureMetadata,
+            capturedAt: sourceType === 'camera' ? serverTimestamp() : null,
+          },
+        }
+      : {
+          captureMetadata: {
+            capturedAt: sourceType === 'camera' ? serverTimestamp() : null,
+            source: sourceType,
+          } as any,
+        }),
+    media: uploadedMedia.map((m) => m.downloadUrl).slice(0, 5),
     mediaCount: uploadedMedia.length,
-    ...(caption.trim() ? { caption: caption.trim().slice(0, 500) } : {}),
+    ...(caption.trim() ? { caption: caption.trim().slice(0, 300) } : {}),
     createdAt: serverTimestamp(),
+    expiresAt,
     status: 'active',
     reactionCounts: {},
     replyCount: 0,
+    viewCount: 0,
   };
 
   const newDoc = await addDoc(instantsRef, instantData);
@@ -197,13 +239,44 @@ export const createGroupInstant = async (
     caption.trim() ? `Shared a moment: ${caption}` : 'Shared a group moment'
   );
 
-  logAnalyticsEvent('instant_created', { groupId, mediaCount: uploadedMedia.length });
+  logAnalyticsEvent('instant_created', { groupId, mediaCount: uploadedMedia.length, sourceType });
 
   return {
     id: newDoc.id,
     ...instantData,
     createdAt: new Date(),
   } as GroupInstant;
+};
+
+/**
+ * Transactionally records a Moment view (1 view per user) and increments viewCount.
+ */
+export const recordMomentView = async (
+  groupId: string,
+  instantId: string,
+  userId: string
+): Promise<void> => {
+  if (!groupId || !instantId || !userId) return;
+
+  const viewRef = doc(db, 'groups', groupId, 'instants', instantId, 'views', userId);
+  const instantRef = doc(db, 'groups', groupId, 'instants', instantId);
+
+  try {
+    await runTransaction(db, async (tx) => {
+      const viewSnap = await tx.get(viewRef);
+      if (!viewSnap.exists()) {
+        tx.set(viewRef, {
+          userId,
+          viewedAt: serverTimestamp(),
+        });
+        tx.update(instantRef, {
+          viewCount: increment(1),
+        });
+      }
+    });
+  } catch (err) {
+    // Fail silently for view tracking
+  }
 };
 
 /**
@@ -243,12 +316,20 @@ export const subscribeToActiveGroupInstants = (
   return onSnapshot(
     q,
     (snapshot) => {
+      const nowMs = Date.now();
       const activeInstants = snapshot.docs
         .map((docSnap) => ({
           id: docSnap.id,
           ...docSnap.data(),
         }))
-        .filter((inst: any) => inst.status === 'active')
+        .filter((inst: any) => {
+          if (inst.status !== 'active') return false;
+          if (inst.expiresAt) {
+            const expMs = inst.expiresAt.toMillis ? inst.expiresAt.toMillis() : new Date(inst.expiresAt).getTime();
+            if (nowMs > expMs) return false;
+          }
+          return true;
+        })
         .slice(0, limitCount) as GroupInstant[];
 
       onUpdate(activeInstants);

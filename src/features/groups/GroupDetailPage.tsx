@@ -15,6 +15,7 @@ import { CreatePollModal } from './CreatePollModal';
 import { JoinGroupByCodeModal } from './JoinGroupByCodeModal';
 import { JoinGroupWithPasswordModal } from './JoinGroupWithPasswordModal';
 import { GroupInstantCarousel } from './GroupInstantCarousel';
+import { GroupMomentsTab } from './GroupMomentsTab';
 import { GroupHomeDashboard } from './GroupHomeDashboard';
 import { GroupAnnouncements } from './GroupAnnouncements';
 import { GroupMembersExplorer } from './GroupMembersExplorer';
@@ -617,16 +618,12 @@ export const GroupDetailPage: React.FC = () => {
                 )}
 
                 {activeTab === 'moments' && (
-                  <div className="space-y-4">
-                    <div className="p-6 bg-slate-900 border border-slate-800 rounded-3xl text-center space-y-2">
-                      <Sparkles className="w-8 h-8 mx-auto text-purple-400 animate-pulse" />
-                      <h3 className="text-sm font-bold text-white">Group Moments</h3>
-                      <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
-                        Share your daily college life stories and visual updates with other members.
-                        Moments are displayed in the carousel at the top of the group page.
-                      </p>
-                    </div>
-                  </div>
+                  <GroupMomentsTab
+                    groupId={group.id}
+                    groupName={group.name}
+                    isMember={isMember}
+                    userRole={userRole}
+                  />
                 )}
 
                 {activeTab === 'members' && (
