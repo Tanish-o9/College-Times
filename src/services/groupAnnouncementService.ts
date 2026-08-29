@@ -98,10 +98,13 @@ export const getGroupAnnouncements = async (
   if (!groupId) return [];
 
   const annRef = collection(db, 'groups', groupId, 'announcements');
-  const q = query(annRef, where('status', '==', 'active'), orderBy('createdAt', 'desc'), limit(limitCount));
+  const q = query(annRef, orderBy('createdAt', 'desc'), limit(limitCount * 3));
   const snap = await getDocs(q);
 
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() })) as ExtendedGroupAnnouncement[];
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() } as ExtendedGroupAnnouncement))
+    .filter((ann) => ann.status === 'active')
+    .slice(0, limitCount);
 };
 
 /**

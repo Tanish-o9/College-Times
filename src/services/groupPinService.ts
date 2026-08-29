@@ -84,8 +84,11 @@ export const getPinnedGroupContent = async (groupId: string): Promise<PinnedItem
   if (!groupId) return [];
 
   const pinnedColRef = collection(db, 'groups', groupId, 'pinnedItems');
-  const q = query(pinnedColRef, where('status', '==', 'active'), orderBy('pinnedAt', 'desc'), limit(20));
+  const q = query(pinnedColRef, orderBy('pinnedAt', 'desc'), limit(50));
   const snap = await getDocs(q);
 
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() })) as PinnedItem[];
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() } as PinnedItem))
+    .filter((item) => item.status === 'active')
+    .slice(0, 20);
 };

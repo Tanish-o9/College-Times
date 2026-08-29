@@ -694,13 +694,13 @@ service cloud.firestore {
     match /channels/{channelId} {
       allow read: if isAuthenticated() && (
         !channelId.startsWith('group-') ||
-        exists(path('/databases/' + database + '/documents/groups/' + channelId.split('group-')[1] + '/members/' + request.auth.uid)) ||
+        exists(path('/databases/' + database + '/documents/groups/' + resource.data.groupId + '/members/' + request.auth.uid)) ||
         isAdmin()
       );
       allow create: if isAdmin() || (
         isAuthenticated() &&
         channelId.startsWith('group-') &&
-        exists(path('/databases/' + database + '/documents/groups/' + channelId.split('group-')[1] + '/members/' + request.auth.uid)) &&
+        exists(path('/databases/' + database + '/documents/groups/' + request.resource.data.groupId + '/members/' + request.auth.uid)) &&
         request.resource.data.keys().hasAll(['name', 'description', 'category', 'type', 'createdAt', 'createdBy', 'memberCount', 'isArchived'])
       );
       allow update: if isAdmin() || (
@@ -733,7 +733,7 @@ service cloud.firestore {
       match /messages/{messageId} {
         allow read: if isAuthenticated() && (
           !channelId.startsWith('group-') ||
-          exists(path('/databases/' + database + '/documents/groups/' + channelId.split('group-')[1] + '/members/' + request.auth.uid)) ||
+          exists(path('/databases/' + database + '/documents/groups/' + get(/databases/$(database)/documents/channels/$(channelId)).data.groupId + '/members/' + request.auth.uid)) ||
           isAdmin()
         );
         allow create: if isAuthenticated()

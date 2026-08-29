@@ -236,18 +236,20 @@ export const subscribeToActiveGroupInstants = (
   const instantsRef = collection(db, 'groups', groupId, 'instants');
   const q = query(
     instantsRef,
-    where('status', '==', 'active'),
     orderBy('createdAt', 'desc'),
-    limit(limitCount)
+    limit(limitCount * 3)
   );
 
   return onSnapshot(
     q,
     (snapshot) => {
-      const activeInstants = snapshot.docs.map((docSnap) => ({
-        id: docSnap.id,
-        ...docSnap.data(),
-      })) as GroupInstant[];
+      const activeInstants = snapshot.docs
+        .map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
+        }))
+        .filter((inst: any) => inst.status === 'active')
+        .slice(0, limitCount) as GroupInstant[];
 
       onUpdate(activeInstants);
     },
@@ -543,15 +545,16 @@ export const getGroupMomentsByFilter = async (
   const boundedLimit = Math.min(50, Math.max(1, limitCount));
   const instantsRef = collection(db, 'groups', groupId, 'instants');
 
-  let q;
-  if (filter === 'mine' && userId) {
-    q = query(instantsRef, where('status', '==', 'active'), where('senderId', '==', userId), orderBy('createdAt', 'desc'), limit(boundedLimit));
-  } else {
-    q = query(instantsRef, where('status', '==', 'active'), orderBy('createdAt', 'desc'), limit(boundedLimit));
-  }
+  const q = query(instantsRef, orderBy('createdAt', 'desc'), limit(boundedLimit * 3));
 
   const snap = await getDocs(q);
-  let moments = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as GroupInstant[];
+  let moments = snap.docs
+    .map((d) => ({ id: d.id, ...d.data() } as GroupInstant))
+    .filter((m) => m.status === 'active');
+
+  if (filter === 'mine' && userId) {
+    moments = moments.filter((m) => m.senderId === userId);
+  }
 
   if (filter === 'top') {
     // Client-side top sorting by reaction + comment counts (bounded candidate set <= 50)
@@ -562,5 +565,5 @@ export const getGroupMomentsByFilter = async (
     });
   }
 
-  return moments;
+  return moments.slice(0, boundedLimit);
 };
