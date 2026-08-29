@@ -850,12 +850,12 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated();
       allow update: if isAuthenticated() && (
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberCount', 'updatedAt']) ||
+        request.resource.data.diff(resource.data).affectedKeys().hasAny(['memberCount', 'updatedAt']) ||
         isAdmin() ||
         (exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)) &&
          get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['owner', 'admin']) ||
         (exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)) &&
-         request.resource.data.diff(resource.data).affectedKeys().hasAny(['memberCount', 'updatedAt', 'inviteCodePlaintext', 'inviteCodeHash', 'inviteCodeVersion', 'inviteEnabled']))
+         request.resource.data.diff(resource.data).affectedKeys().hasAny(['inviteCodePlaintext', 'inviteCodeHash', 'inviteCodeVersion', 'inviteEnabled']))
       );
       allow delete: if isAuthenticated() && (
         isAdmin() ||

@@ -6,6 +6,8 @@ import { useEffect, useRef } from 'react';
  */
 export const useOverlayBackHandler = (isOpen: boolean, onClose: () => void) => {
   const isPushedRef = useRef(false);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -17,7 +19,7 @@ export const useOverlayBackHandler = (isOpen: boolean, onClose: () => void) => {
     const handlePopState = () => {
       if (isPushedRef.current) {
         isPushedRef.current = false;
-        onClose();
+        onCloseRef.current();
       }
     };
 
@@ -33,5 +35,5 @@ export const useOverlayBackHandler = (isOpen: boolean, onClose: () => void) => {
         }
       }
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 };
