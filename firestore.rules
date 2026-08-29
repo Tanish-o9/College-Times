@@ -1018,9 +1018,15 @@ service cloud.firestore {
           isAdmin()
         );
         allow update: if isAuthenticated() && (
-          request.resource.data.diff(resource.data).affectedKeys().hasAny(['viewCount', 'downloadCount', 'reactionCounts']) ||
+          request.resource.data.diff(resource.data).affectedKeys().hasAny(['viewCount', 'downloadCount', 'reactionCounts', 'rating', 'ratingCount']) ||
           isAdmin()
         );
+
+        match /ratings/{userId} {
+          allow read: if isAuthenticated();
+          allow create: if isAuthenticated() && userId == request.auth.uid;
+          allow update, delete: if false;
+        }
       }
 
       // Collaborative Tasks Sub-collection
@@ -1205,6 +1211,59 @@ service cloud.firestore {
     match /users/{userId}/notificationPreferences/{settingDoc} {
       allow read, create, update: if isOwner(userId);
       allow delete: if false;
+    }
+
+    // -------------------------------------------------------------------------
+    // Opportunity Applications — users/{userId}/opportunityApplications/{opportunityId}
+    // -------------------------------------------------------------------------
+    match /users/{userId}/opportunityApplications/{opportunityId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // -------------------------------------------------------------------------
+    // Marketplace Alerts — users/{userId}/marketplaceAlerts/{alertId}
+    // -------------------------------------------------------------------------
+    match /users/{userId}/marketplaceAlerts/{alertId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // -------------------------------------------------------------------------
+    // User Restriction Appeals — appeals/{appealId}
+    // -------------------------------------------------------------------------
+    match /appeals/{appealId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // -------------------------------------------------------------------------
+    // Collaborative Projects Workspaces — projects/{projectId}
+    // -------------------------------------------------------------------------
+    match /projects/{projectId} {
+      allow read: if isAuthenticated() && (
+        exists(/databases/$(database)/documents/groups/$(resource.data.groupId)/members/$(request.auth.uid)) ||
+        isAdmin()
+      );
+      allow create: if isAuthenticated() && (
+        exists(/databases/$(database)/documents/groups/$(request.resource.data.groupId)/members/$(request.auth.uid)) ||
+        isAdmin()
+      );
+      allow update: if isAuthenticated() && (
+        exists(/databases/$(database)/documents/groups/$(resource.data.groupId)/members/$(request.auth.uid)) ||
+        isAdmin()
+      );
+      allow delete: if isAdmin();
+
+      match /members/{memberUid} {
+        allow read: if isAuthenticated();
+        allow write: if isAuthenticated();
+      }
+
+      match /tasks/{taskId} {
+        allow read: if isAuthenticated();
+        allow write: if isAuthenticated();
+      }
     }
 
   }

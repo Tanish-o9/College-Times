@@ -26,6 +26,17 @@ export interface GroupResource {
   createdBy: string;
   creatorName: string;
   createdAt: any;
+  category?: string;
+  tags?: string[];
+  department?: string;
+  batch?: string;
+  subject?: string;
+  semester?: string;
+  difficulty?: string;
+  rating?: number;
+  ratingCount?: number;
+  viewCount?: number;
+  downloadCount?: number;
 }
 
 /**
@@ -38,7 +49,8 @@ export const createGroupResource = async (
   link: string,
   type: GroupResource['type'],
   currentUser: FirebaseUser,
-  userProfile?: User | null
+  userProfile?: User | null,
+  extendedData?: Partial<Pick<GroupResource, 'category' | 'tags' | 'department' | 'batch' | 'subject' | 'semester' | 'difficulty'>>
 ): Promise<GroupResource> => {
   if (!groupId || !currentUser) {
     throw new Error('Group ID and authentication are required.');
@@ -63,6 +75,17 @@ export const createGroupResource = async (
     createdBy: currentUser.uid,
     creatorName,
     createdAt: serverTimestamp(),
+    category: extendedData?.category || 'Notes',
+    tags: extendedData?.tags || [],
+    department: extendedData?.department || '',
+    batch: extendedData?.batch || '',
+    subject: extendedData?.subject || '',
+    semester: extendedData?.semester || '',
+    difficulty: extendedData?.difficulty || 'Medium',
+    rating: 0,
+    ratingCount: 0,
+    viewCount: 0,
+    downloadCount: 0,
   };
 
   const docRef = await addDoc(resourceColRef, newResource);
@@ -186,4 +209,48 @@ export const incrementResourceCount = async (
   });
 
   logAnalyticsEvent('group_resource_count_incremented', { groupId, resourceId, type });
+};
+
+/**
+ * Submits a rating review (1-5) and transactionally updates resource avg score.
+ * Prevents duplicate ratings by saving rating under subcollection with userId.
+ */
+export const submitResourceRating = async (
+  groupId: string,
+  resourceId: string,
+  ratingVal: number,
+  userId: string
+): Promise<void> => {
+  if (!groupId || !resourceId || !userId) throw new Error('Params missing for rating.');
+  if (ratingVal < 1 || ratingVal > 5) throw new Error('Rating must be between 1 and 5.');
+
+  const ratingDocRef = doc(db, 'groups', groupId, 'resources', resourceId, 'ratings', userId);
+  const resourceRef = doc(db, 'groups', groupId, 'resources', resourceId);
+
+  await runTransaction(db, async (tx) => {
+    const ratingSnap = await tx.get(ratingDocRef);
+    if (ratingSnap.exists()) throw new Error('You have already rated this study resource.');
+
+    const resSnap = await tx.get(resourceRef);
+    if (!resSnap.exists()) throw new Error('Resource not found.');
+
+    const currentRating = resSnap.data().rating || 0;
+    const currentCount = resSnap.data().ratingCount || 0;
+
+    const nextCount = currentCount + 1;
+    const nextRating = Math.round(((currentRating * currentCount + ratingVal) / nextCount) * 10) / 10;
+
+    tx.set(ratingDocRef, {
+      rating: ratingVal,
+      userId,
+      createdAt: serverTimestamp(),
+    });
+
+    tx.update(resourceRef, {
+      rating: nextRating,
+      ratingCount: nextCount,
+    });
+  });
+
+  logAnalyticsEvent('group_resource_rated', { groupId, resourceId, ratingVal });
 };

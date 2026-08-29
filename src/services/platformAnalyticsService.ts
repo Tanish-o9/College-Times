@@ -16,15 +16,26 @@ export interface PlatformMetrics {
   eventsRsvps: number;
   reportsOpen: number;
   reportsResolved: number;
+  trends: {
+    users: { today: number; yesterday: number; thisWeek: number; prevWeek: number; thisMonth: number; prevMonth: number };
+    posts: { today: number; yesterday: number; thisWeek: number; prevWeek: number; thisMonth: number; prevMonth: number };
+  };
 }
 
 /**
- * Computes real platform metrics using lightweight server-side count aggregates.
+ * Computes real platform metrics using lightweight server-side count aggregates and trend comparisons.
  */
 export const getPlatformAnalytics = async (): Promise<PlatformMetrics> => {
   try {
     const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfYesterday = new Date(startOfToday.getTime() - 24 * 60 * 60 * 1000);
+
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
 
     // 1. Users Counts
     const usersColl = collection(db, 'users');
@@ -33,11 +44,27 @@ export const getPlatformAnalytics = async (): Promise<PlatformMetrics> => {
       query(usersColl, where('createdAt', '>=', Timestamp.fromDate(sevenDaysAgo)))
     );
 
+    // Users trends
+    const uTodaySnap = await getCountFromServer(query(usersColl, where('createdAt', '>=', Timestamp.fromDate(startOfToday))));
+    const uYestSnap = await getCountFromServer(query(usersColl, where('createdAt', '>=', Timestamp.fromDate(startOfYesterday)), where('createdAt', '<', Timestamp.fromDate(startOfToday))));
+    const uThisWeekSnap = await getCountFromServer(query(usersColl, where('createdAt', '>=', Timestamp.fromDate(sevenDaysAgo))));
+    const uPrevWeekSnap = await getCountFromServer(query(usersColl, where('createdAt', '>=', Timestamp.fromDate(fourteenDaysAgo)), where('createdAt', '<', Timestamp.fromDate(sevenDaysAgo))));
+    const uThisMonthSnap = await getCountFromServer(query(usersColl, where('createdAt', '>=', Timestamp.fromDate(thirtyDaysAgo))));
+    const uPrevMonthSnap = await getCountFromServer(query(usersColl, where('createdAt', '>=', Timestamp.fromDate(sixtyDaysAgo)), where('createdAt', '<', Timestamp.fromDate(thirtyDaysAgo))));
+
     // 2. Posts & Comments
     const postsColl = collection(db, 'posts');
     const postsTotalSnap = await getCountFromServer(postsColl);
     const commentsCollGroup = collectionGroup(db, 'comments');
     const commentsTotalSnap = await getCountFromServer(commentsCollGroup);
+
+    // Posts trends
+    const pTodaySnap = await getCountFromServer(query(postsColl, where('timestamp', '>=', Timestamp.fromDate(startOfToday))));
+    const pYestSnap = await getCountFromServer(query(postsColl, where('timestamp', '>=', Timestamp.fromDate(startOfYesterday)), where('timestamp', '<', Timestamp.fromDate(startOfToday))));
+    const pThisWeekSnap = await getCountFromServer(query(postsColl, where('timestamp', '>=', Timestamp.fromDate(sevenDaysAgo))));
+    const pPrevWeekSnap = await getCountFromServer(query(postsColl, where('timestamp', '>=', Timestamp.fromDate(fourteenDaysAgo)), where('timestamp', '<', Timestamp.fromDate(sevenDaysAgo))));
+    const pThisMonthSnap = await getCountFromServer(query(postsColl, where('timestamp', '>=', Timestamp.fromDate(thirtyDaysAgo))));
+    const pPrevMonthSnap = await getCountFromServer(query(postsColl, where('timestamp', '>=', Timestamp.fromDate(sixtyDaysAgo)), where('timestamp', '<', Timestamp.fromDate(thirtyDaysAgo))));
 
     // 3. Friendships
     const friendshipsColl = collection(db, 'friendships');
@@ -94,10 +121,27 @@ export const getPlatformAnalytics = async (): Promise<PlatformMetrics> => {
       eventsRsvps: rsvpsSnap.data().count,
       reportsOpen: reportsOpenSnap.data().count,
       reportsResolved: reportsResolvedSnap.data().count,
+      trends: {
+        users: {
+          today: uTodaySnap.data().count,
+          yesterday: uYestSnap.data().count,
+          thisWeek: uThisWeekSnap.data().count,
+          prevWeek: uPrevWeekSnap.data().count,
+          thisMonth: uThisMonthSnap.data().count,
+          prevMonth: uPrevMonthSnap.data().count,
+        },
+        posts: {
+          today: pTodaySnap.data().count,
+          yesterday: pYestSnap.data().count,
+          thisWeek: pThisWeekSnap.data().count,
+          prevWeek: pPrevWeekSnap.data().count,
+          thisMonth: pThisMonthSnap.data().count,
+          prevMonth: pPrevMonthSnap.data().count,
+        },
+      },
     };
   } catch (err) {
     console.error('Failed to aggregate platform metrics:', err);
-    // Return zeros fallback
     return {
       usersTotal: 0,
       usersNew: 0,
@@ -113,6 +157,10 @@ export const getPlatformAnalytics = async (): Promise<PlatformMetrics> => {
       eventsRsvps: 0,
       reportsOpen: 0,
       reportsResolved: 0,
+      trends: {
+        users: { today: 0, yesterday: 0, thisWeek: 0, prevWeek: 0, thisMonth: 0, prevMonth: 0 },
+        posts: { today: 0, yesterday: 0, thisWeek: 0, prevWeek: 0, thisMonth: 0, prevMonth: 0 },
+      },
     };
   }
 };

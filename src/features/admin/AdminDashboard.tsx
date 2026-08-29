@@ -1088,7 +1088,8 @@ export const AdminDashboard: React.FC = () => {
             ) : !analytics ? (
               <p className="text-xs text-slate-400 text-center py-6">No metrics loaded.</p>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 {[
                   { label: 'Total Users', value: analytics.usersTotal, sub: `${analytics.usersNew} new this week` },
                   { label: 'Total Posts', value: analytics.postsTotal, sub: 'Main campus feed' },
@@ -1107,6 +1108,53 @@ export const AdminDashboard: React.FC = () => {
                   </div>
                 ))}
               </div>
+
+              {/* Trend comparisons section */}
+              {analytics.trends && (
+                <div className="mt-8 p-6 bg-slate-950 border border-slate-850 rounded-3xl space-y-4">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-purple-400 font-mono">Platform Growth Trends</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Users growth */}
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-bold text-white">Users Growth</h4>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="p-2 bg-slate-900 border border-slate-850 rounded-xl text-center">
+                          <span className="text-[9px] text-slate-500 block uppercase font-mono">Today vs Yesterday</span>
+                          <span className="text-xs font-bold text-white">{analytics.trends.users.today} / {analytics.trends.users.yesterday}</span>
+                        </div>
+                        <div className="p-2 bg-slate-900 border border-slate-850 rounded-xl text-center">
+                          <span className="text-[9px] text-slate-500 block uppercase font-mono">This Week vs Prev</span>
+                          <span className="text-xs font-bold text-white">{analytics.trends.users.thisWeek} / {analytics.trends.users.prevWeek}</span>
+                        </div>
+                        <div className="p-2 bg-slate-900 border border-slate-850 rounded-xl text-center">
+                          <span className="text-[9px] text-slate-500 block uppercase font-mono">This Month vs Prev</span>
+                          <span className="text-xs font-bold text-white">{analytics.trends.users.thisMonth} / {analytics.trends.users.prevMonth}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Posts growth */}
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-bold text-white">Engagement Growth (Posts)</h4>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="p-2 bg-slate-900 border border-slate-850 rounded-xl text-center">
+                          <span className="text-[9px] text-slate-500 block uppercase font-mono">Today vs Yesterday</span>
+                          <span className="text-xs font-bold text-white">{analytics.trends.posts.today} / {analytics.trends.posts.yesterday}</span>
+                        </div>
+                        <div className="p-2 bg-slate-900 border border-slate-850 rounded-xl text-center">
+                          <span className="text-[9px] text-slate-500 block uppercase font-mono">This Week vs Prev</span>
+                          <span className="text-xs font-bold text-white">{analytics.trends.posts.thisWeek} / {analytics.trends.posts.prevWeek}</span>
+                        </div>
+                        <div className="p-2 bg-slate-900 border border-slate-850 rounded-xl text-center">
+                          <span className="text-[9px] text-slate-500 block uppercase font-mono">This Month vs Prev</span>
+                          <span className="text-xs font-bold text-white">{analytics.trends.posts.thisMonth} / {analytics.trends.posts.prevMonth}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              </>
             )}
           </div>
         )}

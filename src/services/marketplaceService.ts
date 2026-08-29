@@ -10,7 +10,9 @@ import {
   limit, 
   runTransaction, 
   serverTimestamp,
-  increment
+  increment,
+  deleteDoc,
+  updateDoc
 } from 'firebase/firestore';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { db, logAnalyticsEvent } from '../lib/firebase';
@@ -402,4 +404,71 @@ export const reportListing = async (
   });
 
   return { success: !alreadyReported, alreadyReported };
+};
+
+export interface MarketplaceAlert {
+  id?: string;
+  queryText: string;
+  maxPrice?: number;
+  createdAt: any;
+}
+
+/**
+ * Saves a custom search alert preference for the user.
+ */
+export const saveMarketplaceAlert = async (
+  userId: string,
+  queryText: string,
+  maxPrice?: number
+): Promise<string> => {
+  if (!userId || !queryText) throw new Error('User ID and search text required.');
+  const alertsColl = collection(db, 'users', userId, 'marketplaceAlerts');
+  const docRef = await addDoc(alertsColl, {
+    queryText: queryText.trim(),
+    maxPrice: maxPrice || null,
+    createdAt: serverTimestamp(),
+  });
+  return docRef.id;
+};
+
+/**
+ * Fetches user's saved search alerts.
+ */
+export const getUserMarketplaceAlerts = async (userId: string): Promise<MarketplaceAlert[]> => {
+  if (!userId) return [];
+  try {
+    const alertsColl = collection(db, 'users', userId, 'marketplaceAlerts');
+    const snap = await getDocs(alertsColl);
+    return snap.docs.map((d) => ({
+      id: d.id,
+      ...d.data(),
+    } as MarketplaceAlert));
+  } catch (err) {
+    console.error('Failed to get marketplace alerts:', err);
+    return [];
+  }
+};
+
+/**
+ * Deletes a marketplace search alert preference.
+ */
+export const deleteMarketplaceAlert = async (userId: string, alertId: string): Promise<void> => {
+  if (!userId || !alertId) throw new Error('User ID and Alert ID required.');
+  const alertDoc = doc(db, 'users', userId, 'marketplaceAlerts', alertId);
+  await deleteDoc(alertDoc);
+};
+
+/**
+ * Updates a listing status field.
+ */
+export const updateListingStatus = async (
+  listingId: string,
+  status: 'active' | 'reserved' | 'sold' | 'expired' | 'removed'
+): Promise<void> => {
+  if (!listingId) throw new Error('Listing ID required.');
+  const listingRef = doc(db, 'marketplaceListings', listingId);
+  await updateDoc(listingRef, {
+    status,
+    updatedAt: serverTimestamp(),
+  });
 };

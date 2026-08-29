@@ -27,7 +27,9 @@ import { GroupResources } from './GroupResources';
 import { GroupTasks } from './GroupTasks';
 import { GroupFiles } from './GroupFiles';
 import { GroupAnalyticsDashboard } from './GroupAnalyticsDashboard';
+import { GroupProjects } from './GroupProjects';
 import {
+  FolderKanban,
   ArrowLeft,
   Users,
   Building2,
@@ -72,6 +74,7 @@ export type GroupTab =
   | 'resources'
   | 'tasks'
   | 'files'
+  | 'projects'
   | 'analytics'
   | 'chat';
 
@@ -520,6 +523,18 @@ export const GroupDetailPage: React.FC = () => {
                   </button>
 
                   <button
+                    onClick={() => handleTabChange('projects')}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+                      activeTab === 'projects'
+                        ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/30'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <FolderKanban className="w-4 h-4" />
+                    <span>Projects</span>
+                  </button>
+
+                  <button
                     onClick={() => handleTabChange('analytics')}
                     className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
                       activeTab === 'analytics'
@@ -646,6 +661,10 @@ export const GroupDetailPage: React.FC = () => {
 
                 {activeTab === 'files' && (
                   <GroupFiles groupId={group.id} isMember={isMember} />
+                )}
+
+                {activeTab === 'projects' && (
+                  <GroupProjects groupId={group.id} />
                 )}
 
                 {activeTab === 'analytics' && (

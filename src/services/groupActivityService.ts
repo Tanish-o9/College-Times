@@ -24,7 +24,8 @@ export type GroupActivityType =
   | 'membership_change'
   | 'moderation'
   | 'file_shared'
-  | 'task';
+  | 'task'
+  | 'project';
 
 export interface GroupActivityEvent {
   id?: string;
@@ -82,6 +83,8 @@ export const logGroupActivityEvent = async (
     else if (type === 'event') pointsToAdd = 20;
     else if (type === 'announcement') pointsToAdd = 20;
     else if (type === 'membership_change' && preview && preview.toLowerCase().includes('joined')) pointsToAdd = 5;
+    else if (type === 'task') pointsToAdd = 15;
+    else if (type === 'project') pointsToAdd = 30;
 
     if (pointsToAdd > 0) {
       const getYearWeekString = (date: Date): string => {

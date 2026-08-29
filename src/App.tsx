@@ -20,6 +20,8 @@ import { SavedMessagesPage } from './features/chat/SavedMessagesPage';
 import { ChatNotificationSettings } from './features/chat/ChatNotificationSettings';
 import { GroupsPage } from './features/groups/GroupsPage';
 import { GroupDetailPage } from './features/groups/GroupDetailPage';
+import { PersonalAnalyticsPage } from './features/account/PersonalAnalyticsPage';
+import { CalendarPage } from './features/calendar/CalendarPage';
 
 import { DirectMessageList } from './features/directMessages/DirectMessageList';
 import { DirectMessageRoom } from './features/directMessages/DirectMessageRoom';
@@ -126,6 +128,8 @@ export const App: React.FC = () => {
                 <Route path="/privacy" element={<PrivacyPage />} />
                 <Route path="/account" element={<AccountPage />} />
                 <Route path="/saved" element={<SavedPage />} />
+                <Route path="/analytics" element={<PersonalAnalyticsPage />} />
+                <Route path="/calendar" element={<CalendarPage />} />
                 <Route element={<RequireAdmin />}>
                   <Route 
                     path="/admin-portal" 

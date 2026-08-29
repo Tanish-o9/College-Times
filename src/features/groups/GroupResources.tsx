@@ -4,6 +4,8 @@ import {
   createGroupResource,
   getGroupResources,
   deleteGroupResource,
+  submitResourceRating,
+  incrementResourceCount,
   type GroupResource,
 } from '../../services/groupResourceService';
 import {
@@ -14,6 +16,8 @@ import {
   ExternalLink,
   BookOpen,
   Search,
+  Star,
+  Eye,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -22,6 +26,11 @@ interface GroupResourcesProps {
   isMember: boolean;
   userRole?: string;
 }
+
+const CATEGORIES = [
+  'Notes', 'PYQs', 'Labs', 'Tutorials', 'Books', 'Courses',
+  'Projects', 'Research', 'Internships', 'Scholarships', 'Tools', 'Documentation'
+];
 
 export const GroupResources: React.FC<GroupResourcesProps> = ({
   groupId,
@@ -38,9 +47,17 @@ export const GroupResources: React.FC<GroupResourcesProps> = ({
   const [description, setDescription] = useState('');
   const [link, setLink] = useState('');
   const [type, setType] = useState<GroupResource['type']>('link');
+  const [category, setCategory] = useState('Notes');
+  const [tagsStr, setTagsStr] = useState('');
+  const [difficulty, setDifficulty] = useState('Medium');
+
   const [submitting, setSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedType, setSelectedType] = useState<string>('all');
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
+
+  // Rating State
+  const [selectedRatingResource, setSelectedRatingResource] = useState<string | null>(null);
+  const [selectedStars, setSelectedStars] = useState<number>(5);
 
   const loadResources = async () => {
     if (!groupId) return;
@@ -65,6 +82,7 @@ export const GroupResources: React.FC<GroupResourcesProps> = ({
 
     setSubmitting(true);
     try {
+      const tags = tagsStr.split(',').map((t) => t.trim()).filter(Boolean);
       await createGroupResource(
         groupId,
         title,
@@ -72,12 +90,18 @@ export const GroupResources: React.FC<GroupResourcesProps> = ({
         link,
         type,
         currentUser,
-        userProfile
+        userProfile,
+        {
+          category,
+          tags,
+          difficulty,
+        }
       );
       toast.success('Resource shared successfully!');
       setTitle('');
       setDescription('');
       setLink('');
+      setTagsStr('');
       setType('link');
       setIsOpen(false);
       loadResources();
@@ -86,6 +110,24 @@ export const GroupResources: React.FC<GroupResourcesProps> = ({
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleRating = async (resId: string) => {
+    if (!currentUser) return;
+    try {
+      await submitResourceRating(groupId, resId, selectedStars, currentUser.uid);
+      toast.success('Rating review submitted!');
+      setSelectedRatingResource(null);
+      loadResources();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to submit rating.');
+    }
+  };
+
+  const handleAccess = async (res: GroupResource) => {
+    if (!res.id) return;
+    // Track view count
+    incrementResourceCount(groupId, res.id, 'view').catch(() => {});
   };
 
   const handleDelete = async (resId: string) => {
@@ -103,8 +145,8 @@ export const GroupResources: React.FC<GroupResourcesProps> = ({
 
   const filteredResources = resources.filter((res) => {
     const matchesSearch = !searchQuery || res.title.toLowerCase().includes(searchQuery.toLowerCase()) || (res.description || '').toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesType = selectedType === 'all' || res.type === selectedType;
-    return matchesSearch && matchesType;
+    const matchesCategory = selectedCategoryFilter === 'all' || res.category === selectedCategoryFilter;
+    return matchesSearch && matchesCategory;
   });
 
   return (
@@ -113,7 +155,7 @@ export const GroupResources: React.FC<GroupResourcesProps> = ({
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-bold text-white flex items-center gap-2">
           <BookOpen className="w-4 h-4 text-sky-400" />
-          <span>Shared Group Resources</span>
+          <span>Campus Knowledge Base</span>
         </h3>
 
         {isMember && (
@@ -135,22 +177,32 @@ export const GroupResources: React.FC<GroupResourcesProps> = ({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search resources by title or content..."
+            placeholder="Search study materials, notes, PYQs..."
             className="w-full bg-slate-950 border border-slate-800 rounded-2xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500/50"
           />
         </div>
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none shrink-0">
-          {['all', 'link', 'note', 'document', 'other'].map((t) => (
+          <button
+            onClick={() => setSelectedCategoryFilter('all')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all border ${
+              selectedCategoryFilter === 'all'
+                ? 'bg-sky-500/10 text-sky-400 border-sky-500/30'
+                : 'bg-slate-950 text-slate-400 border-slate-800'
+            }`}
+          >
+            ALL CATEGORIES
+          </button>
+          {CATEGORIES.map((cat) => (
             <button
-              key={t}
-              onClick={() => setSelectedType(t)}
+              key={cat}
+              onClick={() => setSelectedCategoryFilter(cat)}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all border ${
-                selectedType === t
+                selectedCategoryFilter === cat
                   ? 'bg-sky-500/10 text-sky-400 border-sky-500/30'
                   : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700'
               }`}
             >
-              {t.toUpperCase()}
+              {cat.toUpperCase()}
             </button>
           ))}
         </div>
@@ -164,7 +216,7 @@ export const GroupResources: React.FC<GroupResourcesProps> = ({
         </div>
       ) : filteredResources.length === 0 ? (
         <div className="p-12 bg-slate-900/40 border border-slate-800 rounded-3xl text-center text-xs text-slate-400 italic">
-          No matching resources found in this group.
+          No resources shared under this category yet.
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -174,12 +226,12 @@ export const GroupResources: React.FC<GroupResourcesProps> = ({
             return (
               <div
                 key={res.id}
-                className="p-4 bg-slate-900 border border-slate-850 hover:border-slate-800 rounded-2xl flex flex-col justify-between gap-4 transition-all"
+                className="p-4 bg-slate-900 border border-slate-850 hover:border-slate-800 rounded-2xl flex flex-col justify-between gap-4 transition-all relative overflow-hidden"
               >
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <span className="px-2.5 py-0.5 bg-slate-950 border border-slate-850 text-slate-400 rounded-full font-mono text-[9px] font-bold uppercase">
-                      {res.type}
+                    <span className="px-2.5 py-0.5 bg-slate-950 border border-slate-850 text-sky-400 rounded-full font-mono text-[9px] font-bold uppercase">
+                      {res.category || 'Study Material'}
                     </span>
 
                     {canDelete && (
@@ -194,16 +246,55 @@ export const GroupResources: React.FC<GroupResourcesProps> = ({
                   </div>
 
                   <h4 className="text-xs font-bold text-white line-clamp-1">{res.title}</h4>
-                  <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
+                  <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">
                     {res.description || 'No description provided.'}
                   </p>
+
+                  {/* Subject, difficulty info */}
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {res.difficulty && (
+                      <span className="text-[8px] font-mono px-1.5 py-0.2 bg-slate-950 border border-slate-850 rounded text-amber-400 font-bold uppercase">
+                        Difficulty: {res.difficulty}
+                      </span>
+                    )}
+                    {res.semester && (
+                      <span className="text-[8px] font-mono px-1.5 py-0.2 bg-slate-950 border border-slate-850 rounded text-slate-400 font-bold">
+                        Sem: {res.semester}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Tags */}
+                  {res.tags && res.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {res.tags.map((tag, tIdx) => (
+                        <span key={tIdx} className="text-[8px] px-1 bg-slate-950 text-slate-500 rounded font-mono">
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
+                {/* Ratings & Access buttons */}
                 <div className="flex items-center justify-between gap-3 pt-2.5 border-t border-slate-800/60">
-                  <span className="text-[10px] text-slate-500 font-mono">By: {res.creatorName}</span>
+                  <div className="flex items-center gap-2 text-[10px] text-slate-550">
+                    <button
+                      onClick={() => setSelectedRatingResource(res.id || null)}
+                      className="flex items-center gap-0.5 text-amber-450 hover:underline"
+                    >
+                      <Star className="w-3.5 h-3.5 fill-amber-500/20" />
+                      <span>{res.rating || 0} ({res.ratingCount || 0})</span>
+                    </button>
+                    <span className="flex items-center gap-0.5">
+                      <Eye className="w-3 h-3" />
+                      <span>{res.viewCount || 0}</span>
+                    </span>
+                  </div>
 
                   <a
                     href={res.link}
+                    onClick={() => handleAccess(res)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="px-3 py-1 bg-sky-500/10 text-sky-400 border border-sky-500/20 hover:bg-sky-500 hover:text-slate-950 rounded-xl text-[10px] font-bold transition-all flex items-center gap-1 shrink-0"
@@ -212,6 +303,38 @@ export const GroupResources: React.FC<GroupResourcesProps> = ({
                     <ExternalLink className="w-3 h-3" />
                   </a>
                 </div>
+
+                {/* Inline rating selector */}
+                {selectedRatingResource === res.id && (
+                  <div className="absolute inset-0 bg-slate-950/95 flex flex-col items-center justify-center p-4 space-y-3">
+                    <p className="text-[10px] uppercase font-black font-mono text-slate-400">Rate study resource</p>
+                    <div className="flex items-center gap-2">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          onClick={() => setSelectedStars(star)}
+                          className="p-1 hover:scale-110 transition-transform"
+                        >
+                          <Star className={`w-5 h-5 ${selectedStars >= star ? 'text-amber-400 fill-amber-400' : 'text-slate-600'}`} />
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleRating(res.id!)}
+                        className="px-3 py-1 bg-sky-500 text-slate-950 font-bold text-[10px] uppercase rounded-lg"
+                      >
+                        Submit
+                      </button>
+                      <button
+                        onClick={() => setSelectedRatingResource(null)}
+                        className="px-3 py-1 bg-slate-900 text-slate-400 font-bold text-[10px] uppercase rounded-lg"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -227,7 +350,7 @@ export const GroupResources: React.FC<GroupResourcesProps> = ({
             className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 z-10 shadow-2xl animate-in fade-in zoom-in-95"
           >
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
+              <h3 className="text-sm font-black text-white uppercase font-mono flex items-center gap-2">
                 <BookOpen className="w-5 h-5 text-sky-400" />
                 <span>Share Group Resource</span>
               </h3>
@@ -240,9 +363,9 @@ export const GroupResources: React.FC<GroupResourcesProps> = ({
               </button>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1 scrollbar-none">
               <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase font-mono block mb-1">
+                <label className="text-[9px] font-bold text-slate-400 uppercase font-mono block mb-1">
                   Resource Title
                 </label>
                 <input
@@ -250,65 +373,100 @@ export const GroupResources: React.FC<GroupResourcesProps> = ({
                   required
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="e.g. Study Guide - Midterm Prep"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-650 focus:outline-none focus:border-sky-500/50"
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase font-mono block mb-1">
-                  Description / Notes
-                </label>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Explain what this resource contains..."
-                  rows={3}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-650 focus:outline-none focus:border-sky-500/50"
+                  placeholder="e.g. CS101 Lecture Notes week 1"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase font-mono block mb-1">
-                    Resource Type
-                  </label>
+                  <label className="text-[9px] font-bold text-slate-400 uppercase font-mono block mb-1">Category</label>
                   <select
-                    value={type}
-                    onChange={(e) => setType(e.target.value as GroupResource['type'])}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500/50"
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-350 focus:outline-none"
                   >
-                    <option value="link">External Link</option>
-                    <option value="note">Shared Note</option>
-                    <option value="document">Document Link</option>
-                    <option value="other">Other Material</option>
+                    {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
-
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase font-mono block mb-1">
-                    URL Link
-                  </label>
-                  <input
-                    type="url"
-                    required
-                    value={link}
-                    onChange={(e) => setLink(e.target.value)}
-                    placeholder="https://drive.google.com/..."
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-650 focus:outline-none focus:border-sky-500/50"
-                  />
+                  <label className="text-[9px] font-bold text-slate-400 uppercase font-mono block mb-1">Type</label>
+                  <select
+                    value={type}
+                    onChange={(e: any) => setType(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-355 focus:outline-none"
+                  >
+                    <option value="link">Link / URL</option>
+                    <option value="note">Note</option>
+                    <option value="document">Document Reference</option>
+                    <option value="other">Other</option>
+                  </select>
                 </div>
+              </div>
+
+              <div>
+                <label className="text-[9px] font-bold text-slate-400 uppercase font-mono block mb-1">Resource Link / URL</label>
+                <input
+                  type="url"
+                  required
+                  value={link}
+                  onChange={(e) => setLink(e.target.value)}
+                  placeholder="https://drive.google.com/..."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[9px] font-bold text-slate-400 uppercase font-mono block mb-1">Difficulty Level</label>
+                <select
+                  value={difficulty}
+                  onChange={(e) => setDifficulty(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-355 focus:outline-none"
+                >
+                  <option value="Easy">Easy</option>
+                  <option value="Medium">Medium</option>
+                  <option value="Hard">Hard</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[9px] font-bold text-slate-400 uppercase font-mono block mb-1">Tags (Comma Separated)</label>
+                <input
+                  type="text"
+                  value={tagsStr}
+                  onChange={(e) => setTagsStr(e.target.value)}
+                  placeholder="exam, cs101, algorithms"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[9px] font-bold text-slate-400 uppercase font-mono block mb-1">Description</label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Notes about chapters covered..."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none h-16 resize-none"
+                />
               </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={submitting}
-              className="w-full py-2.5 bg-sky-500 hover:bg-sky-400 text-slate-950 rounded-xl text-xs font-bold shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {submitting ? <RefreshCw className="w-4 h-4 animate-spin" /> : null}
-              <span>Share Resource</span>
-            </button>
+            <div className="flex gap-2 pt-2 border-t border-slate-800">
+              <button
+                type="submit"
+                disabled={submitting}
+                className="flex-1 py-2 bg-sky-500 text-slate-950 font-bold text-xs uppercase rounded-xl"
+              >
+                {submitting ? 'Sharing...' : 'Share Material'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsOpen(false)}
+                className="px-4 py-2 bg-slate-950 text-slate-500 font-bold text-xs uppercase rounded-xl"
+              >
+                Cancel
+              </button>
+            </div>
           </form>
         </div>
       )}

@@ -20,6 +20,8 @@ export interface User {
   postVisibility?: 'public' | 'friends';
   storyVisibility?: 'public' | 'friends';
   messagePermissions?: 'everyone' | 'friends';
+  skills?: string[];
+  interests?: string[];
   createdAt: Timestamp | FieldValue;
   lastLoginAt?: Timestamp | FieldValue;
 }

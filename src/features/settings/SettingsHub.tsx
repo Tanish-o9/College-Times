@@ -5,6 +5,7 @@ import imageCompression from 'browser-image-compression';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { NotificationPreferences } from '../notifications/NotificationPreferences';
+import { calculateProfileCompleteness } from '../../utils/profileCompleteness';
 import {
   User,
   Bell,
@@ -188,6 +189,26 @@ export const SettingsHub: React.FC = () => {
             </div>
 
             <div className="space-y-4">
+              {userProfile && (() => {
+                const { score, missingFields } = calculateProfileCompleteness(userProfile);
+                return (
+                  <div className="p-4 bg-slate-950 border border-slate-850 rounded-2xl space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-slate-300">Profile Completeness</span>
+                      <span className="font-mono font-bold text-sky-400">{score}%</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-slate-900 rounded-full overflow-hidden">
+                      <div className="h-full bg-sky-500 rounded-full transition-all" style={{ width: `${score}%` }} />
+                    </div>
+                    {missingFields.length > 0 && (
+                      <p className="text-[10px] text-slate-500">
+                        Missing optional fields: <span className="text-slate-400 font-semibold">{missingFields.join(', ')}</span>
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
+
               <div>
                 <label className="block text-xs font-semibold text-slate-400 mb-1">Display Name *</label>
                 <input
