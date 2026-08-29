@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import { BackButton } from '../../components/BackButton';
 import {
   getSubjectQuestions,
   getQuestionAnswers,
@@ -9,13 +10,12 @@ import {
   type DoubtQuestion,
   type DoubtAnswer
 } from '../../services/academicService';
-import { Award, ArrowLeft, RefreshCw, Send, HelpCircle, Check } from 'lucide-react';
+import { Award, RefreshCw, Send, HelpCircle, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export const QuestionBoard: React.FC = () => {
   const { subjectId, questionId } = useParams<{ subjectId: string; questionId: string }>();
   const { currentUser } = useAuth();
-  const navigate = useNavigate();
 
   const [question, setQuestion] = useState<DoubtQuestion | null>(null);
   const [answers, setAnswers] = useState<DoubtAnswer[]>([]);
@@ -97,13 +97,7 @@ export const QuestionBoard: React.FC = () => {
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Navigation header */}
       <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-        <button
-          onClick={() => navigate(`/academic/subjects/${subjectId}`)}
-          className="flex items-center gap-1.5 text-slate-400 hover:text-white font-bold text-xs transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Back to Subject</span>
-        </button>
+        <BackButton customFallback={`/academic/subjects/${subjectId}`} />
 
         <button
           onClick={loadData}

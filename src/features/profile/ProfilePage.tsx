@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import { BackButton } from '../../components/BackButton';
 import {
   getRelationshipStatus,
   sendFriendRequest,
@@ -27,7 +28,6 @@ import {
   UserCheck,
   UserPlus,
   MessageSquare,
-  ArrowLeft,
   RefreshCw,
   Settings,
   GraduationCap,
@@ -350,15 +350,12 @@ export const ProfilePage: React.FC = () => {
   const isSelf = currentUser && profile && currentUser.uid === profile.uid;
   const isFriend = relationshipStatus === 'FRIENDS';
   const isProfilePrivate = profile && profile.profileVisibility === 'private' && !isSelf && !isFriend;
-
   return (
     <div className="min-h-screen bg-slate-950 text-white flex flex-col">
       {/* Header */}
       <header className="sticky top-0 z-30 bg-slate-950/90 backdrop-blur-xl border-b border-slate-800 px-4 py-3.5 sm:px-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-900 transition-colors">
-            <ArrowLeft className="w-5 h-5" />
-          </button>
+          <BackButton customFallback="/discover" />
           <div>
             <h1 className="text-base sm:text-lg font-bold text-white">
               {profile ? profile.displayName : 'Campus Profile'}

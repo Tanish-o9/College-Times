@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import { BackButton } from '../../components/BackButton';
 import {
   getSubjectNotes,
   addStudyNote,
@@ -21,7 +22,6 @@ import {
   ThumbsUp,
   MessageSquare,
   ExternalLink,
-  ArrowLeft,
   GitBranch,
   History,
   RefreshCw,
@@ -205,13 +205,7 @@ export const SubjectPage: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto space-y-6 p-4 sm:p-6 relative">
       {/* Back Button */}
-      <button
-        onClick={() => navigate('/academic')}
-        className="flex items-center gap-1 text-slate-400 hover:text-white transition-all text-xs font-bold uppercase tracking-wider"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        <span>Workspace</span>
-      </button>
+      <BackButton customFallback="/academic" />
 
       {/* Header Banner */}
       <div className="relative p-6 rounded-3xl bg-slate-900 border border-slate-850 shadow-xl overflow-hidden flex flex-col sm:flex-row sm:items-center justify-between gap-4">

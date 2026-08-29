@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import { BackButton } from '../../components/BackButton';
+import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
 import { getGroupById } from '../../services/groupService';
 import {
   transferGroupOwnership,
@@ -17,7 +19,6 @@ import { canEditSettings, canTransferOwnership, canArchiveGroup } from '../../se
 import type { CampusGroup, GroupRole } from '../../types/group';
 import { GroupInviteManager } from './GroupInviteManager';
 import {
-  ArrowLeft,
   Settings,
   ShieldAlert,
   Crown,
@@ -54,6 +55,15 @@ export const GroupSettingsPage: React.FC = () => {
   // Ownership transfer state
   const [newOwnerUid, setNewOwnerUid] = useState('');
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+
+  const hasChanges = !!group && (
+    name !== (group.name || '') ||
+    description !== (group.description || '') ||
+    category !== (group.category || 'General') ||
+    visibility !== (group.visibility || 'public')
+  );
+
+  useUnsavedChanges(hasChanges);
 
   const loadGroupAndRole = async () => {
     if (!groupId || !currentUser) return;
@@ -174,18 +184,15 @@ export const GroupSettingsPage: React.FC = () => {
   const canEdit = canEditSettings(userRole, userProfile?.role);
   const canTransfer = canTransferOwnership(userRole, userProfile?.role);
   const canArchive = canArchiveGroup(userRole, userProfile?.role);
-
   return (
     <div className="min-h-screen bg-slate-950 text-white flex flex-col">
       {/* Header */}
       <header className="sticky top-0 z-30 bg-slate-950/90 backdrop-blur-xl border-b border-slate-800 px-4 py-3.5 sm:px-6 flex items-center justify-between">
         <div className="flex items-center gap-3 min-w-0">
-          <button
-            onClick={() => navigate(`/groups/${groupId}`)}
-            className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-900 transition-colors shrink-0"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
+          <BackButton
+            customFallback={`/groups/${groupId}`}
+            onBeforeNav={() => hasChanges ? window.confirm('Discard unsaved changes?') : true}
+          />
           <div>
             <h1 className="text-base sm:text-lg font-bold text-white truncate">
               {group?.name || 'Group Settings'}

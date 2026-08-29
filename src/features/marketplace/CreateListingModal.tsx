@@ -47,6 +47,24 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const hasChanges = (
+    title !== (listing?.title || '') ||
+    description !== (listing?.description || '') ||
+    price !== (listing?.price ? String(listing.price) : '') ||
+    locationArea !== (listing?.locationArea || '') ||
+    selectedFile !== null
+  );
+
+  const handleCloseSafe = () => {
+    if (hasChanges) {
+      if (window.confirm('Discard unsaved changes?')) {
+        onClose();
+      }
+    } else {
+      onClose();
+    }
+  };
+
   useEffect(() => {
     if (isOpen) {
       setTitle(listing?.title || '');
@@ -154,7 +172,7 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({
             <ShoppingBag className="w-5 h-5 text-amber-400" />
             <span>Create Campus Listing</span>
           </h3>
-          <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-white rounded-xl">
+          <button onClick={handleCloseSafe} className="p-1.5 text-slate-400 hover:text-white rounded-xl">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -254,7 +272,7 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({
           <div className="flex items-center gap-2 pt-2">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleCloseSafe}
               className="flex-1 py-2.5 bg-slate-800 text-slate-300 font-bold text-xs rounded-xl"
             >
               Cancel

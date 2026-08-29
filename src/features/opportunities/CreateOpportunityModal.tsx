@@ -40,6 +40,24 @@ export const CreateOpportunityModal: React.FC<CreateOpportunityModalProps> = ({
   const [isOfficial, setIsOfficial] = useState<boolean>(false);
   const [submitting, setSubmitting] = useState<boolean>(false);
 
+  const hasChanges = (
+    title !== (opportunity?.title || '') ||
+    orgName !== (opportunity?.organizationName || opportunity?.organization || '') ||
+    description !== (opportunity?.description || '') ||
+    applicationUrl !== (opportunity?.applicationUrl || opportunity?.applicationLink || '') ||
+    eligibility !== (opportunity?.eligibility || '')
+  );
+
+  const handleCloseSafe = () => {
+    if (hasChanges) {
+      if (window.confirm('Discard unsaved changes?')) {
+        onClose();
+      }
+    } else {
+      onClose();
+    }
+  };
+
   useEffect(() => {
     if (isOpen) {
       setTitle(opportunity?.title || '');
@@ -135,14 +153,14 @@ export const CreateOpportunityModal: React.FC<CreateOpportunityModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm" onClick={handleCloseSafe} />
       <div className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 z-10 shadow-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between border-b border-slate-800 pb-3">
           <h3 className="text-base font-bold text-white flex items-center gap-2">
             <Briefcase className="w-5 h-5 text-purple-400" />
             <span>Post Campus Opportunity</span>
           </h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-white">
+          <button onClick={handleCloseSafe} className="text-slate-400 hover:text-white">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -289,7 +307,7 @@ export const CreateOpportunityModal: React.FC<CreateOpportunityModalProps> = ({
           <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-800">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleCloseSafe}
               className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold"
             >
               Cancel

@@ -5,11 +5,11 @@ import { getEventById, hasUserRsvpd, toggleRsvpStatus, cancelEvent, getEventPart
 import { toggleEventReminder, hasUserReminder } from '../../services/eventReminderService';
 import { useAuth } from '../../hooks/useAuth';
 import toast from 'react-hot-toast';
+import { BackButton } from '../../components/BackButton';
 import { 
   Calendar, 
   MapPin, 
   Users, 
-  ArrowLeft, 
   CheckCircle2, 
   ExternalLink, 
   RefreshCw,
@@ -255,13 +255,7 @@ export const EventDetail: React.FC = () => {
   return (
     <div className="max-w-3xl mx-auto py-6 px-4 space-y-6">
       {/* Back Button */}
-      <button
-        onClick={() => navigate('/events')}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white rounded-xl text-xs font-semibold transition-all"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        <span>Back to Events</span>
-      </button>
+      <BackButton customFallback="/events" />
 
       {/* Main Detail Card */}
       <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6 relative overflow-hidden">

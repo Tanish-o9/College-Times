@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import { BackButton } from '../../components/BackButton';
 import { getSavedMessages, unsaveMessage } from '../../services/savedMessageService';
 import type { SavedChatMessage } from '../../types/chat';
 import type { QueryDocumentSnapshot } from 'firebase/firestore';
@@ -13,8 +14,7 @@ import {
   FileText, 
   Image as ImageIcon, 
   MessageSquare, 
-  Trash2,
-  ArrowLeft
+  Trash2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -110,13 +110,7 @@ export const SavedMessagesPage: React.FC = () => {
       {/* Header Bar */}
       <header className="sticky top-0 z-30 bg-slate-950/90 backdrop-blur-xl border-b border-slate-800 px-4 py-3.5 sm:px-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate(-1)}
-            aria-label="Go back"
-            className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-900 transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
+          <BackButton customFallback="/" />
           <div>
             <h1 className="text-base sm:text-lg font-bold flex items-center gap-2 text-white">
               <Bookmark className="w-5 h-5 text-amber-400 fill-amber-400/20" />

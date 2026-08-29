@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import { BackButton } from '../../components/BackButton';
 import {
   doc,
   getDoc,
@@ -23,7 +24,6 @@ import {
   AlertOctagon,
   RefreshCw,
   Send,
-  ChevronLeft,
   Activity,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -194,12 +194,7 @@ export const IncidentDetail: React.FC = () => {
       {/* Header Bar */}
       <header className="sticky top-0 z-30 bg-slate-950/90 backdrop-blur-xl border-b border-slate-800 px-4 py-4 sm:px-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate('/')}
-            className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-900 transition-colors"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
+          <BackButton customFallback="/" />
 
           <div>
             <div className="flex items-center gap-2">

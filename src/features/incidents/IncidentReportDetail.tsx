@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import { BackButton } from '../../components/BackButton';
 import { getIncidentReportById } from '../../services/incidentReportService';
 import type { IncidentReport } from '../../types/incidentReport';
 import { formatTimestamp } from '../../utils/format';
@@ -8,7 +9,6 @@ import {
   FileText,
   Clock,
   MapPin,
-  ChevronLeft,
   RefreshCw,
   ExternalLink,
 } from 'lucide-react';
@@ -56,17 +56,11 @@ export const IncidentReportDetail: React.FC = () => {
       </div>
     );
   }
-
   return (
     <div className="min-h-screen bg-slate-950 text-white flex flex-col">
       <header className="sticky top-0 z-30 bg-slate-950/90 backdrop-blur-xl border-b border-slate-800 px-4 py-4 sm:px-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate('/my-reports')}
-            className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-900 transition-colors"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
+          <BackButton customFallback="/my-reports" />
           <div>
             <h1 className="text-base sm:text-lg font-bold text-white">Incident Report Detail</h1>
             <p className="text-[11px] font-mono text-slate-400">Report ID: {report.id}</p>

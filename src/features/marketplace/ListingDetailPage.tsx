@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import { BackButton } from '../../components/BackButton';
 import { makeOffer } from '../../services/marketplaceOfferService';
 import type { MarketplaceListing3 } from '../../types/marketplace';
 import {
   ShoppingBag,
   MessageSquare,
   Tag,
-  ArrowLeft,
   RefreshCw,
   Bookmark,
   Flag,
@@ -203,15 +203,12 @@ export const ListingDetailPage: React.FC = () => {
   }
 
   const isSeller = currentUser?.uid === listing.sellerId;
-
   return (
     <div className="min-h-screen bg-slate-950 text-white flex flex-col">
       {/* Header */}
       <header className="sticky top-0 z-30 bg-slate-950/90 backdrop-blur-xl border-b border-slate-800 px-4 py-3.5 sm:px-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-900">
-            <ArrowLeft className="w-5 h-5" />
-          </button>
+          <BackButton customFallback="/marketplace" />
           <div>
             <h1 className="text-base sm:text-lg font-bold text-white truncate max-w-xs">{listing.title}</h1>
             <p className="text-[11px] text-amber-400 font-mono font-bold">₹{listing.price}</p>
