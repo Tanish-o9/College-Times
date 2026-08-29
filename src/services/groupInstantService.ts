@@ -94,16 +94,11 @@ export const uploadInstantMediaFile = async (
       const uploadTask = uploadBytesResumable(storageRef, file, { contentType: rawType });
 
       const downloadUrl = await new Promise<string>((resolve) => {
-        const timer = setTimeout(() => resolve(''), 3000);
         uploadTask.on(
           'state_changed',
           () => {},
-          () => {
-            clearTimeout(timer);
-            resolve('');
-          },
+          () => resolve(''),
           async () => {
-            clearTimeout(timer);
             try {
               const url = await getDownloadURL(uploadTask.snapshot.ref);
               resolve(url || '');
