@@ -873,7 +873,7 @@ service cloud.firestore {
           resource.data.senderId == request.auth.uid ||
           resource.data.creatorId == request.auth.uid ||
           get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['owner', 'admin', 'moderator'] ||
-          request.resource.data.diff(resource.data).affectedKeys().hasAny(['reactionCounts', 'viewCount', 'saveCount', 'commentCount', 'updatedAt']) ||
+          request.resource.data.diff(resource.data).affectedKeys().hasAny(['reactionCounts', 'viewCount', 'saveCount', 'commentCount', 'updatedAt', 'viewedBy']) ||
           isAdmin()
         );
 

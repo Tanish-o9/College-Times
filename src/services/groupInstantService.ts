@@ -45,6 +45,76 @@ export interface CreateMomentOptions {
 }
 
 /**
+ * Compresses an image file before upload.
+ * Reduces 5MB-12MB mobile images down to ~150KB for sub-second upload speeds.
+ */
+export const compressImageFile = async (
+  file: File,
+  maxWidth: number = 1280,
+  maxHeight: number = 1280,
+  quality: number = 0.8
+): Promise<File> => {
+  if (!file || !file.type.startsWith('image/') || file.type.includes('gif')) {
+    return file;
+  }
+
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let width = img.width;
+      let height = img.height;
+
+      if (width > maxWidth || height > maxHeight) {
+        if (width > height) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        } else {
+          width = Math.round((width * maxHeight) / height);
+          height = maxHeight;
+        }
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(file);
+        return;
+      }
+
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            resolve(file);
+            return;
+          }
+          const compressedFile = new File([blob], file.name, {
+            type: 'image/jpeg',
+            lastModified: Date.now(),
+          });
+          resolve(compressedFile);
+        },
+        'image/jpeg',
+        quality
+      );
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(file);
+    };
+
+    img.src = url;
+  });
+};
+
+/**
  * Uploads a single photo or video media item for a group moment.
  * Fast fallback to local Data URL if Firebase Storage is unavailable or errors out.
  */
@@ -64,7 +134,13 @@ export const uploadInstantMediaFile = async (
     throw new Error(`File '${file.name}' exceeds ${isVideo ? '25MB' : '10MB'} limit.`);
   }
 
-  const cleanName = (file.name || `moment_${Date.now()}`)
+  // Fast image compression
+  let targetFile = file;
+  if (!isVideo) {
+    targetFile = await compressImageFile(file, 1280, 1280, 0.8);
+  }
+
+  const cleanName = (targetFile.name || `moment_${Date.now()}`)
     .replace(/[\/\\?%*:|"<>]/g, '_')
     .replace(/\s+/g, '_')
     .slice(0, 80);
@@ -83,7 +159,7 @@ export const uploadInstantMediaFile = async (
   if (storage) {
     try {
       const storageRef = ref(storage, storagePath);
-      const uploadTask = uploadBytesResumable(storageRef, file, { contentType: rawType });
+      const uploadTask = uploadBytesResumable(storageRef, targetFile, { contentType: targetFile.type || rawType });
 
       const downloadUrl = await new Promise<string>((resolve) => {
         uploadTask.on(
@@ -105,8 +181,8 @@ export const uploadInstantMediaFile = async (
         return {
           downloadUrl,
           storagePath,
-          fileSize: file.size,
-          mimeType: rawType,
+          fileSize: targetFile.size,
+          mimeType: targetFile.type || rawType,
         };
       }
     } catch {
@@ -115,12 +191,12 @@ export const uploadInstantMediaFile = async (
   }
 
   // 2. Fallback path: Convert to Data URL only if Storage upload is unavailable or fails
-  const dataUrl = await readFileAsDataUrl(file);
+  const dataUrl = await readFileAsDataUrl(targetFile);
   return {
     downloadUrl: dataUrl,
     storagePath,
-    fileSize: file.size,
-    mimeType: rawType,
+    fileSize: targetFile.size,
+    mimeType: targetFile.type || rawType,
   };
 };
 
@@ -299,7 +375,7 @@ export const getGroupInstantMedia = async (
 
 /**
  * Attaches a real-time listener for active Instants in a group.
- * Queries collection directly without requiring composite indexes and sorts in memory.
+ * Listens to both cleanGroupId and group-cleanGroupId to guarantee cross-client delivery.
  */
 export const subscribeToActiveGroupInstants = (
   groupId: string,
@@ -308,53 +384,85 @@ export const subscribeToActiveGroupInstants = (
 ) => {
   if (!groupId) return () => {};
   const cleanGroupId = (groupId || '').replace(/^group-/, '');
+  const prefixedGroupId = `group-${cleanGroupId}`;
 
-  const instantsRef = collection(db, 'groups', cleanGroupId, 'instants');
-  const q = query(instantsRef, limit(100));
+  const mapByClean = new Map<string, GroupInstant>();
+  const mapByPrefixed = new Map<string, GroupInstant>();
 
-  return onSnapshot(
-    q,
+  const processCombined = () => {
+    const combined = new Map<string, GroupInstant>();
+    mapByClean.forEach((v, k) => combined.set(k, v));
+    mapByPrefixed.forEach((v, k) => combined.set(k, v));
+
+    const nowMs = Date.now();
+    const activeInstants = Array.from(combined.values())
+      .filter((inst: any) => {
+        if (inst.status === 'deleted' || inst.status === 'hidden') return false;
+        if (inst.expiresAt) {
+          let expMs = 0;
+          if (typeof inst.expiresAt?.toMillis === 'function') expMs = inst.expiresAt.toMillis();
+          else if (typeof inst.expiresAt?.toDate === 'function') expMs = inst.expiresAt.toDate().getTime();
+          else if (inst.expiresAt?.seconds) expMs = inst.expiresAt.seconds * 1000;
+          else if (typeof inst.expiresAt === 'number') expMs = inst.expiresAt;
+          else expMs = new Date(inst.expiresAt).getTime();
+
+          if (!isNaN(expMs) && expMs > 0 && nowMs > expMs) return false;
+        }
+        return true;
+      })
+      .sort((a: any, b: any) => {
+        const aTime = a.createdAt?.toMillis
+          ? a.createdAt.toMillis()
+          : a.createdAt?.seconds
+          ? a.createdAt.seconds * 1000
+          : Date.now();
+        const bTime = b.createdAt?.toMillis
+          ? b.createdAt.toMillis()
+          : b.createdAt?.seconds
+          ? b.createdAt.seconds * 1000
+          : Date.now();
+        return bTime - aTime;
+      })
+      .slice(0, limitCount);
+
+    onUpdate(activeInstants);
+  };
+
+  const unsubClean = onSnapshot(
+    query(collection(db, 'groups', cleanGroupId, 'instants'), limit(100)),
     (snapshot) => {
-      const nowMs = Date.now();
-      const activeInstants = snapshot.docs
-        .map((docSnap) => ({
-          id: docSnap.id,
-          ...docSnap.data(),
-        }))
-        .filter((inst: any) => {
-          if (inst.status === 'deleted' || inst.status === 'hidden') return false;
-          if (inst.expiresAt) {
-            let expMs = 0;
-            if (typeof inst.expiresAt.toMillis === 'function') expMs = inst.expiresAt.toMillis();
-            else if (typeof inst.expiresAt.toDate === 'function') expMs = inst.expiresAt.toDate().getTime();
-            else if (inst.expiresAt?.seconds) expMs = inst.expiresAt.seconds * 1000;
-            else expMs = new Date(inst.expiresAt).getTime();
-
-            if (!isNaN(expMs) && expMs > 0 && nowMs > expMs) return false;
-          }
-          return true;
-        })
-        .sort((a: any, b: any) => {
-          const aTime = a.createdAt?.toMillis
-            ? a.createdAt.toMillis()
-            : a.createdAt?.seconds
-            ? a.createdAt.seconds * 1000
-            : Date.now();
-          const bTime = b.createdAt?.toMillis
-            ? b.createdAt.toMillis()
-            : b.createdAt?.seconds
-            ? b.createdAt.seconds * 1000
-            : Date.now();
-          return bTime - aTime;
-        })
-        .slice(0, limitCount) as GroupInstant[];
-
-      onUpdate(activeInstants);
+      mapByClean.clear();
+      snapshot.docs.forEach((d) => {
+        mapByClean.set(d.id, { id: d.id, ...d.data() } as GroupInstant);
+      });
+      processCombined();
     },
     (err) => {
-      console.error('Error listening to group instants:', err);
+      console.warn('Notice listening to group clean instants:', err);
     }
   );
+
+  let unsubPrefixed = () => {};
+  if (prefixedGroupId !== cleanGroupId) {
+    unsubPrefixed = onSnapshot(
+      query(collection(db, 'groups', prefixedGroupId, 'instants'), limit(100)),
+      (snapshot) => {
+        mapByPrefixed.clear();
+        snapshot.docs.forEach((d) => {
+          mapByPrefixed.set(d.id, { id: d.id, ...d.data() } as GroupInstant);
+        });
+        processCombined();
+      },
+      () => {
+        // Silently ignore prefix collection notice
+      }
+    );
+  }
+
+  return () => {
+    unsubClean();
+    unsubPrefixed();
+  };
 };
 
 /**
