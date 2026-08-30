@@ -214,7 +214,7 @@ export const ChannelList: React.FC<ChannelListProps> = ({
             <p className="text-xs text-slate-400">Discover public channels below to start chatting with campus!</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {myChannels.map((channel) => {
               const unreadInfo = channel.id ? unreadInfoMap[channel.id] : null;
               const hasUnread = unreadInfo?.hasUnread ?? false;
@@ -230,28 +230,30 @@ export const ChannelList: React.FC<ChannelListProps> = ({
                     if (onSelectChannel) onSelectChannel(channel);
                     if (channel.id) navigate(`/chat/${channel.id}`);
                   }}
-                  className={`p-5 rounded-3xl border-2 transition-all duration-300 cursor-pointer flex items-center justify-between gap-3 group relative overflow-hidden shadow-2xl hover:-translate-y-1 ${
+                  className={`p-5 rounded-3xl border-2 transition-all duration-300 cursor-pointer flex flex-col justify-between gap-4 group relative overflow-hidden shadow-2xl hover:-translate-y-1 ${
                     isSelected
-                      ? 'bg-gradient-to-r from-sky-500/20 via-purple-500/10 to-transparent border-sky-400/60 shadow-sky-500/20 scale-[1.02]'
-                      : 'bg-slate-900/90 border-slate-800 hover:border-sky-500/50 hover:shadow-sky-500/15'
+                      ? 'bg-gradient-to-r from-sky-500/20 via-purple-500/10 to-transparent border-sky-400/60 shadow-sky-500/25 scale-[1.02]'
+                      : 'bg-slate-900/90 border-slate-800 hover:border-sky-500/50 hover:shadow-sky-500/20'
                   }`}
                 >
+                  <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-sky-400 via-purple-500 to-pink-500 opacity-70 group-hover:opacity-100 transition-opacity" />
+                  
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                    <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-300 ${
                       isAnnouncement
-                        ? 'bg-purple-500/10 border border-purple-500/20 text-purple-400'
-                        : 'bg-sky-500/10 border border-sky-500/20 text-sky-400'
+                        ? 'bg-purple-500/20 border border-purple-500/40 text-purple-300 shadow-md shadow-purple-500/20'
+                        : 'bg-sky-500/20 border border-sky-500/40 text-sky-300 shadow-md shadow-sky-500/20'
                     }`}>
-                      {isAnnouncement ? <Shield className="w-5 h-5" /> : <Hash className="w-5 h-5" />}
+                      {isAnnouncement ? <Shield className="w-5.5 h-5.5 animate-pulse" /> : <Hash className="w-5.5 h-5.5" />}
                     </div>
 
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-bold text-white text-sm truncate">{channel.name}</span>
+                        <span className="font-extrabold text-white text-base truncate group-hover:text-sky-300 transition-colors">{channel.name}</span>
                         {hasUnread && (
                           <span 
                             aria-label={unreadCount > 0 ? `${unreadCount} unread messages` : 'Unread messages'}
-                            className="px-2 py-0.5 rounded-full bg-sky-500 text-white font-mono text-[10px] font-bold shadow-md shadow-sky-500/40 animate-pulse shrink-0"
+                            className="px-2 py-0.5 rounded-full bg-gradient-to-r from-sky-400 to-indigo-500 text-white font-mono text-[10px] font-bold shadow-md shadow-sky-500/40 animate-bounce shrink-0"
                           >
                             {unreadCount > 99 ? '99+' : unreadCount > 0 ? unreadCount : '•'}
                           </span>
@@ -262,19 +264,19 @@ export const ChannelList: React.FC<ChannelListProps> = ({
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-slate-400 truncate mt-0.5">{channel.description}</p>
+                      <p className="text-xs text-slate-400 line-clamp-2 mt-0.5 leading-relaxed">{channel.description}</p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-[11px] font-mono text-slate-500 flex items-center gap-1">
-                      <Users className="w-3 h-3" />
-                      {channel.memberCount ?? 0}
+                  <div className="flex items-center justify-between border-t border-slate-800/80 pt-3 mt-1">
+                    <span className="text-[11px] font-mono text-slate-400 font-bold flex items-center gap-1.5 bg-slate-950 px-3 py-1 rounded-xl border border-slate-850">
+                      <Users className="w-3.5 h-3.5 text-sky-400" />
+                      {channel.memberCount ?? 0} Members
                     </span>
 
                     {/* Leave or Permanent Badge */}
                     {isAnnouncement && userProfile?.role !== 'admin' ? (
-                      <span className="px-2.5 py-1 bg-purple-500/10 border border-purple-500/20 text-purple-300 rounded-lg text-[10px] font-bold flex items-center gap-1">
+                      <span className="px-3 py-1 bg-purple-500/15 border border-purple-500/30 text-purple-300 rounded-xl text-[10px] font-extrabold flex items-center gap-1 shadow-sm">
                         <Lock className="w-3 h-3" />
                         <span>Official</span>
                       </span>
@@ -285,10 +287,14 @@ export const ChannelList: React.FC<ChannelListProps> = ({
                           if (channel.id) handleLeave(channel.id);
                         }}
                         disabled={actionChannelId === channel.id}
-                        className="p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl border border-transparent hover:border-rose-500/20 transition-colors"
-                        title="Leave Channel"
+                        className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl border border-slate-800 hover:border-rose-500/30 transition-all text-xs flex items-center gap-1 cursor-pointer"
+                        title="Leave channel"
                       >
-                        <LogOut className="w-4 h-4" />
+                        {actionChannelId === channel.id ? (
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin text-rose-400" />
+                        ) : (
+                          <LogOut className="w-3.5 h-3.5" />
+                        )}
                       </button>
                     )}
                   </div>
@@ -300,49 +306,51 @@ export const ChannelList: React.FC<ChannelListProps> = ({
       </div>
 
       {/* SECTION 2: Discover Channels */}
-      <div className="space-y-4 pt-4 border-t border-slate-800">
-        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-          <Compass className="w-3.5 h-3.5 text-sky-400" />
+      <div className="space-y-4 pt-6 border-t-2 border-slate-800/80 relative z-10">
+        <h3 className="text-xs font-black text-slate-300 uppercase tracking-wider font-mono flex items-center gap-2">
+          <Compass className="w-4 h-4 text-sky-400 animate-spin-slow" />
           <span>Discover Public Channels</span>
         </h3>
 
         {discoverChannels.length === 0 ? (
-          <p className="text-xs text-slate-500 text-center py-4">You have joined all public channels!</p>
+          <p className="text-xs text-slate-400 text-center py-6 italic bg-slate-900/60 rounded-3xl border border-slate-800">You have joined all public channels!</p>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {discoverChannels.map((channel) => (
               <div
                 key={channel.id}
-                className="p-5 bg-slate-900/90 border-2 border-slate-800 rounded-3xl flex items-center justify-between gap-3 hover:border-purple-500/50 hover:shadow-2xl hover:shadow-purple-500/15 hover:-translate-y-1 transition-all duration-300 group shadow-2xl relative overflow-hidden"
+                className="p-5 bg-slate-900/90 border-2 border-slate-800 rounded-3xl flex flex-col justify-between gap-4 hover:border-purple-500/50 hover:shadow-2xl hover:shadow-purple-500/20 hover:-translate-y-1 transition-all duration-300 group shadow-2xl relative overflow-hidden"
               >
+                <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-purple-400 via-pink-500 to-sky-400 opacity-70 group-hover:opacity-100 transition-opacity" />
+
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 text-slate-400 flex items-center justify-center shrink-0">
-                    <Hash className="w-5 h-5" />
+                  <div className="w-11 h-11 rounded-2xl bg-purple-500/20 border border-purple-500/30 text-purple-300 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-300 shadow-md">
+                    <Hash className="w-5.5 h-5.5" />
                   </div>
 
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-white text-sm truncate">{channel.name}</span>
-                      <span className="px-2 py-0.5 bg-slate-800 text-slate-400 text-[10px] rounded font-semibold uppercase">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-extrabold text-white text-base truncate group-hover:text-purple-300 transition-colors">{channel.name}</span>
+                      <span className="px-2.5 py-0.5 bg-slate-950 text-purple-400 border border-purple-500/30 text-[9px] rounded-full font-extrabold uppercase tracking-wider font-mono">
                         {channel.category}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-400 truncate mt-0.5">{channel.description}</p>
+                    <p className="text-xs text-slate-400 line-clamp-2 mt-0.5 leading-relaxed">{channel.description}</p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 shrink-0">
-                  <span className="text-[11px] font-mono text-slate-500 flex items-center gap-1">
-                    <Users className="w-3 h-3" />
-                    {channel.memberCount ?? 0}
+                <div className="flex items-center justify-between border-t border-slate-800/80 pt-3 mt-1">
+                  <span className="text-[11px] font-mono text-slate-400 font-bold flex items-center gap-1.5 bg-slate-950 px-3 py-1 rounded-xl border border-slate-850">
+                    <Users className="w-3.5 h-3.5 text-purple-400" />
+                    {channel.memberCount ?? 0} Members
                   </span>
 
                   <button
                     onClick={() => channel.id && handleJoin(channel.id)}
                     disabled={actionChannelId === channel.id}
-                    className="px-3 py-1.5 bg-sky-500 hover:bg-sky-400 text-white font-semibold text-xs rounded-xl shadow-md shadow-sky-500/20 flex items-center gap-1 transition-all"
+                    className="px-4 py-2 bg-gradient-to-r from-sky-400 via-indigo-500 to-purple-600 hover:from-sky-300 hover:to-purple-500 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-sky-500/25 hover:scale-105 transition-all flex items-center gap-1.5 cursor-pointer"
                   >
-                    <Plus className="w-3.5 h-3.5" />
+                    <Plus className="w-4 h-4" />
                     <span>Join</span>
                   </button>
                 </div>
