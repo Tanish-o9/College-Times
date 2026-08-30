@@ -111,8 +111,15 @@ export const ProfilePage: React.FC = () => {
         targetUid = cleanName;
       }
 
-      const userDocRef = doc(db, 'users', targetUid);
-      const userSnap = await getDoc(userDocRef);
+      let userSnap = await getDoc(doc(db, 'users', targetUid));
+      if (!userSnap.exists()) {
+        const qUser = query(collection(db, 'users'), where('username', '==', cleanName), limit(1));
+        const qSnap = await getDocs(qUser);
+        if (!qSnap.empty) {
+          userSnap = qSnap.docs[0];
+          targetUid = userSnap.id;
+        }
+      }
 
       if (userSnap.exists()) {
         const data = userSnap.data();
@@ -140,6 +147,25 @@ export const ProfilePage: React.FC = () => {
         (profData as any).messagePermissions = data.messagePermissions || 'everyone';
 
         setProfile(profData);
+
+        // Load friends list for stats & tab
+        getFriends(userSnap.id, 100).then(async (res) => {
+          const details = await Promise.all(
+            res.uids.map(async (fuid) => {
+              const uSnap = await getDoc(doc(db, 'users', fuid));
+              if (uSnap.exists()) {
+                const uData = uSnap.data();
+                return {
+                  uid: fuid,
+                  displayName: uData.displayName || 'Student',
+                  photoURL: uData.photoURL,
+                };
+              }
+              return { uid: fuid, displayName: 'Campus Student' };
+            })
+          );
+          setFriendsList(details);
+        }).catch(() => {});
 
         if (currentUser && currentUser.uid !== targetUid) {
           const [relStatus, blockedVal, mCount] = await Promise.all([
@@ -532,20 +558,40 @@ export const ProfilePage: React.FC = () => {
               </div>
 
               {/* Stats Strip */}
-              <div className="flex items-center gap-8 pt-4 border-t border-slate-800 text-xs font-mono flex-wrap">
-                <div>
-                  <span className="font-bold text-white text-sm">{profile.followersCount || 0}</span>
-                  <span className="text-slate-400 ml-1.5">Friends</span>
-                </div>
-                <div>
-                  <span className="font-bold text-purple-400 text-sm">Lvl {(profile as any).level || 1}</span>
-                  <span className="text-slate-400 ml-1.5">({(profile as any).reputationPoints || 0} XP)</span>
-                </div>
-                {!isSelf && mutualFriendsCount > 0 && (
-                  <div>
-                    <span className="font-bold text-sky-400 text-sm">{mutualFriendsCount}</span>
-                    <span className="text-slate-400 ml-1.5">Mutual Friends</span>
+              <div className="flex items-center gap-4 pt-4 border-t border-slate-800 text-xs font-mono flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('friends')}
+                  className={`px-3.5 py-2 rounded-2xl border transition-all flex items-center gap-2.5 cursor-pointer ${
+                    activeTab === 'friends'
+                      ? 'bg-sky-500/10 border-sky-500/40 text-sky-300 shadow-lg shadow-sky-500/10'
+                      : 'bg-slate-950/70 border-slate-800 hover:border-sky-500/30 text-slate-300'
+                  }`}
+                  title="View All Friends"
+                >
+                  <UsersIcon className="w-4 h-4 text-sky-400" />
+                  <div className="text-left">
+                    <span className="font-bold text-white text-sm block leading-tight">
+                      {friendsList.length || profile.followersCount || 0}
+                    </span>
+                    <span className="text-[10px] text-slate-400 underline decoration-sky-500/40">Friends List →</span>
                   </div>
+                </button>
+
+                <div className="px-3.5 py-2 bg-slate-950/70 border border-slate-800 rounded-2xl">
+                  <span className="font-bold text-purple-400 text-sm block leading-tight">Lvl {(profile as any).level || 1}</span>
+                  <span className="text-[10px] text-slate-400">({(profile as any).reputationPoints || 0} XP)</span>
+                </div>
+
+                {!isSelf && mutualFriendsCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('friends')}
+                    className="px-3.5 py-2 bg-slate-950/70 border border-slate-800 hover:border-sky-500/30 rounded-2xl text-left cursor-pointer transition-all"
+                  >
+                    <span className="font-bold text-sky-400 text-sm block leading-tight">{mutualFriendsCount}</span>
+                    <span className="text-[10px] text-slate-400">Mutual Friends</span>
+                  </button>
                 )}
               </div>
 

@@ -178,7 +178,14 @@ export const StoryViewer: React.FC<StoryViewerProps> = ({
 
           {/* Author Header */}
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
+            <div
+              onClick={() => {
+                onClose();
+                navigate(`/profile/${group.authorId}`);
+              }}
+              className="flex items-center gap-2.5 cursor-pointer hover:opacity-80 transition-opacity"
+              title="Visit Profile"
+            >
               <div className="w-9 h-9 rounded-full bg-indigo-500/20 text-indigo-400 font-bold flex items-center justify-center border border-indigo-500/40 shrink-0">
                 {group.authorAvatar ? (
                   <img src={group.authorAvatar} alt={group.authorName} className="w-full h-full rounded-full object-cover" />
@@ -188,7 +195,7 @@ export const StoryViewer: React.FC<StoryViewerProps> = ({
               </div>
               <div className="min-w-0">
                 <h4 className="text-xs font-bold text-white leading-tight truncate">{group.authorName}</h4>
-                <p className="text-[10px] text-slate-400">24h Campus Story</p>
+                <p className="text-[10px] text-slate-400">24h Campus Story • View Profile →</p>
               </div>
             </div>
 

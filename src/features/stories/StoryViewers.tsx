@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import type { StoryView } from '../../types/story';
 import { getStoryViewers } from '../../services/storyService';
-import { X, Eye, RefreshCw, User } from 'lucide-react';
+import { X, Eye, RefreshCw, User, ChevronRight } from 'lucide-react';
 
 interface StoryViewersProps {
   storyId: string;
@@ -10,6 +11,7 @@ interface StoryViewersProps {
 }
 
 export const StoryViewers: React.FC<StoryViewersProps> = ({ storyId, onClose }) => {
+  const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [viewers, setViewers] = useState<StoryView[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -56,7 +58,13 @@ export const StoryViewers: React.FC<StoryViewersProps> = ({ storyId, onClose }) 
             viewers.map((viewer, idx) => (
               <div
                 key={viewer.userId || idx}
-                className="flex items-center justify-between p-2.5 bg-slate-950/60 border border-slate-800/80 rounded-2xl"
+                onClick={() => {
+                  if (viewer.userId) {
+                    onClose();
+                    navigate(`/profile/${viewer.userId}`);
+                  }
+                }}
+                className="flex items-center justify-between p-2.5 bg-slate-950/60 hover:bg-slate-950 border border-slate-800/80 hover:border-indigo-500/40 rounded-2xl cursor-pointer transition-all group"
               >
                 <div className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 font-bold flex items-center justify-center text-xs">
@@ -66,15 +74,18 @@ export const StoryViewers: React.FC<StoryViewersProps> = ({ storyId, onClose }) 
                       <User className="w-4 h-4" />
                     )}
                   </div>
-                  <span className="text-xs font-bold text-white">{viewer.userName || 'Student'}</span>
+                  <span className="text-xs font-bold text-white group-hover:text-indigo-300 transition-colors">{viewer.userName || 'Student'}</span>
                 </div>
-                <span className="text-[10px] text-slate-500 font-mono">
-                  {viewer.viewedAt
-                    ? typeof viewer.viewedAt.toDate === 'function'
-                      ? viewer.viewedAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                      : new Date(viewer.viewedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                    : ''}
-                </span>
+                <div className="flex items-center gap-1.5 text-slate-500">
+                  <span className="text-[10px] font-mono">
+                    {viewer.viewedAt
+                      ? typeof viewer.viewedAt.toDate === 'function'
+                        ? viewer.viewedAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                        : new Date(viewer.viewedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                      : ''}
+                  </span>
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-indigo-400 transition-colors" />
+                </div>
               </div>
             ))
           )}
