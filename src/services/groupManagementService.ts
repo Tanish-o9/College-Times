@@ -614,16 +614,29 @@ export const updateGroupPasscode = async (
  */
 export const deleteGroupPermanently = async (
   groupId: string,
-  currentUser: FirebaseUser
+  currentUser: FirebaseUser,
+  isAdminUser?: boolean
 ): Promise<void> => {
   if (!groupId || !currentUser) {
     throw new Error('Authentication required.');
   }
 
   const groupRef = doc(db, 'groups', groupId);
-  const userMembershipRef = doc(db, 'users', currentUser.uid, 'groupMemberships', groupId);
+  const snap = await getDoc(groupRef);
+  
+  if (snap.exists()) {
+    const gData = snap.data();
+    const isOwner =
+      Boolean(gData.createdBy && gData.createdBy === currentUser.uid) ||
+      Boolean(gData.ownerId && gData.ownerId === currentUser.uid);
+
+    if (!isOwner && !isAdminUser) {
+      throw new Error('Permission denied: Only the group creator or campus admin can delete this group.');
+    }
+  }
 
   await deleteDoc(groupRef);
+  const userMembershipRef = doc(db, 'users', currentUser.uid, 'groupMemberships', groupId);
   await deleteDoc(userMembershipRef).catch(() => {});
 
   logAnalyticsEvent('group_deleted_permanently', { groupId });

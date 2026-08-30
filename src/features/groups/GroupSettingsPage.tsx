@@ -38,7 +38,7 @@ import { db } from '../../lib/firebase';
 
 export const GroupSettingsPage: React.FC = () => {
   const { groupId } = useParams<{ groupId: string }>();
-  const { currentUser, userProfile } = useAuth();
+  const { currentUser, userProfile, isAdmin } = useAuth();
   const navigate = useNavigate();
 
   const [group, setGroup] = useState<CampusGroup | null>(null);
@@ -156,7 +156,7 @@ export const GroupSettingsPage: React.FC = () => {
     }
 
     try {
-      await deleteGroupPermanently(groupId, currentUser);
+      await deleteGroupPermanently(groupId, currentUser, isAdmin);
       toast.success('Group permanently deleted!');
       navigate('/groups');
     } catch (err: any) {

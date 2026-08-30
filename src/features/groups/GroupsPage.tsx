@@ -9,6 +9,7 @@ import {
   seedStandardCampusGroups,
   getGroupById,
 } from '../../services/groupService';
+import { deleteGroupPermanently } from '../../services/groupManagementService';
 import type { CampusGroup, CampusGroupType } from '../../types/group';
 import {
   Users,
@@ -22,7 +23,8 @@ import {
   RefreshCw,
   Lock,
   Key,
-  ChevronRight
+  ChevronRight,
+  Trash2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -34,7 +36,7 @@ import { useScrollRestoration } from '../../hooks/useScrollRestoration';
 type FilterTab = 'all' | 'campus' | 'department' | 'batch' | 'community' | 'my_groups';
 
 export const GroupsPage: React.FC = () => {
-  const { currentUser, userProfile } = useAuth();
+  const { currentUser, userProfile, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -52,6 +54,31 @@ export const GroupsPage: React.FC = () => {
   const [isJoinCodeModalOpen, setIsJoinCodeModalOpen] = useState(false);
   const [initialJoinCode, setInitialJoinCode] = useState('');
   const [passwordPromptGroup, setPasswordPromptGroup] = useState<CampusGroup | null>(null);
+
+  const handleDeleteGroup = async (group: CampusGroup, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!currentUser || actionGroupId) return;
+
+    if (!window.confirm(`Are you sure you want to permanently delete "${group.name}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    setActionGroupId(group.id);
+    try {
+      await deleteGroupPermanently(group.id, currentUser, isAdmin);
+      toast.success(`Group "${group.name}" deleted permanently.`);
+      setGroups((prev) => prev.filter((g) => g.id !== group.id));
+      setJoinedGroupIds((prev) => {
+        const next = new Set(prev);
+        next.delete(group.id);
+        return next;
+      });
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete group.');
+    } finally {
+      setActionGroupId(null);
+    }
+  };
 
   // Check URL query parameters for pass codes (e.g. ?code=CT-7K4P9X or /groups/join?code=...)
   useEffect(() => {
@@ -276,6 +303,7 @@ export const GroupsPage: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {groups.map((group) => {
             const isOwner = Boolean(currentUser && (group.createdBy === currentUser.uid || (group as any).ownerId === currentUser.uid));
+            const isOwnerOrAdmin = Boolean(currentUser && (isOwner || isAdmin));
             const isJoined = joinedGroupIds.has(group.id) || isOwner;
             const badge = getGroupTypeBadge(group.type);
             const isPrivate = group.visibility === 'private';
@@ -288,7 +316,7 @@ export const GroupsPage: React.FC = () => {
               >
                 <div className="space-y-3">
                   <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
                       <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-sky-500/20 to-indigo-500/20 border border-sky-500/30 text-sky-300 font-extrabold flex items-center justify-center text-sm shrink-0">
                         {group.name.charAt(0).toUpperCase()}
                       </div>
@@ -319,6 +347,22 @@ export const GroupsPage: React.FC = () => {
                         </div>
                       </div>
                     </div>
+
+                    {isOwnerOrAdmin && (
+                      <button
+                        type="button"
+                        onClick={(e) => handleDeleteGroup(group, e)}
+                        disabled={actionGroupId === group.id}
+                        title="Delete Group Permanently"
+                        className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-slate-800 rounded-xl transition-colors shrink-0"
+                      >
+                        {actionGroupId === group.id ? (
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin text-rose-400" />
+                        ) : (
+                          <Trash2 className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                    )}
                   </div>
 
                   <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">

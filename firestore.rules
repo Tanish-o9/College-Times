@@ -436,8 +436,14 @@ service cloud.firestore {
 
     // Campus Groups Collection & All Sub-collections
     match /groups/{groupId} {
-      allow read, create, update: if isAuthenticated();
-      allow delete: if isAdmin();
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isNotBlocked();
+      allow update: if isAuthenticated() && isNotBlocked();
+      allow delete: if isAuthenticated() && isNotBlocked() && (
+        resource.data.createdBy == request.auth.uid ||
+        resource.data.ownerId == request.auth.uid ||
+        isAdmin()
+      );
 
       match /{allSubcollections=**} {
         allow read, create, update, delete: if isAuthenticated();

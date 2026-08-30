@@ -10,6 +10,7 @@ import {
   joinGroup,
   leaveGroup,
 } from '../../services/groupService';
+import { deleteGroupPermanently } from '../../services/groupManagementService';
 import type { CampusGroup, GroupRole } from '../../types/group';
 import type { Post } from '../../types/models';
 import { PollCard } from './PollCard';
@@ -57,6 +58,7 @@ import {
   BookOpen,
   ListTodo,
   FolderOpen,
+  Trash2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { doc, getDoc, collection, query, where, limit, getDocs, onSnapshot } from 'firebase/firestore';
@@ -327,6 +329,23 @@ export const GroupDetailPage: React.FC = () => {
   const isAuthorized = isMember || isOwner || userProfile?.role === 'admin';
   const isPrivateAndNonMember = Boolean(group && (group.visibility === 'private' || group.hasPassword) && !isAuthorized);
 
+  const handleDeleteGroup = async () => {
+    if (!groupId || !currentUser || !group) return;
+    if (!window.confirm(`Are you sure you want to permanently delete "${group.name}"? This action cannot be undone.`)) {
+      return;
+    }
+    setActionBusy(true);
+    try {
+      await deleteGroupPermanently(groupId, currentUser, isAdmin);
+      toast.success(`Group "${group.name}" permanently deleted.`);
+      navigate('/groups');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete group.');
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 text-white flex flex-col">
       {/* Header Bar */}
@@ -355,14 +374,28 @@ export const GroupDetailPage: React.FC = () => {
             </button>
           )}
 
-          {isAuthorized && (userRole === 'owner' || userRole === 'admin' || isOwner) && (
-            <button
-              onClick={() => navigate(`/groups/${groupId}/settings`)}
-              className="p-2 text-slate-400 hover:text-white hover:bg-slate-900 border border-slate-800 rounded-xl"
-              title="Group Settings"
-            >
-              <Settings className="w-4 h-4" />
-            </button>
+          {isAuthorized && (userRole === 'owner' || userRole === 'admin' || isOwner || isAdmin) && (
+            <>
+              <button
+                onClick={() => navigate(`/groups/${groupId}/settings`)}
+                className="p-2 text-slate-400 hover:text-white hover:bg-slate-900 border border-slate-800 rounded-xl"
+                title="Group Settings"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+              <button
+                onClick={handleDeleteGroup}
+                disabled={actionBusy}
+                className="p-2 text-slate-400 hover:text-rose-400 hover:bg-slate-900 border border-slate-800 rounded-xl transition-colors"
+                title="Delete Group Permanently"
+              >
+                {actionBusy ? (
+                  <RefreshCw className="w-4 h-4 animate-spin text-rose-400" />
+                ) : (
+                  <Trash2 className="w-4 h-4" />
+                )}
+              </button>
+            </>
           )}
 
           {/* Quick Group Chat Channel Navigation */}
