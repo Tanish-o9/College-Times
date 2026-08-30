@@ -75,8 +75,8 @@ export const GroupsPage: React.FC = () => {
       setGroups(publicResult.groups);
 
       // Auto-seed default campus groups if none exist
-      if (publicResult.groups.length === 0 && userProfile?.role === 'admin') {
-        await seedStandardCampusGroups(currentUser, userProfile);
+      if (publicResult.groups.length === 0) {
+        await seedStandardCampusGroups(currentUser);
         const reloaded = await getPublicGroupsPage(30);
         setGroups(reloaded.groups);
       }

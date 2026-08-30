@@ -612,8 +612,7 @@ export const getUserGroupIds = async (uid: string): Promise<string[]> => {
  * Seeds standard campus groups (CSE, ECE, IT, AIML, ME, CE, Batch 2026-2029) if not present.
  */
 export const seedStandardCampusGroups = async (
-  currentUser: FirebaseUser,
-  userProfile?: User | null
+  currentUser: FirebaseUser
 ): Promise<void> => {
   if (!currentUser) return;
 
@@ -631,9 +630,16 @@ export const seedStandardCampusGroups = async (
 
   for (const g of defaultGroups) {
     try {
-      await createGroup(g, currentUser, userProfile);
+      await setDoc(doc(db, 'groups', g.id!), {
+        ...g,
+        active: true,
+        memberCount: 1,
+        createdBy: currentUser.uid,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
     } catch (e) {
-      // Group may already exist — skip
+      console.warn('Seed group warning:', e);
     }
   }
 };
