@@ -2,12 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import {
-  getPublicGroupsPage,
   searchGroups,
   getUserGroupIds,
   joinGroup,
   leaveGroup,
   seedStandardCampusGroups,
+  getGroupById,
 } from '../../services/groupService';
 import type { CampusGroup, CampusGroupType } from '../../types/group';
 import {
@@ -71,9 +71,18 @@ export const GroupsPage: React.FC = () => {
 
       let fetchedGroups: CampusGroup[] = [];
       if (activeTab === 'my_groups') {
-        const res = await getPublicGroupsPage(50);
-        const myIds = new Set(myGroupIds);
-        fetchedGroups = res.groups.filter((g) => myIds.has(g.id));
+        if (myGroupIds.length > 0) {
+          const groupSnaps = await Promise.all(myGroupIds.map((id) => getGroupById(id)));
+          fetchedGroups = groupSnaps.filter((g): g is CampusGroup => g !== null);
+          if (searchQuery.trim()) {
+            const term = searchQuery.trim().toLowerCase();
+            fetchedGroups = fetchedGroups.filter(
+              (g) =>
+                g.name.toLowerCase().includes(term) ||
+                g.description?.toLowerCase().includes(term)
+            );
+          }
+        }
       } else {
         const cat = activeTab !== 'all' ? activeTab : 'all';
         fetchedGroups = await searchGroups(searchQuery, cat, 50);
