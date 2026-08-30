@@ -24,8 +24,6 @@ import { formatTimestamp } from '../../utils/format';
 import toast from 'react-hot-toast';
 import { useScrollRestoration } from '../../hooks/useScrollRestoration';
 
-import { ActivityPulse } from '../../components/3d/ActivityPulse';
-
 export const ActivityCenter: React.FC = () => {
   const { currentUser } = useAuth();
   const { joinedGroupIds, blockedUserIds } = useGlobalCache();
@@ -165,15 +163,19 @@ export const ActivityCenter: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white p-4 sm:p-8 space-y-6">
-      <ActivityPulse />
-
       {/* Header */}
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
-        <div className="space-y-0.5">
-          <h2 className="text-xl font-black text-white flex items-center gap-2">
-            <Activity className="w-5.5 h-5.5 text-sky-400 animate-pulse" />
-            <span>Campus Activity Center</span>
-          </h2>
+        <div className="space-y-1">
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-xl font-black text-white flex items-center gap-2">
+              <Activity className="w-5.5 h-5.5 text-sky-400" />
+              <span>Campus Activity Center</span>
+            </h2>
+            <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-mono text-[10px] font-bold">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+              <span>LIVE</span>
+            </span>
+          </div>
           <p className="text-[10px] text-slate-400 font-mono uppercase">Unified real-time feed tracker</p>
         </div>
 

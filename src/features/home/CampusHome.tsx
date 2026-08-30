@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { ActiveIncidentStrip } from '../incidents/ActiveIncidentStrip';
@@ -34,10 +34,6 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatTimestamp } from '../../utils/format';
-import { SceneFallback } from '../../components/3d/SceneFallback';
-
-const CampusScene = lazy(() => import('../../components/3d/CampusScene'));
-const CampusOrb = lazy(() => import('../../components/3d/CampusOrb'));
 
 interface DashboardWidgetConfig {
   id: string;
@@ -46,7 +42,6 @@ interface DashboardWidgetConfig {
 }
 
 const DEFAULT_WIDGETS: DashboardWidgetConfig[] = [
-  { id: 'campus_scene', label: 'Interactive 3D Campus', visible: true },
   { id: 'quick_actions', label: 'Quick Actions', visible: true },
   { id: 'recommendations', label: 'Recommendations', visible: true },
   { id: 'feed', label: 'Campus Feed', visible: true },
@@ -194,9 +189,6 @@ export const CampusHome: React.FC = () => {
           </div>
           <div>
             <h1 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
-              <Suspense fallback={<div className="w-6 h-6 rounded-full bg-sky-500/20 animate-pulse" />}>
-                <CampusOrb />
-              </Suspense>
               <span>Welcome back, {profile?.displayName || 'Student'}</span>
             </h1>
             <p className="text-[11px] text-slate-400 font-mono">
@@ -208,14 +200,14 @@ export const CampusHome: React.FC = () => {
         <div className="flex gap-2">
           <button
             onClick={() => setShowConfigModal(!showConfigModal)}
-            className="px-3 py-1.5 bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-355 rounded-xl transition-all text-xs font-semibold flex items-center gap-1.5 shadow-md"
+            className="px-3 py-1.5 bg-slate-900 border border-slate-800 hover:border-slate-700 hover:translate-y-[-1px] text-slate-300 rounded-xl transition-all text-xs font-semibold flex items-center gap-1.5 shadow-md active:scale-95"
           >
             <Sliders className="w-3.5 h-3.5 text-sky-400" />
             <span>Customize</span>
           </button>
           <button
             onClick={() => navigate('/settings/notifications')}
-            className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-900 border border-slate-800 transition-colors flex items-center gap-1.5 text-xs font-semibold"
+            className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-900 border border-slate-800 hover:translate-y-[-1px] transition-all flex items-center gap-1.5 text-xs font-semibold active:scale-95"
           >
             <span>Settings</span>
           </button>
@@ -226,7 +218,7 @@ export const CampusHome: React.FC = () => {
       <main className="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6 space-y-6">
         {/* Customization Drawer Panel */}
         {showConfigModal && (
-          <div className="p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-4 shadow-xl">
+          <div className="p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-4 shadow-xl animate-in fade-in duration-200">
             <div className="flex justify-between items-center pb-2 border-b border-slate-800">
               <h3 className="text-xs font-bold text-slate-300 uppercase font-mono">
                 Customize Dashboard Widgets
@@ -242,7 +234,7 @@ export const CampusHome: React.FC = () => {
               {widgetConfig.map((w) => (
                 <label
                   key={w.id}
-                  className="flex items-center gap-2 p-3 bg-slate-950/60 rounded-2xl cursor-pointer hover:bg-slate-850 border border-slate-850/50"
+                  className="flex items-center gap-2 p-3 bg-slate-950/60 rounded-2xl cursor-pointer hover:bg-slate-800 border border-slate-800 transition-colors"
                 >
                   <input
                     type="checkbox"
@@ -259,13 +251,6 @@ export const CampusHome: React.FC = () => {
 
         {/* Emergency Alert Widget */}
         <ActiveIncidentStrip />
-
-        {/* 3D Campus Scene Hero Visual */}
-        {isWidgetVisible('campus_scene') && (
-          <Suspense fallback={<SceneFallback />}>
-            <CampusScene />
-          </Suspense>
-        )}
 
         {/* Quick Actions Strip */}
         {isWidgetVisible('quick_actions') && (
@@ -295,7 +280,7 @@ export const CampusHome: React.FC = () => {
                   <button
                     key={idx}
                     onClick={() => navigate(action.path)}
-                    className="p-3 bg-slate-950/60 hover:bg-slate-850 border border-slate-850 rounded-2xl text-left space-y-1.5 transition-all"
+                    className="p-3 bg-slate-950/60 hover:bg-slate-800 border border-slate-800/80 hover:border-slate-700/80 hover:translate-y-[-2px] hover:shadow-lg hover:shadow-sky-500/5 active:scale-95 rounded-2xl text-left space-y-1.5 transition-all duration-200 group cursor-pointer"
                   >
                     <Icon className={`w-4.5 h-4.5 ${action.color}`} />
                     <div className="text-[10px] font-bold text-white leading-tight">{action.label}</div>

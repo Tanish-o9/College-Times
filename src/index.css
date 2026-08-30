@@ -6,3 +6,39 @@
     @apply bg-slate-950 text-slate-100 min-h-screen font-sans;
   }
 }
+
+/* Micro-Interaction Utilities */
+.hover-card-depth {
+  transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 200ms cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.hover-card-depth:hover {
+  transform: translateY(-3px);
+}
+
+.hover-btn-micro {
+  transition: transform 150ms cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 150ms cubic-bezier(0.16, 1, 0.3, 1),
+              background-color 150ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.hover-btn-micro:hover {
+  transform: translateY(-1px);
+}
+
+.hover-btn-micro:active {
+  transform: scale(0.98);
+}
+
+/* Reduced Motion Safety */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+    transform: none !important;
+  }
+}

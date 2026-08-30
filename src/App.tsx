@@ -74,7 +74,6 @@ const ReportsPage = lazy(() => import('./features/profile/ReportsPage').then(m =
 
 // Code-split heavy AdminPortal route
 const AdminPage = lazy(() => import('./features/admin/AdminPage').then(module => ({ default: module.AdminPage })));
-import { ThreeDProvider } from './components/3d/ThreeDProvider';
 
 export function App() {
   const [isOnline, setIsOnline] = React.useState(navigator.onLine);
@@ -94,8 +93,7 @@ export function App() {
   return (
     <AuthProvider>
       <GlobalCacheProvider>
-        <ThreeDProvider>
-          <Router>
+        <Router>
           <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans overflow-x-hidden w-full max-w-[100vw]">
           <Toaster 
             position="top-right" 
@@ -215,7 +213,6 @@ export function App() {
           )}
         </div>
       </Router>
-      </ThreeDProvider>
       </GlobalCacheProvider>
     </AuthProvider>
   );
