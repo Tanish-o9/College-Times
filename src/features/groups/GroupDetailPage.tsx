@@ -793,7 +793,10 @@ export const GroupDetailPage: React.FC = () => {
 
       {/* Bounded Realtime Activity Toast Indicator */}
       {group && isMember && (
-        <RealtimeGroupActivity groupId={group.id} />
+        <RealtimeGroupActivity
+          groupId={group.id}
+          onOpenTimeline={() => setActiveTab('activity')}
+        />
       )}
 
       {/* Modals */}
