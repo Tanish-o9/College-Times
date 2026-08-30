@@ -280,7 +280,7 @@ export const CampusHome: React.FC = () => {
                   <button
                     key={idx}
                     onClick={() => navigate(action.path)}
-                    className="p-3 bg-slate-950/60 hover:bg-slate-800 border border-slate-800/80 hover:border-slate-700/80 hover:translate-y-[-2px] hover:shadow-lg hover:shadow-sky-500/5 active:scale-95 rounded-2xl text-left space-y-1.5 transition-all duration-200 group cursor-pointer"
+                    className="p-3 bg-slate-950/60 hover:bg-slate-800 border border-slate-800 rounded-2xl text-left space-y-1.5 transition-all"
                   >
                     <Icon className={`w-4.5 h-4.5 ${action.color}`} />
                     <div className="text-[10px] font-bold text-white leading-tight">{action.label}</div>
