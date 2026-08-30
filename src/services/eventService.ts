@@ -659,23 +659,20 @@ export const getEventsFiltered = async (
  * Fetches upcoming group events.
  */
 export const getUpcomingGroupEvents = async (groupId: string): Promise<CampusEvent[]> => {
+  if (!groupId) return [];
   try {
     const eventsRef = collection(db, 'events');
-    const now = Timestamp.now();
-    const q = query(
-      eventsRef,
-      where('groupId', '==', groupId),
-      where('eventDate', '>=', now),
-      orderBy('eventDate', 'asc')
-    );
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map((docSnap) => ({
-      id: docSnap.id,
-      ...docSnap.data(),
-    })) as CampusEvent[];
+    const q = query(eventsRef, where('groupId', '==', groupId));
+    const snap = await getDocs(q);
+    const nowMs = Date.now();
+
+    return snap.docs
+      .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() } as CampusEvent))
+      .filter((evt) => parseEventDateMs(evt.eventDate) >= nowMs)
+      .sort((a, b) => parseEventDateMs(a.eventDate) - parseEventDateMs(b.eventDate));
   } catch (error) {
     console.error('Error fetching upcoming group events:', error);
-    throw error;
+    return [];
   }
 };
 
@@ -683,23 +680,20 @@ export const getUpcomingGroupEvents = async (groupId: string): Promise<CampusEve
  * Fetches past group events.
  */
 export const getPastGroupEvents = async (groupId: string): Promise<CampusEvent[]> => {
+  if (!groupId) return [];
   try {
     const eventsRef = collection(db, 'events');
-    const now = Timestamp.now();
-    const q = query(
-      eventsRef,
-      where('groupId', '==', groupId),
-      where('eventDate', '<', now),
-      orderBy('eventDate', 'desc')
-    );
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map((docSnap) => ({
-      id: docSnap.id,
-      ...docSnap.data(),
-    })) as CampusEvent[];
+    const q = query(eventsRef, where('groupId', '==', groupId));
+    const snap = await getDocs(q);
+    const nowMs = Date.now();
+
+    return snap.docs
+      .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() } as CampusEvent))
+      .filter((evt) => parseEventDateMs(evt.eventDate) < nowMs)
+      .sort((a, b) => parseEventDateMs(b.eventDate) - parseEventDateMs(a.eventDate));
   } catch (error) {
     console.error('Error fetching past group events:', error);
-    throw error;
+    return [];
   }
 };
 

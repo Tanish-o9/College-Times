@@ -52,7 +52,7 @@ export const GroupEvents: React.FC<GroupEventsProps> = ({ groupId, isMember, use
     }
   };
 
-  const canCreate = isMember && (userRole === 'owner' || userRole === 'admin' || userRole === 'moderator');
+  const canCreate = isMember || userProfile?.role === 'admin';
 
   const loadEvents = async () => {
     if (!groupId) return;
@@ -260,7 +260,21 @@ export const GroupEvents: React.FC<GroupEventsProps> = ({ groupId, isMember, use
           <div className="space-y-3">
             <h4 className="text-xs font-bold text-slate-400 uppercase font-mono">Upcoming Events ({normalUpcomingEvents.length})</h4>
             {normalUpcomingEvents.length === 0 ? (
-              <p className="text-xs text-slate-500 italic pl-2">No upcoming group events planned.</p>
+              <div className="p-8 bg-slate-900/60 border border-slate-800 rounded-3xl text-center space-y-3">
+                <Calendar className="w-8 h-8 text-slate-600 mx-auto" />
+                <p className="text-xs text-slate-400 font-medium">No upcoming group events planned.</p>
+                {canCreate ? (
+                  <button
+                    onClick={() => setIsCreateOpen(true)}
+                    className="px-4 py-2 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white font-bold text-xs rounded-xl shadow-lg inline-flex items-center gap-1.5 transition-all cursor-pointer hover:scale-105 active:scale-95"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Create Group Event</span>
+                  </button>
+                ) : (
+                  <p className="text-[11px] text-slate-500 font-mono">Join this group to participate in and organize group events.</p>
+                )}
+              </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {normalUpcomingEvents.map((e) => {
