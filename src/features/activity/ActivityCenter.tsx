@@ -243,38 +243,38 @@ export const ActivityCenter: React.FC = () => {
           <p className="text-slate-450 text-xs">No recent activities matching this filter.</p>
         </div>
       ) : (
-        <div className="space-y-3.5 max-w-3xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 w-full">
           {filteredActivities.map((act) => (
             <div
               key={act.id}
               onClick={() => handleItemClick(act)}
-              className="p-4 bg-slate-900/80 backdrop-blur-xl border border-slate-800/90 hover:border-sky-500/40 hover:-translate-y-1 hover:shadow-[0_0_20px_rgba(56,189,248,0.15)] rounded-3xl cursor-pointer transition-all duration-200 flex items-start gap-4 shadow-lg group"
+              className="p-5 bg-slate-900/90 backdrop-blur-xl border-2 border-slate-800 hover:border-sky-500/50 hover:-translate-y-1 hover:shadow-2xl hover:shadow-sky-500/15 rounded-3xl cursor-pointer transition-all duration-300 flex items-start gap-4 shadow-2xl group relative overflow-hidden"
             >
-              <div className="p-2.5 bg-slate-950 border border-slate-800 rounded-2xl shrink-0">
+              <div className="p-3 bg-slate-950 border border-slate-800 rounded-2xl shrink-0 group-hover:scale-110 transition-transform duration-300 shadow-inner">
                 {getActivityIcon(act.type)}
               </div>
-              <div className="flex-1 space-y-1 min-w-0">
+              <div className="flex-1 space-y-1.5 min-w-0">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <span className="text-xs font-bold text-white font-sans">
+                  <span className="text-xs font-black text-white font-sans group-hover:text-sky-300 transition-colors">
                     {act.actorName}
                   </span>
                   <span className="text-[9px] text-slate-500 font-mono">
                     {formatTimestamp(act.createdAt)}
                   </span>
                 </div>
-                <p className="text-xs text-slate-300 font-medium">
+                <p className="text-xs text-slate-300 font-medium leading-relaxed">
                   {act.action}{' '}
                   {act.targetTitle && (
                     <span className="text-sky-400 font-bold">"{act.targetTitle}"</span>
                   )}
                 </p>
                 {act.previewText && (
-                  <p className="text-[11px] text-slate-450 italic line-clamp-2 bg-slate-950/40 p-2.5 rounded-xl border border-slate-850">
+                  <p className="text-[11px] text-slate-400 italic line-clamp-2 bg-slate-950/60 p-3 rounded-2xl border border-slate-850 mt-1">
                     {act.previewText}
                   </p>
                 )}
                 {act.groupName && (
-                  <span className="inline-block text-[9px] text-purple-400 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-full font-mono mt-1">
+                  <span className="inline-block text-[9px] text-purple-400 bg-purple-500/10 border border-purple-500/20 px-2.5 py-0.5 rounded-full font-mono mt-1 font-bold">
                     👥 {act.groupName}
                   </span>
                 )}

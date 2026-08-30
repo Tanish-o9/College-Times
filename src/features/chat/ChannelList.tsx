@@ -158,32 +158,39 @@ export const ChannelList: React.FC<ChannelListProps> = ({
   }
 
   return (
-    <div className="w-full space-y-8 p-4 sm:p-6 bg-slate-900/60 backdrop-blur-xl border border-slate-800 rounded-3xl shadow-2xl">
+    <div className="w-full max-w-[1700px] mx-auto px-4 sm:px-6 lg:px-8 space-y-8 py-6 relative overflow-hidden">
+      {/* Ambient Gradient Aura */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-80 bg-gradient-to-r from-sky-500/20 via-purple-500/20 to-pink-500/20 blur-3xl opacity-80 pointer-events-none rounded-full animate-gradient-x animate-float-slow" />
+
       {/* Header */}
-      <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-2xl bg-sky-500/10 border border-sky-500/20 text-sky-400 flex items-center justify-center">
-            <MessageSquare className="w-5 h-5" />
+      <div className="flex items-center justify-between pb-4 border-b border-slate-800/80 relative z-10">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-sky-500/20 via-purple-500/20 to-pink-500/20 border border-sky-500/30 text-sky-400 flex items-center justify-center shadow-lg shadow-sky-500/10">
+            <MessageSquare className="w-6 h-6 animate-pulse" />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-white">Campus Channels</h2>
-            <p className="text-xs text-slate-400">10,000-Member Scalable Community Chat</p>
+            <h2 className="text-xl font-extrabold text-white flex items-center gap-2">
+              <span className="bg-gradient-to-r from-sky-300 via-purple-300 to-pink-300 bg-clip-text text-transparent">
+                Campus Community Channels
+              </span>
+            </h2>
+            <p className="text-xs text-slate-400 font-mono">10,000-Member Scalable Realtime Chat Network</p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           <button
             onClick={() => setIsSearchOpen(true)}
-            className="p-2 bg-slate-950 hover:bg-slate-800 text-sky-400 hover:text-white rounded-xl border border-slate-800 transition-all text-xs flex items-center gap-1.5"
+            className="p-2.5 bg-slate-950 hover:bg-slate-900 text-sky-400 hover:text-white rounded-xl border border-slate-800 transition-all text-xs flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer"
             title="Search Messages"
             aria-label="Search Messages"
           >
             <Search className="w-4 h-4" />
-            <span className="hidden sm:inline font-semibold">Search</span>
+            <span className="hidden sm:inline font-bold">Search Chat</span>
           </button>
           <button
             onClick={loadData}
-            className="p-2 bg-slate-950 hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl border border-slate-800 transition-all text-xs"
+            className="p-2.5 bg-slate-950 hover:bg-slate-900 text-slate-400 hover:text-white rounded-xl border border-slate-800 transition-all text-xs shadow-md active:scale-95 cursor-pointer"
             title="Refresh Channels"
           >
             <RefreshCw className="w-4 h-4" />
@@ -192,22 +199,22 @@ export const ChannelList: React.FC<ChannelListProps> = ({
       </div>
 
       {/* SECTION 1: My Channels */}
-      <div className="space-y-4">
+      <div className="space-y-4 relative z-10">
         <div className="flex items-center justify-between">
-          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+          <h3 className="text-xs font-black text-slate-300 uppercase tracking-wider font-mono flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 animate-pulse" />
             <span>My Joined Channels ({myChannels.length})</span>
           </h3>
         </div>
 
         {myChannels.length === 0 ? (
-          <div className="p-6 bg-slate-950/60 border border-slate-800/80 rounded-2xl text-center space-y-2">
-            <Sparkles className="w-6 h-6 text-sky-400 mx-auto" />
-            <p className="text-xs text-slate-300 font-semibold">No channels joined yet</p>
-            <p className="text-[11px] text-slate-500">Discover public channels below to start chatting!</p>
+          <div className="p-8 bg-slate-900/90 border-2 border-slate-800 rounded-3xl text-center space-y-3 shadow-2xl">
+            <Sparkles className="w-8 h-8 text-sky-400 mx-auto animate-bounce" />
+            <p className="text-sm text-slate-200 font-bold">No channels joined yet</p>
+            <p className="text-xs text-slate-400">Discover public channels below to start chatting with campus!</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {myChannels.map((channel) => {
               const unreadInfo = channel.id ? unreadInfoMap[channel.id] : null;
               const hasUnread = unreadInfo?.hasUnread ?? false;
@@ -223,10 +230,10 @@ export const ChannelList: React.FC<ChannelListProps> = ({
                     if (onSelectChannel) onSelectChannel(channel);
                     if (channel.id) navigate(`/chat/${channel.id}`);
                   }}
-                  className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                  className={`p-5 rounded-3xl border-2 transition-all duration-300 cursor-pointer flex items-center justify-between gap-3 group relative overflow-hidden shadow-2xl hover:-translate-y-1 ${
                     isSelected
-                      ? 'bg-sky-500/10 border-sky-500/30 shadow-lg shadow-sky-500/10'
-                      : 'bg-slate-950/80 border-slate-800 hover:border-slate-700'
+                      ? 'bg-gradient-to-r from-sky-500/20 via-purple-500/10 to-transparent border-sky-400/60 shadow-sky-500/20 scale-[1.02]'
+                      : 'bg-slate-900/90 border-slate-800 hover:border-sky-500/50 hover:shadow-sky-500/15'
                   }`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
@@ -302,11 +309,11 @@ export const ChannelList: React.FC<ChannelListProps> = ({
         {discoverChannels.length === 0 ? (
           <p className="text-xs text-slate-500 text-center py-4">You have joined all public channels!</p>
         ) : (
-          <div className="grid grid-cols-1 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {discoverChannels.map((channel) => (
               <div
                 key={channel.id}
-                className="p-4 bg-slate-950/80 border border-slate-800 rounded-2xl flex items-center justify-between gap-3 hover:border-slate-700 transition-all"
+                className="p-5 bg-slate-900/90 border-2 border-slate-800 rounded-3xl flex items-center justify-between gap-3 hover:border-purple-500/50 hover:shadow-2xl hover:shadow-purple-500/15 hover:-translate-y-1 transition-all duration-300 group shadow-2xl relative overflow-hidden"
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 text-slate-400 flex items-center justify-center shrink-0">
