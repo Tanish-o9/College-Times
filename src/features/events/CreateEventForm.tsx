@@ -173,7 +173,7 @@ export const CreateEventForm: React.FC<CreateEventFormProps> = ({
 
   return (
     <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-4 sm:p-6 pt-20 sm:pt-24 pb-12 overflow-y-auto">
-      <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-0" onClick={onClose} />
+      <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-0" />
 
       <div className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden z-10 max-h-[85vh] flex flex-col my-auto animate-in fade-in zoom-in-95 duration-200">
         {/* Modal Header */}
