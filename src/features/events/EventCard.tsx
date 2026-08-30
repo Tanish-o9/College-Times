@@ -1,15 +1,44 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { CampusEvent } from '../../types';
 import { formatTimestamp } from '../../utils/format';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, MapPin, Users, ChevronRight, Clock, ExternalLink } from 'lucide-react';
+import { useAuth } from '../../hooks/useAuth';
+import { deleteEvent } from '../../services/eventService';
+import { Calendar, MapPin, Users, ChevronRight, Clock, ExternalLink, Trash2, RefreshCw } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 interface EventCardProps {
   event: CampusEvent;
+  onDelete?: (eventId: string) => void;
 }
 
-export const EventCard: React.FC<EventCardProps> = ({ event }) => {
+export const EventCard: React.FC<EventCardProps> = ({ event, onDelete }) => {
   const navigate = useNavigate();
+  const { currentUser, userProfile } = useAuth();
+  const [deleting, setDeleting] = useState(false);
+
+  const isCreatorOrAdmin =
+    currentUser && (event.createdBy === currentUser.uid || userProfile?.role === 'admin');
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!currentUser || !event.id || deleting) return;
+
+    if (!window.confirm('Are you sure you want to permanently delete this event?')) {
+      return;
+    }
+
+    setDeleting(true);
+    try {
+      await deleteEvent(event.id, currentUser.uid, userProfile?.role === 'admin');
+      toast.success('Event deleted.');
+      onDelete?.(event.id);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete event.');
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const formattedDate = event.eventDate
     ? typeof event.eventDate.toDate === 'function'
@@ -26,7 +55,7 @@ export const EventCard: React.FC<EventCardProps> = ({ event }) => {
   return (
     <article
       onClick={() => navigate(`/events/${event.id}`)}
-      className="w-full bg-slate-900/80 backdrop-blur-xl border border-slate-800 hover:border-purple-500/40 hover:-translate-y-1 hover:shadow-xl hover:shadow-purple-500/10 rounded-3xl p-6 shadow-xl flex flex-col justify-between gap-4 cursor-pointer group transition-all duration-200 ease-out"
+      className="w-full bg-slate-900/80 backdrop-blur-xl border border-slate-800 hover:border-purple-500/40 hover:-translate-y-1 hover:shadow-xl hover:shadow-purple-500/10 rounded-3xl p-6 shadow-xl flex flex-col justify-between gap-4 cursor-pointer group transition-all duration-200 ease-out relative"
     >
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -52,10 +81,28 @@ export const EventCard: React.FC<EventCardProps> = ({ event }) => {
             )}
           </div>
 
-          <span className="text-[10px] text-slate-500 font-mono flex items-center gap-1">
-            <Clock className="w-3 h-3" />
-            <span>{formatTimestamp(event.createdAt)}</span>
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-slate-500 font-mono flex items-center gap-1">
+              <Clock className="w-3 h-3" />
+              <span>{formatTimestamp(event.createdAt)}</span>
+            </span>
+
+            {isCreatorOrAdmin && (
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deleting}
+                className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors"
+                title="Delete Event"
+              >
+                {deleting ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-rose-400" />
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5" />
+                )}
+              </button>
+            )}
+          </div>
         </div>
 
         <h3 className="text-xl font-bold text-white group-hover:text-purple-300 transition-colors leading-snug">

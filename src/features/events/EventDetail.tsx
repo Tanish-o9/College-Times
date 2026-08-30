@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { CampusEvent } from '../../types/models';
-import { getEventById, hasUserRsvpd, toggleRsvpStatus, cancelEvent, getEventParticipantsPaginated, toggleSaveEvent, checkEventIsSaved, isGroupMember } from '../../services/eventService';
+import { getEventById, hasUserRsvpd, toggleRsvpStatus, cancelEvent, deleteEvent, getEventParticipantsPaginated, toggleSaveEvent, checkEventIsSaved, isGroupMember } from '../../services/eventService';
 import { toggleEventReminder, hasUserReminder } from '../../services/eventReminderService';
 import { useAuth } from '../../hooks/useAuth';
 import toast from 'react-hot-toast';
@@ -19,7 +19,8 @@ import {
   AlertTriangle, 
   X,
   Bookmark,
-  Share2
+  Share2,
+  Trash2,
 } from 'lucide-react';
 import { buildShareableContent } from '../../services/shareService';
 import { ShareModal } from '../../components/ShareModal';
@@ -209,6 +210,27 @@ export const EventDetail: React.FC = () => {
       toast.error(err.message || 'Failed to cancel event.');
     } finally {
       setCancelling(false);
+    }
+  };
+
+  const [isDeletingEvent, setIsDeletingEvent] = useState(false);
+
+  const handleDeleteEvent = async () => {
+    if (!currentUser || !event?.id || isDeletingEvent) return;
+    const confirmDelete = window.confirm(
+      'Are you sure you want to permanently delete this event? This action cannot be undone.'
+    );
+    if (!confirmDelete) return;
+
+    setIsDeletingEvent(true);
+    try {
+      await deleteEvent(event.id, currentUser.uid, userProfile?.role === 'admin');
+      toast.success('Event permanently deleted.');
+      navigate('/events');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete event.');
+    } finally {
+      setIsDeletingEvent(false);
     }
   };
 
@@ -471,12 +493,23 @@ export const EventDetail: React.FC = () => {
                 </button>
 
                 {currentUser && (event.createdBy === currentUser.uid || userProfile?.role === 'admin') && (
-                  <button
-                    onClick={() => setIsCancelModalOpen(true)}
-                    className="px-3 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded-xl text-xs font-bold"
-                  >
-                    Cancel Event
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setIsCancelModalOpen(true)}
+                      className="px-3 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded-xl text-xs font-bold transition-colors"
+                    >
+                      Cancel Event
+                    </button>
+                    <button
+                      onClick={handleDeleteEvent}
+                      disabled={isDeletingEvent}
+                      className="px-3 py-2 bg-rose-600 hover:bg-rose-500 text-white disabled:opacity-50 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                      title="Permanently Delete Event"
+                    >
+                      {isDeletingEvent ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                      <span>Delete</span>
+                    </button>
+                  </div>
                 )}
               </div>
             </div>

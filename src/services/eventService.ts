@@ -947,3 +947,28 @@ export const subscribeGroupEvents = (
   });
 };
 
+/**
+ * Permanently deletes an event document from Firestore.
+ * Allowed for event creator or admin user.
+ */
+export const deleteEvent = async (
+  eventId: string,
+  userId: string,
+  isAdminUser: boolean = false
+): Promise<void> => {
+  if (!eventId) throw new Error('Event ID is required.');
+
+  const eventRef = doc(db, 'events', eventId);
+  const snap = await getDoc(eventRef);
+  if (!snap.exists()) {
+    throw new Error('Event not found or already deleted.');
+  }
+
+  const eventData = snap.data();
+  if (eventData.createdBy !== userId && !isAdminUser) {
+    throw new Error('You do not have permission to delete this event.');
+  }
+
+  await deleteDoc(eventRef);
+};
+

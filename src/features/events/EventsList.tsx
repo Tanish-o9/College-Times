@@ -196,7 +196,13 @@ export const EventsList: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {events.map((evt) => (
-            <EventCard key={evt.id} event={evt} />
+            <EventCard
+              key={evt.id}
+              event={evt}
+              onDelete={(deletedId) =>
+                setEvents((prev) => prev.filter((e) => e.id !== deletedId))
+              }
+            />
           ))}
         </div>
       )}
