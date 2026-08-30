@@ -224,7 +224,7 @@ export const EventDetail: React.FC = () => {
 
     setIsDeletingEvent(true);
     try {
-      await deleteEvent(event.id, currentUser.uid, userProfile?.role === 'admin');
+      await deleteEvent(event.id, currentUser.uid);
       toast.success('Event permanently deleted.');
       navigate('/events');
     } catch (err: any) {
@@ -492,7 +492,7 @@ export const EventDetail: React.FC = () => {
                   <span className="hidden sm:inline">{hasReminder ? 'Reminder On' : 'Remind Me'}</span>
                 </button>
 
-                {currentUser && (event.createdBy === currentUser.uid || userProfile?.role === 'admin') && (
+                {currentUser && (
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setIsCancelModalOpen(true)}
