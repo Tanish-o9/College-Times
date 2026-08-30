@@ -28,6 +28,7 @@ const PersonalAnalyticsPage = lazy(() => import('./features/account/PersonalAnal
 const CalendarPage = lazy(() => import('./features/calendar/CalendarPage').then(m => ({ default: m.CalendarPage })));
 const ChallengeDashboard = lazy(() => import('./features/challenges/ChallengeDashboard').then(m => ({ default: m.ChallengeDashboard })));
 const AcademicHub = lazy(() => import('./features/academic/AcademicHub').then(m => ({ default: m.AcademicHub })));
+const AcademicsPage = lazy(() => import('./features/academic/AcademicsPage').then(m => ({ default: m.AcademicsPage })));
 const SubjectPage = lazy(() => import('./features/academic/SubjectPage').then(m => ({ default: m.SubjectPage })));
 const QuestionBoard = lazy(() => import('./features/academic/QuestionBoard').then(m => ({ default: m.QuestionBoard })));
 const SupportCenter = lazy(() => import('./features/support/SupportCenter').then(m => ({ default: m.SupportCenter })));
@@ -176,6 +177,8 @@ export function App() {
                 <Route path="/analytics" element={<PersonalAnalyticsPage />} />
                 <Route path="/calendar" element={<CalendarPage />} />
                 <Route path="/academic" element={<AcademicHub />} />
+                <Route path="/academics" element={<AcademicsPage />} />
+                <Route path="/academics/*" element={<AcademicsPage />} />
                 <Route path="/academic/subjects/:subjectId" element={<SubjectPage />} />
                 <Route path="/academic/subjects/:subjectId/questions/:questionId" element={<QuestionBoard />} />
                 <Route path="/support" element={<SupportCenter />} />

@@ -29,6 +29,7 @@ import {
   Lightbulb,
   Trophy,
   Lock,
+  GraduationCap,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ConfessionModal } from '../confessions/ConfessionModal';
@@ -325,6 +326,7 @@ export const CampusHome: React.FC = () => {
                 { label: 'Create Poll', onClick: () => navigate('/voting'), color: 'text-amber-400', glow: 'hover:border-amber-500/50 hover:shadow-[0_0_18px_rgba(251,191,36,0.25)]', icon: BarChart3 },
                 { label: 'Confession', onClick: () => setIsConfessionModalOpen(true), color: 'text-purple-400', glow: 'hover:border-purple-500/50 hover:shadow-[0_0_18px_rgba(168,85,247,0.35)]', icon: Lock },
                 { label: 'Group Instant', onClick: () => navigate('/groups'), color: 'text-rose-400', glow: 'hover:border-rose-500/50 hover:shadow-[0_0_18px_rgba(244,63,94,0.25)]', icon: Flame },
+                { label: 'Academics Hub', onClick: () => navigate('/academics'), color: 'text-emerald-400', glow: 'hover:border-emerald-500/50 hover:shadow-[0_0_18px_rgba(52,211,153,0.25)]', icon: GraduationCap },
                 { label: 'Search Campus', onClick: () => navigate('/search'), color: 'text-cyan-400', glow: 'hover:border-cyan-500/50 hover:shadow-[0_0_18px_rgba(6,182,212,0.25)]', icon: Search },
               ].map((action, idx) => {
                 const Icon = action.icon;

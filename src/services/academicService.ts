@@ -13,6 +13,10 @@ import {
 import { db } from '../lib/firebase';
 import { logCampusActivity } from './activityCenterService';
 
+export * from '../types/academic';
+export * from './academic/academicStorageService';
+export * from './academic/EdumarsalProvider';
+
 export interface Subject {
   id?: string;
   name: string;

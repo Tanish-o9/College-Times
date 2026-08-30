@@ -25,6 +25,7 @@ import {
   Activity,
   Menu,
   Lock,
+  GraduationCap,
 } from 'lucide-react';
 
 import { useChatAccess } from '../hooks/useChatAccess';
@@ -246,6 +247,11 @@ export const Navbar: React.FC = () => {
             <span>Activity</span>
           </NavLink>
 
+          <NavLink to="/academics" className={linkClass}>
+            <GraduationCap className="w-4 h-4 text-emerald-400" />
+            <span>Academics</span>
+          </NavLink>
+
           {isChatEligible && (
             <NavLink to="/channels" className={linkClass}>
               <div className="relative flex items-center gap-1.5">
@@ -401,6 +407,11 @@ export const Navbar: React.FC = () => {
           <NavLink to="/activity" onClick={() => setIsMobileMenuOpen(false)} className={mobileLinkClass}>
             <Activity className="w-5 h-5 text-sky-400 animate-pulse" />
             <span>Activity Center</span>
+          </NavLink>
+
+          <NavLink to="/academics" onClick={() => setIsMobileMenuOpen(false)} className={mobileLinkClass}>
+            <GraduationCap className="w-5 h-5 text-emerald-400" />
+            <span>Academics & Edumarsal</span>
           </NavLink>
 
           {isChatEligible && (

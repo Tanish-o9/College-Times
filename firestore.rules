@@ -1577,6 +1577,29 @@ service cloud.firestore {
     }
 
     // -------------------------------------------------------------------------
+    // Academics System & Edumarsal Data Privacy — owner-scoped
+    // -------------------------------------------------------------------------
+    match /users/{userId}/academic/{document=**} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    match /users/{userId}/academic_attendance/{docId} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    match /users/{userId}/academic_marks/{docId} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    match /users/{userId}/academic_sync_history/{docId} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // -------------------------------------------------------------------------
     // Moderation Audit Trail
     // -------------------------------------------------------------------------
     match /moderationLogs/{logId} {
