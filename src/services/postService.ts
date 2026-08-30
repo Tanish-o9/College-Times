@@ -22,6 +22,7 @@ import type { Post, User, PostAudience, PostPriority } from '../types';
 import { logGroupActivityEvent } from './groupActivityService';
 import { awardReputation } from './reputationService';
 import { trackChallengeAction } from './challengeService';
+import { logCampusActivity } from './activityCenterService';
 
 export interface PaginatedPostsResult {
   posts: Post[];
@@ -207,6 +208,18 @@ export const createPost = async (
     // Award reputation and track challenge
     awardReputation(currentUser.uid, newDocId, 'create_post', 10, `Created post: ${payload.title}`).catch((e) => console.warn(e));
     trackChallengeAction(currentUser.uid, 'posts', 1).catch((e) => console.warn(e));
+
+    logCampusActivity({
+      type: payload.groupId ? 'group' : 'system',
+      action: 'published a post',
+      actorId: currentUser.uid,
+      actorName: authorName,
+      actorAvatar: authorAvatar,
+      groupId: payload.groupId,
+      targetId: newDocId,
+      targetTitle: payload.title,
+      previewText: payload.content?.slice(0, 150),
+    });
 
     logAnalyticsEvent('post_created', { category: payload.category });
     logAnalyticsEvent('campus_post_audience_selected', { audienceType: audience.type });

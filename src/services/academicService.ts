@@ -11,6 +11,7 @@ import {
   updateDoc
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { logCampusActivity } from './activityCenterService';
 
 export interface Subject {
   id?: string;
@@ -110,6 +111,17 @@ export const addStudyNote = async (
     ratingCount: 1,
     createdAt: serverTimestamp(),
   });
+
+  logCampusActivity({
+    type: 'academic',
+    action: 'shared a new study note',
+    actorId: note.uploaderId,
+    actorName: note.uploaderName,
+    targetId: docRef.id,
+    targetTitle: note.title,
+    previewText: note.title.slice(0, 150),
+  });
+
   return docRef.id;
 };
 
@@ -143,6 +155,17 @@ export const askDoubtQuestion = async (
     upvotedBy: [],
     createdAt: serverTimestamp(),
   });
+
+  logCampusActivity({
+    type: 'academic',
+    action: 'posted an academic doubt',
+    actorId: uploaderId,
+    actorName: uploaderName,
+    targetId: docRef.id,
+    targetTitle: title,
+    previewText: content.slice(0, 150),
+  });
+
   return docRef.id;
 };
 

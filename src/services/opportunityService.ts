@@ -18,6 +18,7 @@ import type { User as FirebaseUser } from 'firebase/auth';
 import { db, logAnalyticsEvent } from '../lib/firebase';
 import type { Opportunity, OpportunityType, OpportunityMode, OpportunityStatus } from '../types/opportunity';
 import { createPost } from './postService';
+import { logCampusActivity } from './activityCenterService';
 
 export interface CreateOpportunityPayload {
   title: string;
@@ -115,6 +116,18 @@ export const createOpportunity = async (
   } catch (err) {
     // Non-blocking feed fallback
   }
+
+  logCampusActivity({
+    type: 'opportunity',
+    action: `posted a new ${payload.type} opportunity`,
+    actorId: currentUser.uid,
+    actorName: currentUser.displayName || 'Campus Recruiter',
+    actorAvatar: currentUser.photoURL || undefined,
+    groupId: payload.groupId,
+    targetId: docRef.id,
+    targetTitle: title,
+    previewText: `${orgName} - ${payload.location?.trim() || 'Campus / Remote'}`,
+  });
 
   logAnalyticsEvent('opportunity_created', { type: payload.type, isOfficial: newOpportunityData.isOfficial });
 

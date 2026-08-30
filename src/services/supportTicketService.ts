@@ -11,6 +11,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { createNotification } from './notificationService';
+import { logCampusActivity } from './activityCenterService';
 
 export type TicketCategory =
   | 'Academics'
@@ -72,6 +73,16 @@ export const createSupportTicket = async (
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
+
+  logCampusActivity({
+    type: 'support',
+    action: 'submitted a support ticket',
+    actorId: userId,
+    actorName: userName,
+    targetId: docRef.id,
+    targetTitle: ticket.title,
+  });
+
   return docRef.id;
 };
 

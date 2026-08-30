@@ -18,6 +18,7 @@ import type { User as FirebaseUser } from 'firebase/auth';
 import { db, logAnalyticsEvent } from '../lib/firebase';
 import type { MarketplaceListing, MarketplaceCategory, ProductCondition, ListingStatus } from '../types/marketplace';
 import { createPost } from './postService';
+import { logCampusActivity } from './activityCenterService';
 
 export interface CreateListingPayload {
   title: string;
@@ -121,6 +122,18 @@ export const createListing = async (
   } catch (err) {
     // Non-blocking feed cross-post fallback
   }
+
+  logCampusActivity({
+    type: 'marketplace',
+    action: `listed item for sale (₹${payload.price})`,
+    actorId: currentUser.uid,
+    actorName: sellerName,
+    actorAvatar: currentUser.photoURL || undefined,
+    groupId: payload.groupId,
+    targetId: docRef.id,
+    targetTitle: title,
+    previewText: description.slice(0, 150),
+  });
 
   logAnalyticsEvent('marketplace_listing_created', { category: payload.category });
 

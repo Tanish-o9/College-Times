@@ -19,6 +19,7 @@ import type { User as FirebaseUser } from 'firebase/auth';
 import { db, logAnalyticsEvent } from '../lib/firebase';
 import type { User } from '../types/models';
 import type { CampusGroup, CampusGroupType, GroupMember, UserGroupMembership } from '../types/group';
+import { logCampusActivity } from './activityCenterService';
 import { createInviteCodeForGroup } from './groupInviteService';
 import { awardReputation } from './reputationService';
 import { trackChallengeAction } from './challengeService';
@@ -283,6 +284,19 @@ export const createGroup = async (
     console.warn(`Initial invite code generation notice for group ${groupId}:`, err);
   }
 
+  logCampusActivity({
+    type: 'group',
+    action: 'created a new group',
+    actorId: currentUser.uid,
+    actorName: userProfile?.displayName || currentUser.displayName || 'Campus Leader',
+    actorAvatar: userProfile?.photoURL || currentUser.photoURL || undefined,
+    groupId,
+    groupName: cleanName,
+    targetId: groupId,
+    targetTitle: cleanName,
+    isPrivate: newGroup.visibility === 'private',
+  });
+
   logAnalyticsEvent('group_created', { groupType: newGroup.type, visibility: newGroup.visibility });
 
   return {
@@ -432,6 +446,22 @@ export const joinGroup = async (
   };
 
   await setDoc(memberRef, memberData);
+
+  logCampusActivity(
+    {
+      type: 'group',
+      action: 'joined group',
+      actorId: uid,
+      actorName: userProfile?.displayName || currentUser.displayName || 'Student',
+      actorAvatar: userProfile?.photoURL || currentUser.photoURL || undefined,
+      groupId,
+      groupName: groupData.name,
+      targetId: groupId,
+      targetTitle: groupData.name,
+      isPrivate: groupData.visibility === 'private',
+    },
+    `join_${groupId}_${uid}`
+  );
 
   // Background non-blocking updates
   setDoc(userMembershipRef, userLookupData).catch((err: any) => console.warn('userMembership write notice:', err));

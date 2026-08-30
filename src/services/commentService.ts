@@ -22,6 +22,7 @@ import { getUidByUsername } from './usernameService';
 import { isUserBlocked } from './directMessageService';
 import { awardReputation } from './reputationService';
 import { trackChallengeAction } from './challengeService';
+import { logCampusActivity } from './activityCenterService';
 import type { Comment, User } from '../types';
 
 export interface PaginatedCommentsResult {
@@ -174,7 +175,15 @@ export const addComment = async (
     await setDoc(userRef, { points: increment(2) }, { merge: true }).catch(() => {});
   }
 
-  // Award reputation and track challenge if comment is a reply
+  logCampusActivity({
+    type: 'system',
+    action: parentCommentId ? 'replied to a comment' : 'commented on a post',
+    actorId: currentUser.uid,
+    actorName: authorName,
+    actorAvatar: authorAvatar,
+    targetId: postId,
+    previewText: cleanText.slice(0, 150),
+  });
   if (parentCommentId) {
     awardReputation(currentUser.uid, commentId, 'helpful_reply', 5, `Replied to comment in post: ${postId}`).catch((e) => console.warn(e));
     trackChallengeAction(currentUser.uid, 'replies', 1).catch((e) => console.warn(e));

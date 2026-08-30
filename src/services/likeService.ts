@@ -7,6 +7,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { createNotification } from './notificationService';
+import { logCampusActivity } from './activityCenterService';
 import type { User } from '../types';
 
 export type ReactionType = 'like' | 'love' | 'celebrate' | 'support' | 'insightful';
@@ -123,6 +124,20 @@ export const toggleReaction = async (
 
     updatedReactions = reactionCounts;
   });
+
+  if (isNowReacted) {
+    logCampusActivity(
+      {
+        type: 'system',
+        action: `reacted with '${reactionType}' to a post`,
+        actorId: userId,
+        actorName: userProfile?.displayName || 'Student',
+        actorAvatar: userProfile?.photoURL || undefined,
+        targetId: postId,
+      },
+      `reaction_${postId}_${userId}`
+    );
+  }
 
   // Trigger notification if newly reacted/changed and not reacting own post
   if (isNowReacted && postAuthorId && postAuthorId !== userId) {

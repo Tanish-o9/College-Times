@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useGlobalCache } from '../../context/GlobalCacheContext';
 import {
+  subscribeCampusActivities,
   getCampusActivitiesPaginated,
   type CampusActivityItem,
 } from '../../services/activityCenterService';
@@ -17,6 +18,7 @@ import {
   AlertTriangle,
   RefreshCw,
   Search,
+  AlertCircle,
 } from 'lucide-react';
 import { formatTimestamp } from '../../utils/format';
 import toast from 'react-hot-toast';
@@ -29,61 +31,98 @@ export const ActivityCenter: React.FC = () => {
 
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [activities, setActivities] = useState<CampusActivityItem[]>([]);
-  const [lastDoc, setLastDoc] = useState<any>(null);
+  const [lastDocSnap, setLastDocSnap] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
+  const [hasError, setHasError] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   useScrollRestoration('activity', !loading);
 
-  const loadActivities = async (reset: boolean = false) => {
-    if (!currentUser) return;
-    if (reset) {
-      setLoading(true);
-    } else {
-      setLoadingMore(true);
-    }
+  const initRealtimeSubscription = () => {
+    if (!currentUser) return () => {};
 
-    try {
-      const res = await getCampusActivitiesPaginated(
-        joinedGroupIds,
-        blockedUserIds,
-        activeCategory,
-        20,
-        reset ? null : lastDoc
-      );
+    setLoading(true);
+    setHasError(false);
 
-      if (reset) {
-        setActivities(res.activities);
-      } else {
-        setActivities((prev) => [...prev, ...res.activities]);
-      }
-      setLastDoc(res.lastDoc);
-    } catch {
-      toast.error('Failed to load campus activity logs.');
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
-    }
+    const unsubscribe = subscribeCampusActivities(
+      (newActivities, lastSnap) => {
+        setActivities(newActivities);
+        setLastDocSnap(lastSnap);
+        setLoading(false);
+        setHasError(false);
+      },
+      (err) => {
+        console.error('[ACTIVITY DEBUG] Failed to subscribe to activities:', err);
+        setLoading(false);
+        setHasError(true);
+      },
+      30
+    );
+
+    return unsubscribe;
   };
 
   useEffect(() => {
-    loadActivities(true);
-  }, [currentUser, activeCategory]);
+    const unsub = initRealtimeSubscription();
+    return () => unsub();
+  }, [currentUser]);
+
+  const handleLoadMore = async () => {
+    if (!currentUser || !lastDocSnap || loadingMore) return;
+    setLoadingMore(true);
+
+    try {
+      const res = await getCampusActivitiesPaginated(20, lastDocSnap);
+      setActivities((prev) => {
+        const existingIds = new Set(prev.map((a) => a.id));
+        const newUnique = res.activities.filter((a) => a.id && !existingIds.has(a.id));
+        return [...prev, ...newUnique];
+      });
+      setLastDocSnap(res.lastDoc);
+    } catch (err) {
+      toast.error('Failed to load older activities.');
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
   };
 
   const filteredActivities = activities.filter((act) => {
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase();
-    return (
-      act.actorName.toLowerCase().includes(q) ||
-      act.action.toLowerCase().includes(q) ||
-      act.previewText?.toLowerCase().includes(q) ||
-      act.targetTitle?.toLowerCase().includes(q)
-    );
+    // 1. Blocked User Filter
+    if (blockedUserIds.includes(act.actorId)) return false;
+
+    // 2. Group Privacy Filter
+    if (act.groupId && act.isPrivate) {
+      if (!joinedGroupIds.includes(act.groupId)) return false;
+    }
+
+    // 3. Category Filter
+    if (activeCategory !== 'all') {
+      if (activeCategory === 'friend') {
+        if (act.type !== 'friend' && act.actorId !== currentUser?.uid) return false;
+      } else if (act.type !== activeCategory) {
+        return false;
+      }
+    }
+
+    // 4. Search Filter
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const matchActor = act.actorName?.toLowerCase().includes(q);
+      const matchAction = act.action?.toLowerCase().includes(q);
+      const matchTarget = act.targetTitle?.toLowerCase().includes(q);
+      const matchPreview = act.previewText?.toLowerCase().includes(q);
+      const matchGroup = act.groupName?.toLowerCase().includes(q);
+      if (!matchActor && !matchAction && !matchTarget && !matchPreview && !matchGroup) {
+        return false;
+      }
+    }
+
+    return true;
   });
 
   const getActivityIcon = (type: string) => {
@@ -118,6 +157,7 @@ export const ActivityCenter: React.FC = () => {
       else if (act.type === 'opportunity') navigate(`/opportunities`);
       else if (act.type === 'academic') navigate(`/academic`);
       else if (act.type === 'support') navigate(`/support`);
+      else navigate(`/feed`);
     }
   };
 
@@ -179,6 +219,18 @@ export const ActivityCenter: React.FC = () => {
           <RefreshCw className="w-4 h-4 animate-spin text-sky-400" />
           <span>Loading activity timeline...</span>
         </div>
+      ) : hasError ? (
+        <div className="p-12 bg-slate-900/40 border border-rose-500/20 rounded-3xl text-center space-y-3">
+          <AlertCircle className="w-8 h-8 text-rose-500 mx-auto" />
+          <p className="text-slate-300 text-xs font-medium">Unable to load campus activity. Please try again.</p>
+          <button
+            onClick={() => initRealtimeSubscription()}
+            className="px-4 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-2xl text-xs font-bold transition-all inline-flex items-center gap-2"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Retry Connection</span>
+          </button>
+        </div>
       ) : filteredActivities.length === 0 ? (
         <div className="p-12 bg-slate-900/40 border border-slate-800 rounded-3xl text-center">
           <Activity className="w-8 h-8 text-slate-600 mx-auto mb-2" />
@@ -225,10 +277,10 @@ export const ActivityCenter: React.FC = () => {
           ))}
 
           {/* Load More */}
-          {lastDoc && (
+          {lastDocSnap && (
             <div className="pt-4 text-center">
               <button
-                onClick={() => loadActivities(false)}
+                onClick={handleLoadMore}
                 disabled={loadingMore}
                 className="px-4 py-2 bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-2 mx-auto"
               >

@@ -1,7 +1,10 @@
 import {
   collection,
+  doc,
   addDoc,
+  setDoc,
   getDocs,
+  onSnapshot,
   query,
   orderBy,
   limit,
@@ -22,6 +25,7 @@ export interface CampusActivityItem {
   groupName?: string;
   targetId?: string;
   targetTitle?: string;
+  targetType?: string;
   previewText?: string;
   isPrivate?: boolean;
   createdAt: any;
@@ -29,64 +33,97 @@ export interface CampusActivityItem {
 
 /**
  * Logs a new campus activity event to the global campusActivities collection.
+ * Non-blocking: swallows errors so primary app actions are protected.
  */
 export const logCampusActivity = async (
-  activity: Omit<CampusActivityItem, 'id' | 'createdAt'>
-): Promise<string> => {
+  activity: Omit<CampusActivityItem, 'id' | 'createdAt'>,
+  customDocId?: string
+): Promise<string | null> => {
   try {
+    if (!activity.actorId) return null;
+
     const colRef = collection(db, 'campusActivities');
-    const docRef = await addDoc(colRef, {
+    const sanitizedData = {
       ...activity,
+      actorName: (activity.actorName || 'Student').trim().slice(0, 100),
+      action: (activity.action || '').trim().slice(0, 150),
+      targetTitle: activity.targetTitle ? activity.targetTitle.trim().slice(0, 150) : undefined,
+      previewText: activity.previewText ? activity.previewText.trim().slice(0, 250) : undefined,
       createdAt: serverTimestamp(),
-    });
-    logAnalyticsEvent('campus_activity_logged', { type: activity.type, action: activity.action });
-    return docRef.id;
+    };
+
+    if (customDocId) {
+      const docRef = doc(colRef, customDocId);
+      await setDoc(docRef, sanitizedData, { merge: true });
+      logAnalyticsEvent('campus_activity_logged', { type: activity.type, action: activity.action });
+      return customDocId;
+    } else {
+      const docRef = await addDoc(colRef, sanitizedData);
+      logAnalyticsEvent('campus_activity_logged', { type: activity.type, action: activity.action });
+      return docRef.id;
+    }
   } catch (err) {
-    console.error('Failed to log campus activity:', err);
-    throw err;
+    console.warn('[ACTIVITY DEBUG] Non-blocking activity log warning:', err);
+    return null;
   }
 };
 
 /**
- * Fetches cursor-paginated campus activities with in-memory block and privacy group filters.
+ * Subscribes in real-time to campus activities.
+ */
+export const subscribeCampusActivities = (
+  onUpdate: (activities: CampusActivityItem[], lastDocSnap: QueryDocumentSnapshot | null) => void,
+  onError: (err: Error) => void,
+  limitCount: number = 30
+): (() => void) => {
+  const colRef = collection(db, 'campusActivities');
+  const q = query(colRef, orderBy('createdAt', 'desc'), limit(limitCount));
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const items: CampusActivityItem[] = snapshot.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...docSnap.data(),
+      } as CampusActivityItem));
+
+      const lastDocSnap = snapshot.docs.length > 0 ? snapshot.docs[snapshot.docs.length - 1] : null;
+      onUpdate(items, lastDocSnap);
+    },
+    (err) => {
+      console.error('[ACTIVITY DEBUG] Error in campus activities snapshot:', err);
+      onError(err);
+    }
+  );
+};
+
+/**
+ * Fetches cursor-paginated campus activities.
  */
 export const getCampusActivitiesPaginated = async (
-  joinedGroupIds: string[],
-  blockedUserIds: string[],
-  categoryFilter?: string,
   limitCount: number = 20,
   lastDoc: QueryDocumentSnapshot | null = null
 ): Promise<{ activities: CampusActivityItem[]; lastDoc: QueryDocumentSnapshot | null }> => {
   try {
     const colRef = collection(db, 'campusActivities');
     const q = lastDoc
-      ? query(colRef, orderBy('createdAt', 'desc'), startAfter(lastDoc), limit(limitCount * 2))
-      : query(colRef, orderBy('createdAt', 'desc'), limit(limitCount * 2));
+      ? query(colRef, orderBy('createdAt', 'desc'), startAfter(lastDoc), limit(limitCount))
+      : query(colRef, orderBy('createdAt', 'desc'), limit(limitCount));
 
     const snap = await getDocs(q);
-    const rawList: CampusActivityItem[] = snap.docs.map((d) => ({
+    const activities: CampusActivityItem[] = snap.docs.map((d) => ({
       id: d.id,
       ...d.data(),
     } as CampusActivityItem));
 
-    const filteredList = rawList.filter((item) => {
-      if (categoryFilter && categoryFilter !== 'all' && item.type !== categoryFilter) return false;
-      if (item.groupId && item.isPrivate) {
-        if (!joinedGroupIds.includes(item.groupId)) return false;
-      }
-      if (blockedUserIds.includes(item.actorId)) return false;
-      return true;
-    });
-
-    const paginatedResult = filteredList.slice(0, limitCount);
     const newLastDoc = snap.docs.length > 0 ? snap.docs[snap.docs.length - 1] : null;
 
     return {
-      activities: paginatedResult,
+      activities,
       lastDoc: newLastDoc,
     };
   } catch (err) {
     console.error('Failed to fetch campus activities:', err);
-    return { activities: [], lastDoc: null };
+    throw err;
   }
 };

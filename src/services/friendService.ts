@@ -14,6 +14,7 @@ import {
   QueryDocumentSnapshot
 } from 'firebase/firestore';
 import { db, logAnalyticsEvent } from '../lib/firebase';
+import { logCampusActivity } from './activityCenterService';
 import { createNotification } from './notificationService';
 import { isUserBlocked } from './directMessageService';
 
@@ -239,6 +240,18 @@ export const acceptFriendRequest = async (
     type: 'friend_accept',
     deepLink: `/profile/${currentUserName}`
   });
+
+  logCampusActivity(
+    {
+      type: 'friend',
+      action: 'became friends with another student',
+      actorId: currentUid,
+      actorName: currentUserName,
+      actorAvatar: currentUserAvatar,
+      targetId: targetUid,
+    },
+    `friend_${friendshipId}`
+  );
 
   logAnalyticsEvent('friend_request_accepted', { targetUid });
 };

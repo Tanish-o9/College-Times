@@ -24,6 +24,7 @@ import type { CampusEvent, User } from '../types';
 import { logGroupActivityEvent } from './groupActivityService';
 import { awardReputation } from './reputationService';
 import { trackChallengeAction } from './challengeService';
+import { logCampusActivity } from './activityCenterService';
 
 export interface CreateEventPayload {
   title: string;
@@ -145,6 +146,18 @@ export const createEvent = async (
     awardReputation(currentUser.uid, docRef.id, 'create_event', 20, `Created event: ${payload.title}`).catch((e) => console.warn(e));
     trackChallengeAction(currentUser.uid, 'events', 1).catch((e) => console.warn(e));
 
+    logCampusActivity({
+      type: 'event',
+      action: 'created a new event',
+      actorId: currentUser.uid,
+      actorName: currentUser.displayName || 'Campus Organizer',
+      actorAvatar: currentUser.photoURL || undefined,
+      groupId: payload.groupId,
+      targetId: docRef.id,
+      targetTitle: payload.title,
+      previewText: payload.description?.slice(0, 150),
+    });
+
     return {
       id: docRef.id,
       ...newEventData,
@@ -219,6 +232,20 @@ export const toggleRsvp = async (
       isNowRsvpd = true;
     }
   });
+
+  if (isNowRsvpd) {
+    logCampusActivity(
+      {
+        type: 'event',
+        action: "RSVP'd to an event",
+        actorId: userId,
+        actorName: userProfile?.displayName || 'Student',
+        actorAvatar: userProfile?.photoURL || undefined,
+        targetId: eventId,
+      },
+      `rsvp_${eventId}_${userId}`
+    );
+  }
 
   return { rsvpd: isNowRsvpd, newRsvpCount: updatedCount };
 };
