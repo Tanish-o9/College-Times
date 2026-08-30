@@ -533,7 +533,7 @@ export const Feed: React.FC = () => {
             <div className="w-9 h-9 rounded-2xl bg-sky-500/20 border border-sky-500/30 text-sky-400 font-bold text-xs flex items-center justify-center shrink-0">
               {currentUser?.displayName ? currentUser.displayName[0].toUpperCase() : 'U'}
             </div>
-            <div className="flex-1 bg-slate-950 border border-slate-800/80 rounded-2xl px-4 py-2 text-xs text-slate-500 group-hover:text-slate-300 transition-colors">
+            <div className="flex-1 bg-slate-950 border border-slate-700/80 rounded-2xl px-4 py-2 text-xs font-semibold text-slate-300 group-hover:text-white transition-colors">
               What's happening on campus today? Post an update...
             </div>
             <button

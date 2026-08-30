@@ -219,24 +219,24 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showPinButton, onPinTo
     switch (category) {
       case 'Mishap':
         return {
-          color: 'bg-rose-500/10 border-rose-500/20 text-rose-400',
-          icon: <AlertTriangle className="w-3.5 h-3.5" />,
+          color: 'bg-rose-500/20 border-rose-500/40 text-rose-300 font-bold',
+          icon: <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />,
         };
       case 'Event':
         return {
-          color: 'bg-purple-500/10 border-purple-500/20 text-purple-400',
-          icon: <Calendar className="w-3.5 h-3.5" />,
+          color: 'bg-purple-500/20 border-purple-500/40 text-purple-300 font-bold',
+          icon: <Calendar className="w-3.5 h-3.5 text-purple-400" />,
         };
       case 'LostFound':
         return {
-          color: 'bg-amber-500/10 border-amber-500/20 text-amber-400',
-          icon: <Search className="w-3.5 h-3.5" />,
+          color: 'bg-amber-500/20 border-amber-500/40 text-amber-300 font-bold',
+          icon: <Search className="w-3.5 h-3.5 text-amber-400" />,
         };
       case 'General':
       default:
         return {
-          color: 'bg-sky-500/10 border-sky-500/20 text-sky-400',
-          icon: <Info className="w-3.5 h-3.5" />,
+          color: 'bg-sky-500/20 border-sky-500/40 text-sky-300 font-bold',
+          icon: <Info className="w-3.5 h-3.5 text-sky-400" />,
         };
     }
   };
@@ -251,8 +251,8 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showPinButton, onPinTo
     <>
       <article
         id={post.id ? `post-${post.id}` : undefined}
-        className={`w-full max-w-xl bg-slate-900/80 backdrop-blur-xl border rounded-3xl p-6 sm:p-8 shadow-2xl flex flex-col justify-between relative overflow-hidden group hover:-translate-y-1 hover:border-sky-500/40 hover:shadow-xl hover:shadow-sky-500/10 transition-all duration-200 ease-out ${
-          isOptimistic ? 'border-sky-500/40 ring-1 ring-sky-500/20' : 'border-slate-800'
+        className={`w-full bg-slate-900/95 backdrop-blur-xl border rounded-3xl p-6 sm:p-8 shadow-2xl flex flex-col justify-between relative overflow-hidden group hover:-translate-y-1 hover:border-sky-500/50 hover:shadow-2xl hover:shadow-sky-500/15 transition-all duration-200 ease-out ${
+          isOptimistic ? 'border-sky-500/50 ring-1 ring-sky-500/30' : 'border-slate-800/90'
         }`}
       >
         {/* Optimistic shimmer overlay */}
@@ -320,14 +320,14 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showPinButton, onPinTo
             </div>
           </div>
 
-          <h2 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight line-clamp-3 group-hover:text-sky-400 transition-colors leading-snug">
+          <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight line-clamp-3 group-hover:text-sky-300 transition-colors leading-snug">
             {post.title}
           </h2>
         </div>
 
         {/* Main Content & Multi-Image Gallery */}
-        <div className="my-3 space-y-4 text-slate-300 text-base leading-relaxed">
-          <p className="whitespace-pre-line">{post.content}</p>
+        <div className="my-3 space-y-4 text-slate-100 font-medium text-sm sm:text-base leading-relaxed">
+          <p className="whitespace-pre-line text-slate-100">{post.content}</p>
 
           {post.reference && (
             <div
