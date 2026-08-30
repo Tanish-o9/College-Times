@@ -1,27 +1,64 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
-import { createEvent, type CreateEventPayload } from '../../services/eventService';
+import { createEvent, type CreateEventPayload, getUserJoinedGroupIds } from '../../services/eventService';
 import type { CampusEvent } from '../../types';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 import toast from 'react-hot-toast';
-import { X, MapPin, Send, RefreshCw, Shield } from 'lucide-react';
+import { X, MapPin, Send, RefreshCw, Calendar, Globe, Lock } from 'lucide-react';
+
+const CATEGORIES = [
+  'Cultural',
+  'Technical',
+  'Sports',
+  'Workshop',
+  'Seminar',
+  'Placement',
+  'Club',
+  'Academic',
+  'Fest',
+  'Competition',
+  'Social',
+  'Other',
+] as const;
 
 interface CreateEventFormProps {
   isOpen: boolean;
   onClose: () => void;
-  onEventCreated: (event: CampusEvent) => void;
+  onEventCreated?: (event: CampusEvent) => void;
+  initialGroupId?: string;
+  initialGroupName?: string;
+  initialVisibility?: 'campus' | 'group';
+}
+
+interface JoinedGroupItem {
+  id: string;
+  name: string;
 }
 
 export const CreateEventForm: React.FC<CreateEventFormProps> = ({
   isOpen,
   onClose,
   onEventCreated,
+  initialGroupId,
+  initialGroupName,
+  initialVisibility,
 }) => {
-  const { currentUser, userProfile } = useAuth();
+  const { currentUser } = useAuth();
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('');
+  const [category, setCategory] = useState<typeof CATEGORIES[number]>('Technical');
   const [eventDate, setEventDate] = useState('');
+  const [endAt, setEndAt] = useState('');
+  const [capacity, setCapacity] = useState<string>('');
+  const [visibility, setVisibility] = useState<'campus' | 'group'>(initialVisibility || (initialGroupId ? 'group' : 'campus'));
+  const [groupId, setGroupId] = useState<string>(initialGroupId || '');
+  const [groupName, setGroupName] = useState<string>(initialGroupName || '');
+  
+  const [userGroups, setUserGroups] = useState<JoinedGroupItem[]>([]);
+  const [loadingGroups, setLoadingGroups] = useState<boolean>(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -29,36 +66,87 @@ export const CreateEventForm: React.FC<CreateEventFormProps> = ({
       setTitle('');
       setDescription('');
       setLocation('');
+      setCategory('Technical');
       setEventDate('');
+      setEndAt('');
+      setCapacity('');
+      setVisibility(initialVisibility || (initialGroupId ? 'group' : 'campus'));
+      setGroupId(initialGroupId || '');
+      setGroupName(initialGroupName || '');
       setSubmitting(false);
-    }
-  }, [isOpen]);
 
-  const isAdmin = userProfile?.role === 'admin';
+      if (currentUser) {
+        setLoadingGroups(true);
+        getUserJoinedGroupIds(currentUser.uid).then(async (groupIds) => {
+          const groupList: JoinedGroupItem[] = [];
+          for (const gId of groupIds) {
+            try {
+              const gSnap = await getDoc(doc(db, 'groups', gId));
+              if (gSnap.exists()) {
+                groupList.push({ id: gSnap.id, name: gSnap.data().name || 'Campus Group' });
+              }
+            } catch {}
+          }
+          setUserGroups(groupList);
+          if (initialGroupId) {
+            const found = groupList.find((g) => g.id === initialGroupId);
+            if (found) setGroupName(found.name);
+          } else if (groupList.length > 0 && !groupId) {
+            setGroupId(groupList[0].id);
+            setGroupName(groupList[0].name);
+          }
+        }).finally(() => setLoadingGroups(false));
+      }
+    }
+  }, [isOpen, initialGroupId, initialGroupName, initialVisibility, currentUser]);
 
   const isFormValid =
-    title.trim().length > 0 &&
-    description.trim().length > 0 &&
+    title.trim().length >= 3 &&
+    description.trim().length >= 5 &&
     location.trim().length > 0 &&
     eventDate.trim().length > 0 &&
+    (visibility !== 'group' || groupId.trim().length > 0) &&
     !submitting;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isFormValid || !currentUser || !isAdmin) return;
+    if (!currentUser) {
+      toast.error('You must be logged in to create an event.');
+      return;
+    }
+
+    if (!isFormValid) {
+      toast.error('Please fill in all required fields accurately.');
+      return;
+    }
+
+    if (endAt && new Date(endAt).getTime() <= new Date(eventDate).getTime()) {
+      toast.error('End time must be after event start time.');
+      return;
+    }
 
     setSubmitting(true);
     try {
+      const selectedGroup = userGroups.find((g) => g.id === groupId);
+
       const payload: CreateEventPayload = {
         title: title.trim(),
         description: description.trim(),
         location: location.trim(),
+        category,
         eventDate,
+        ...(endAt ? { endAt } : {}),
+        ...(capacity && Number(capacity) > 0 ? { capacity: Number(capacity) } : {}),
+        visibility,
+        ...(visibility === 'group' ? {
+          groupId,
+          groupName: groupName || selectedGroup?.name || 'Group Event'
+        } : {})
       };
 
       const newEvent = await createEvent(payload, currentUser);
-      toast.success('Campus Event Published!', { id: 'event-created' });
-      onEventCreated(newEvent);
+      toast.success(visibility === 'group' ? 'Group Event Published! 🎉' : 'Campus Event Published! 🎉', { id: 'event-created' });
+      if (onEventCreated) onEventCreated(newEvent);
       onClose();
     } catch (err: any) {
       toast.error(err.message || 'Failed to publish event.');
@@ -67,32 +155,105 @@ export const CreateEventForm: React.FC<CreateEventFormProps> = ({
     }
   };
 
-  if (!isOpen || !isAdmin) return null;
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
-      <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md" onClick={onClose} />
 
-      <div className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden z-10 my-auto">
-        <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center">
-              <Shield className="w-4 h-4" />
+      <div className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden z-10 my-auto animate-in fade-in zoom-in-95 duration-200">
+        {/* Modal Header */}
+        <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/40">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-purple-500/20 to-pink-500/20 border border-purple-500/30 text-purple-300 flex items-center justify-center shadow-md">
+              <Calendar className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white">Create Campus Event</h2>
-              <span className="text-[10px] text-purple-400 font-semibold">Admin Access Verified</span>
+              <h2 className="text-base font-extrabold text-white">Create Event</h2>
+              <p className="text-[11px] text-slate-400 font-mono">
+                {visibility === 'group' ? 'Group Members Only' : 'Public / Campus-Wide'}
+              </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-white rounded-xl">
+          <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto scrollbar-thin">
+          {/* Visibility Selector */}
+          <div>
+            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 font-mono">
+              Event Scope / Visibility <span className="text-rose-400">*</span>
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setVisibility('campus')}
+                className={`py-2.5 px-3 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 border transition-all cursor-pointer ${
+                  visibility === 'campus'
+                    ? 'bg-sky-500/15 border-sky-500/40 text-sky-300 shadow-[0_0_12px_rgba(56,189,248,0.2)]'
+                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Globe className="w-4 h-4 text-sky-400" />
+                <span>Public / Campus</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setVisibility('group')}
+                className={`py-2.5 px-3 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 border transition-all cursor-pointer ${
+                  visibility === 'group'
+                    ? 'bg-purple-500/15 border-purple-500/40 text-purple-300 shadow-[0_0_12px_rgba(168,85,247,0.2)]'
+                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Lock className="w-4 h-4 text-purple-400" />
+                <span>Group Only</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Group Selector if Visibility is Group */}
+          {visibility === 'group' && (
+            <div>
+              <label className="block text-[10px] font-bold text-purple-400 uppercase tracking-wider mb-1 font-mono">
+                Select Target Group <span className="text-rose-400">*</span>
+              </label>
+              {loadingGroups ? (
+                <div className="p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-500 flex items-center gap-2">
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-purple-400" />
+                  <span>Loading joined groups...</span>
+                </div>
+              ) : userGroups.length === 0 ? (
+                <p className="text-xs text-rose-400 italic p-2 bg-rose-500/10 border border-rose-500/20 rounded-xl">
+                  You are not a member of any group. Join a group first to post group events.
+                </p>
+              ) : (
+                <select
+                  value={groupId}
+                  onChange={(e) => {
+                    setGroupId(e.target.value);
+                    const found = userGroups.find((g) => g.id === e.target.value);
+                    if (found) setGroupName(found.name);
+                  }}
+                  required
+                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 focus:border-purple-500 rounded-2xl text-xs text-white focus:outline-none"
+                >
+                  {userGroups.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+
           {/* Title */}
           <div>
-            <label htmlFor="evt-title" className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">
+            <label htmlFor="evt-title" className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 font-mono">
               Event Title <span className="text-rose-400">*</span>
             </label>
             <input
@@ -100,32 +261,52 @@ export const CreateEventForm: React.FC<CreateEventFormProps> = ({
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g., Annual Hackathon 2026 / Cultural Fest"
+              placeholder="e.g. Annual Hackathon 2026 / Cultural Night"
               required
-              className="w-full px-4 py-2.5 bg-slate-950/80 border border-slate-800 focus:border-purple-500 rounded-xl text-white text-sm"
+              className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 focus:border-purple-500 rounded-2xl text-xs text-white placeholder-slate-500 focus:outline-none"
             />
+          </div>
+
+          {/* Category */}
+          <div>
+            <label htmlFor="evt-cat" className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 font-mono">
+              Category <span className="text-rose-400">*</span>
+            </label>
+            <select
+              id="evt-cat"
+              value={category}
+              onChange={(e) => setCategory(e.target.value as any)}
+              required
+              className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 focus:border-purple-500 rounded-2xl text-xs text-white focus:outline-none"
+            >
+              {CATEGORIES.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Description */}
           <div>
-            <label htmlFor="evt-desc" className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">
-              Event Description & Agenda <span className="text-rose-400">*</span>
+            <label htmlFor="evt-desc" className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 font-mono">
+              Description & Agenda <span className="text-rose-400">*</span>
             </label>
             <textarea
               id="evt-desc"
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Provide event details, schedule, prizes, or guest speaker information..."
+              placeholder="Event details, schedule, requirements..."
               required
-              className="w-full px-4 py-2.5 bg-slate-950/80 border border-slate-800 focus:border-purple-500 rounded-xl text-white text-sm resize-none"
+              className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 focus:border-purple-500 rounded-2xl text-xs text-white placeholder-slate-500 focus:outline-none resize-none"
             />
           </div>
 
           {/* Location */}
           <div>
-            <label htmlFor="evt-loc" className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">
-              Campus Location / Auditorium <span className="text-rose-400">*</span>
+            <label htmlFor="evt-loc" className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 font-mono">
+              Campus Location / Hall <span className="text-rose-400">*</span>
             </label>
             <div className="relative flex items-center">
               <MapPin className="absolute left-3.5 w-4 h-4 text-slate-500" />
@@ -134,46 +315,70 @@ export const CreateEventForm: React.FC<CreateEventFormProps> = ({
                 type="text"
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
-                placeholder="e.g., Main Auditorium, CS Block 2nd Floor"
+                placeholder="e.g. Main Auditorium / CS Lab 3"
                 required
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-950/80 border border-slate-800 focus:border-purple-500 rounded-xl text-white text-sm"
+                className="w-full pl-10 pr-3.5 py-2.5 bg-slate-950 border border-slate-800 focus:border-purple-500 rounded-2xl text-xs text-white placeholder-slate-500 focus:outline-none"
               />
             </div>
           </div>
 
-          {/* Date & Time */}
+          {/* Dates */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="evt-start" className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 font-mono">
+                Start Time <span className="text-rose-400">*</span>
+              </label>
+              <input
+                id="evt-start"
+                type="datetime-local"
+                value={eventDate}
+                onChange={(e) => setEventDate(e.target.value)}
+                required
+                className="w-full px-3 py-2 bg-slate-950 border border-slate-800 focus:border-purple-500 rounded-2xl text-xs text-white focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="evt-end" className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 font-mono">
+                End Time (Optional)
+              </label>
+              <input
+                id="evt-end"
+                type="datetime-local"
+                value={endAt}
+                onChange={(e) => setEndAt(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-950 border border-slate-800 focus:border-purple-500 rounded-2xl text-xs text-white focus:outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Capacity */}
           <div>
-            <label htmlFor="evt-date" className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">
-              Event Date & Start Time <span className="text-rose-400">*</span>
+            <label htmlFor="evt-cap" className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 font-mono">
+              Max Attendee Capacity (Optional)
             </label>
             <input
-              id="evt-date"
-              type="datetime-local"
-              value={eventDate}
-              onChange={(e) => setEventDate(e.target.value)}
-              required
-              className="w-full px-4 py-2.5 bg-slate-950/80 border border-slate-800 focus:border-purple-500 rounded-xl text-white text-sm font-mono"
+              id="evt-cap"
+              type="number"
+              min="1"
+              value={capacity}
+              onChange={(e) => setCapacity(e.target.value)}
+              placeholder="Leave empty for unlimited seats"
+              className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 focus:border-purple-500 rounded-2xl text-xs text-white placeholder-slate-500 focus:outline-none"
             />
           </div>
 
-          {/* Action Footer */}
-          <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold"
-            >
-              Cancel
-            </button>
+          {/* Submit */}
+          <div className="pt-2">
             <button
               type="submit"
-              disabled={!isFormValid}
-              className="px-5 py-2.5 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 disabled:opacity-40 text-white font-semibold text-sm rounded-xl shadow-lg shadow-purple-500/20 flex items-center gap-2"
+              disabled={!isFormValid || submitting}
+              className="w-full py-3 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white font-bold text-xs rounded-2xl shadow-lg shadow-purple-500/25 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-98"
             >
               {submitting ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>Publishing...</span>
+                  <span>Publishing Event...</span>
                 </>
               ) : (
                 <>

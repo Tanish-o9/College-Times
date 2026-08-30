@@ -218,7 +218,17 @@ export const searchUnifiedCampus = async (
         snap.docs.forEach((docSnap) => {
           const event = docSnap.data() as CampusEvent;
           if (event.createdBy && blockedUserIds.includes(event.createdBy)) return; // Filter blocked event creators
-          if (event.groupId && !joinedGroupIds.includes(event.groupId)) return; // Filter private group events
+          // Filter private group events
+          if (
+            (event.visibility === 'group' || event.groupId) &&
+            event.visibility !== 'campus' &&
+            (event.visibility as any) !== 'public' &&
+            event.groupId &&
+            !joinedGroupIds.includes(event.groupId) &&
+            event.createdBy !== currentUser?.uid
+          ) {
+            return;
+          }
 
           const textMatch = `${event.title} ${event.description || ''} ${event.location || ''} ${event.category || ''}`.toLowerCase();
           if (textMatch.includes(cleanQuery)) {

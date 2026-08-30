@@ -122,10 +122,26 @@ export const getAggregatedCalendarItems = async (userId: string): Promise<Calend
     });
 
     // 2. Fetch User RSVPs to events
-    // We fetch user's rsvp collection-group documents
+    const { getUserJoinedGroupIds } = await import('./eventService');
+    const userJoinedGroups = await getUserJoinedGroupIds(userId);
+    const joinedSet = new Set(userJoinedGroups);
+
     const rsvpSnap = await getDocs(query(collection(db, 'events')));
     for (const docSnap of rsvpSnap.docs) {
       const eventData = docSnap.data();
+
+      // Privacy Gate: skip group-only events where user is not a member
+      if (
+        (eventData.visibility === 'group' || eventData.groupId) &&
+        eventData.visibility !== 'campus' &&
+        eventData.visibility !== 'public' &&
+        eventData.groupId &&
+        !joinedSet.has(eventData.groupId) &&
+        eventData.createdBy !== userId
+      ) {
+        continue;
+      }
+
       const rsvpCheck = await getDocs(query(collection(db, 'events', docSnap.id, 'rsvps'), where('userId', '==', userId)));
       
       if (!rsvpCheck.empty) {

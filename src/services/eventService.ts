@@ -30,9 +30,14 @@ export interface CreateEventPayload {
   title: string;
   description: string;
   location: string;
-  eventDate: string; // ISO date string from date picker input
+  eventDate: string; // ISO or datetime-local string
+  endAt?: string;
+  category?: 'Cultural' | 'Technical' | 'Sports' | 'Workshop' | 'Seminar' | 'Placement' | 'Club' | 'Academic' | 'Fest' | 'Competition' | 'Social' | 'Other';
   groupId?: string;
+  groupName?: string;
   visibility?: 'campus' | 'group' | 'private';
+  capacity?: number;
+  coverImage?: string;
 }
 
 export interface EventParticipant {
@@ -41,23 +46,63 @@ export interface EventParticipant {
 }
 
 /**
+ * Parses any date format (Timestamp, Date, string, number) into Unix ms.
+ */
+export const parseEventDateMs = (eventDate: any): number => {
+  if (!eventDate) return 0;
+  if (typeof eventDate.toMillis === 'function') return eventDate.toMillis();
+  if (typeof eventDate.toDate === 'function') return eventDate.toDate().getTime();
+  if (eventDate instanceof Date) return eventDate.getTime();
+  if (typeof eventDate === 'number') return eventDate;
+  const parsed = new Date(eventDate).getTime();
+  return isNaN(parsed) ? 0 : parsed;
+};
+
+/**
+ * Checks if user is a member of a group.
+ */
+export const isGroupMember = async (groupId: string, userId: string): Promise<boolean> => {
+  if (!groupId || !userId) return false;
+  try {
+    const memberRef = doc(db, 'groups', groupId, 'members', userId);
+    const snap = await getDoc(memberRef);
+    return snap.exists();
+  } catch (err) {
+    console.error('Error checking group membership:', err);
+    return false;
+  }
+};
+
+/**
+ * Retrieves list of joined group IDs for a user.
+ */
+export const getUserJoinedGroupIds = async (userId: string): Promise<string[]> => {
+  if (!userId) return [];
+  try {
+    const userMembershipsRef = collection(db, 'users', userId, 'groupMemberships');
+    const snap = await getDocs(userMembershipsRef);
+    return snap.docs.map((d) => d.id);
+  } catch (err) {
+    console.error('Error fetching user joined groups:', err);
+    return [];
+  }
+};
+
+/**
  * Fetches upcoming campus events ordered by eventDate ascending.
  */
 export const getUpcomingEvents = async (): Promise<CampusEvent[]> => {
   try {
     const eventsRef = collection(db, 'events');
-    const now = Timestamp.now();
-    const q = query(
-      eventsRef,
-      where('eventDate', '>=', now),
-      orderBy('eventDate', 'asc')
-    );
-    const querySnapshot = await getDocs(q);
+    const querySnapshot = await getDocs(eventsRef);
+    const nowMs = Date.now();
 
-    return querySnapshot.docs.map((docSnap) => ({
-      id: docSnap.id,
-      ...docSnap.data(),
-    })) as CampusEvent[];
+    const list = querySnapshot.docs
+      .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() } as CampusEvent))
+      .filter((evt) => parseEventDateMs(evt.eventDate) >= nowMs)
+      .sort((a, b) => parseEventDateMs(a.eventDate) - parseEventDateMs(b.eventDate));
+
+    return list;
   } catch (error) {
     console.error('Error fetching upcoming events:', error);
     throw error;
@@ -70,18 +115,15 @@ export const getUpcomingEvents = async (): Promise<CampusEvent[]> => {
 export const getPastEvents = async (): Promise<CampusEvent[]> => {
   try {
     const eventsRef = collection(db, 'events');
-    const now = Timestamp.now();
-    const q = query(
-      eventsRef,
-      where('eventDate', '<', now),
-      orderBy('eventDate', 'desc')
-    );
-    const querySnapshot = await getDocs(q);
+    const querySnapshot = await getDocs(eventsRef);
+    const nowMs = Date.now();
 
-    return querySnapshot.docs.map((docSnap) => ({
-      id: docSnap.id,
-      ...docSnap.data(),
-    })) as CampusEvent[];
+    const list = querySnapshot.docs
+      .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() } as CampusEvent))
+      .filter((evt) => parseEventDateMs(evt.eventDate) < nowMs)
+      .sort((a, b) => parseEventDateMs(b.eventDate) - parseEventDateMs(a.eventDate));
+
+    return list;
   } catch (error) {
     console.error('Error fetching past events:', error);
     throw error;
@@ -104,7 +146,7 @@ export const getEventById = async (eventId: string): Promise<CampusEvent | null>
 };
 
 /**
- * Creates a new campus event (admin only).
+ * Creates a new campus event for any authenticated user.
  * Converts date string into a Firestore Timestamp object.
  */
 export const createEvent = async (
@@ -114,18 +156,29 @@ export const createEvent = async (
   try {
     const eventsRef = collection(db, 'events');
     const eventDateTimestamp = Timestamp.fromDate(new Date(payload.eventDate));
+    const endAtTimestamp = payload.endAt ? Timestamp.fromDate(new Date(payload.endAt)) : null;
 
-    const newEventData = {
+    const newEventData: Record<string, any> = {
       title: payload.title.trim(),
       description: payload.description.trim(),
       location: payload.location.trim(),
       eventDate: eventDateTimestamp,
       createdBy: currentUser.uid,
+      creatorName: currentUser.displayName || 'Campus Student',
+      organizerName: currentUser.displayName || 'Campus Student',
       rsvpCount: 0,
+      interestedCount: 0,
       createdAt: serverTimestamp(),
-      ...(payload.groupId ? { groupId: payload.groupId } : {}),
-      ...(payload.visibility ? { visibility: payload.visibility } : {}),
+      updatedAt: serverTimestamp(),
+      category: payload.category || 'Other',
+      visibility: payload.visibility || (payload.groupId ? 'group' : 'campus'),
     };
+
+    if (endAtTimestamp) newEventData.endAt = endAtTimestamp;
+    if (payload.groupId) newEventData.groupId = payload.groupId;
+    if (payload.groupName) newEventData.groupName = payload.groupName;
+    if (payload.capacity && payload.capacity > 0) newEventData.capacity = Number(payload.capacity);
+    if (payload.coverImage) newEventData.coverImage = payload.coverImage;
 
     const docRef = await addDoc(eventsRef, newEventData);
 
@@ -146,17 +199,19 @@ export const createEvent = async (
     awardReputation(currentUser.uid, docRef.id, 'create_event', 20, `Created event: ${payload.title}`).catch((e) => console.warn(e));
     trackChallengeAction(currentUser.uid, 'events', 1).catch((e) => console.warn(e));
 
-    logCampusActivity({
-      type: 'event',
-      action: 'created a new event',
-      actorId: currentUser.uid,
-      actorName: currentUser.displayName || 'Campus Organizer',
-      actorAvatar: currentUser.photoURL || undefined,
-      groupId: payload.groupId,
-      targetId: docRef.id,
-      targetTitle: payload.title,
-      previewText: payload.description?.slice(0, 150),
-    });
+    // Log campus activity only if PUBLIC / CAMPUS event
+    if (newEventData.visibility !== 'group' && newEventData.visibility !== 'private') {
+      logCampusActivity({
+        type: 'event',
+        action: 'created a new campus event',
+        actorId: currentUser.uid,
+        actorName: currentUser.displayName || 'Campus Organizer',
+        actorAvatar: currentUser.photoURL || undefined,
+        targetId: docRef.id,
+        targetTitle: payload.title,
+        previewText: payload.description?.slice(0, 150),
+      });
+    }
 
     return {
       id: docRef.id,
@@ -507,89 +562,97 @@ export const getEventsFiltered = async (
   currentUser: FirebaseUser
 ): Promise<CampusEvent[]> => {
   if (!currentUser) return [];
-  const eventsRef = collection(db, 'events');
-  let q;
 
-  const now = Timestamp.now();
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const todayEnd = new Date();
-  todayEnd.setHours(23, 59, 59, 999);
+  try {
+    const eventsRef = collection(db, 'events');
+    const [snap, userJoinedGroups] = await Promise.all([
+      getDocs(eventsRef),
+      getUserJoinedGroupIds(currentUser.uid),
+    ]);
 
-  const weekEnd = new Date();
-  weekEnd.setDate(weekEnd.getDate() + 7);
+    let list = snap.docs.map((d) => ({ id: d.id, ...d.data() } as CampusEvent));
 
-  const monthEnd = new Date();
-  monthEnd.setDate(monthEnd.getDate() + 30);
+    // 1. Privacy / Visibility Gate: Keep event IF public/campus OR user is group member OR creator
+    const joinedSet = new Set(userJoinedGroups);
+    list = list.filter((e) => {
+      if (!e.groupId) return true;
+      if (e.visibility === 'campus' || (e.visibility as any) === 'public') return true;
+      if (joinedSet.has(e.groupId)) return true;
+      if (e.createdBy === currentUser.uid) return true;
+      return false;
+    });
 
-  if (filters.tab === 'past') {
-    q = query(eventsRef, where('eventDate', '<', now), orderBy('eventDate', 'desc'), limit(50));
-  } else if (filters.tab === 'today') {
-    q = query(
-      eventsRef,
-      where('eventDate', '>=', Timestamp.fromDate(todayStart)),
-      where('eventDate', '<=', Timestamp.fromDate(todayEnd)),
-      orderBy('eventDate', 'asc'),
-      limit(50)
-    );
-  } else if (filters.tab === 'this_week') {
-    q = query(
-      eventsRef,
-      where('eventDate', '>=', now),
-      where('eventDate', '<=', Timestamp.fromDate(weekEnd)),
-      orderBy('eventDate', 'asc'),
-      limit(50)
-    );
-  } else if (filters.tab === 'this_month') {
-    q = query(
-      eventsRef,
-      where('eventDate', '>=', now),
-      where('eventDate', '<=', Timestamp.fromDate(monthEnd)),
-      orderBy('eventDate', 'asc'),
-      limit(50)
-    );
-  } else if (filters.tab === 'my_events') {
-    const rsvpsQuery = query(
-      collectionGroup(db, 'rsvps'),
-      where('userId', '==', currentUser.uid)
-    );
-    const rsvpsSnap = await getDocs(rsvpsQuery);
-    const eventIds = rsvpsSnap.docs.map((d) => d.ref.parent.parent?.id).filter(Boolean) as string[];
+    // 2. Tab Filter by Date Range
+    const nowMs = Date.now();
+    const todayStartMs = new Date().setHours(0, 0, 0, 0);
+    const todayEndMs = new Date().setHours(23, 59, 59, 999);
+    const weekEndMs = Date.now() + 7 * 24 * 60 * 60 * 1000;
+    const monthEndMs = Date.now() + 30 * 24 * 60 * 60 * 1000;
 
-    if (eventIds.length === 0) return [];
-
-    const eventsList: CampusEvent[] = [];
-    // Firestore limit in queries to maximum of 10
-    for (let i = 0; i < eventIds.length; i += 10) {
-      const batchIds = eventIds.slice(i, i + 10);
-      const batchQuery = query(eventsRef, where('__name__', 'in', batchIds));
-      const batchSnap = await getDocs(batchQuery);
-      batchSnap.docs.forEach((docSnap) => {
-        eventsList.push({ id: docSnap.id, ...docSnap.data() } as CampusEvent);
+    if (filters.tab === 'past') {
+      list = list.filter((e) => parseEventDateMs(e.eventDate) < nowMs);
+      list.sort((a, b) => parseEventDateMs(b.eventDate) - parseEventDateMs(a.eventDate));
+    } else if (filters.tab === 'today') {
+      list = list.filter((e) => {
+        const ms = parseEventDateMs(e.eventDate);
+        return ms >= todayStartMs && ms <= todayEndMs;
       });
+      list.sort((a, b) => parseEventDateMs(a.eventDate) - parseEventDateMs(b.eventDate));
+    } else if (filters.tab === 'this_week') {
+      list = list.filter((e) => {
+        const ms = parseEventDateMs(e.eventDate);
+        return ms >= nowMs && ms <= weekEndMs;
+      });
+      list.sort((a, b) => parseEventDateMs(a.eventDate) - parseEventDateMs(b.eventDate));
+    } else if (filters.tab === 'this_month') {
+      list = list.filter((e) => {
+        const ms = parseEventDateMs(e.eventDate);
+        return ms >= nowMs && ms <= monthEndMs;
+      });
+      list.sort((a, b) => parseEventDateMs(a.eventDate) - parseEventDateMs(b.eventDate));
+    } else if (filters.tab === 'my_events') {
+      try {
+        const rsvpsQuery = query(
+          collectionGroup(db, 'rsvps'),
+          where('userId', '==', currentUser.uid)
+        );
+        const rsvpsSnap = await getDocs(rsvpsQuery);
+        const rsvpdEventIds = new Set(
+          rsvpsSnap.docs.map((d) => d.ref.parent.parent?.id).filter(Boolean) as string[]
+        );
+        list = list.filter((e) => e.id && (rsvpdEventIds.has(e.id) || e.createdBy === currentUser.uid));
+      } catch {
+        list = list.filter((e) => e.createdBy === currentUser.uid);
+      }
+      list.sort((a, b) => parseEventDateMs(a.eventDate) - parseEventDateMs(b.eventDate));
+    } else {
+      // 'upcoming' (default)
+      list = list.filter((e) => parseEventDateMs(e.eventDate) >= nowMs);
+      list.sort((a, b) => parseEventDateMs(a.eventDate) - parseEventDateMs(b.eventDate));
     }
-    return eventsList;
-  } else {
-    q = query(eventsRef, where('eventDate', '>=', now), orderBy('eventDate', 'asc'), limit(50));
-  }
 
-  const snap = await getDocs(q);
-  let list = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as CampusEvent[];
+    // 3. Category Filter
+    if (filters.category && filters.category !== 'All') {
+      list = list.filter((e) => e.category === filters.category);
+    }
 
-  if (filters.category && filters.category !== 'All') {
-    list = list.filter((e) => e.category === filters.category);
-  }
-  if (filters.searchQuery) {
-    const sLower = filters.searchQuery.toLowerCase();
-    list = list.filter(
-      (e) =>
-        e.title.toLowerCase().includes(sLower) ||
-        (e.description || '').toLowerCase().includes(sLower) ||
-        (e.location || '').toLowerCase().includes(sLower)
-    );
-  }
+    // 4. Search Filter
+    if (filters.searchQuery) {
+      const sLower = filters.searchQuery.toLowerCase();
+      list = list.filter(
+        (e) =>
+          e.title.toLowerCase().includes(sLower) ||
+          (e.description || '').toLowerCase().includes(sLower) ||
+          (e.location || '').toLowerCase().includes(sLower) ||
+          (e.groupName || '').toLowerCase().includes(sLower)
+      );
+    }
 
-  return list;
+    return list;
+  } catch (error: any) {
+    console.error('Error in getEventsFiltered:', error);
+    throw new Error(error.message || 'Unable to load campus events.');
+  }
 };
 
 /**

@@ -518,8 +518,12 @@ service cloud.firestore {
     // Campus Events Collection
     match /events/{eventId} {
       allow read: if isAuthenticated() && (
+        !('visibility' in resource.data) ||
+        resource.data.visibility == 'campus' ||
+        resource.data.visibility == 'public' ||
         !('groupId' in resource.data) ||
-        get(/databases/$(database)/documents/groups/$(resource.data.groupId)).data.visibility != 'private' ||
+        resource.data.groupId == null ||
+        resource.data.groupId == '' ||
         exists(/databases/$(database)/documents/groups/$(resource.data.groupId)/members/$(request.auth.uid)) ||
         isAdmin()
       );
@@ -527,14 +531,16 @@ service cloud.firestore {
         && request.resource.data.keys().hasAll(['title', 'description', 'location', 'eventDate', 'createdBy', 'rsvpCount', 'createdAt'])
         && (
           !('groupId' in request.resource.data) ||
-          get(/databases/$(database)/documents/groups/$(request.resource.data.groupId)/members/$(request.auth.uid)).data.role in ['owner', 'admin', 'moderator'] ||
+          request.resource.data.groupId == null ||
+          request.resource.data.groupId == '' ||
+          exists(/databases/$(database)/documents/groups/$(request.resource.data.groupId)/members/$(request.auth.uid)) ||
           isAdmin()
         );
       allow update: if isAuthenticated() && (
         isAdmin() ||
         resource.data.createdBy == request.auth.uid ||
         (
-          request.resource.data.diff(resource.data).affectedKeys().hasAny(['rsvpCount', 'interestedCount']) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasAny(['rsvpCount', 'interestedCount', 'status', 'isCancelled', 'updatedAt']) &&
           (!('rsvpCount' in request.resource.data) || request.resource.data.rsvpCount >= 0) &&
           (!('interestedCount' in request.resource.data) || request.resource.data.interestedCount >= 0)
         )
@@ -543,6 +549,11 @@ service cloud.firestore {
 
       // Event RSVPs / Attendees Sub-collection
       match /rsvps/{userId} {
+        allow read: if isAuthenticated();
+        allow create, update, delete: if isAuthenticated() && userId == request.auth.uid;
+      }
+
+      match /waitlist/{userId} {
         allow read: if isAuthenticated();
         allow create, update, delete: if isAuthenticated() && userId == request.auth.uid;
       }

@@ -29,25 +29,48 @@ export const EventCard: React.FC<EventCardProps> = ({ event }) => {
       className="w-full bg-slate-900/80 backdrop-blur-xl border border-slate-800 hover:border-purple-500/40 hover:-translate-y-1 hover:shadow-xl hover:shadow-purple-500/10 rounded-3xl p-6 shadow-xl flex flex-col justify-between gap-4 cursor-pointer group transition-all duration-200 ease-out"
     >
       <div className="space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <span className="px-3 py-1 rounded-full text-xs font-semibold bg-sky-500/10 border border-sky-500/20 text-sky-400 flex items-center gap-1.5">
-            <Calendar className="w-3.5 h-3.5" />
-            <span>Campus Event</span>
-          </span>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Visibility Badge */}
+            {event.visibility === 'group' || event.groupId ? (
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/15 border border-purple-500/30 text-purple-300 flex items-center gap-1 shadow-[0_0_10px_rgba(168,85,247,0.2)]">
+                <Users className="w-3 h-3 text-purple-400" />
+                <span>GROUP ONLY {event.groupName ? `• ${event.groupName}` : ''}</span>
+              </span>
+            ) : (
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/15 border border-sky-500/30 text-sky-300 flex items-center gap-1 shadow-[0_0_10px_rgba(56,189,248,0.2)]">
+                <Calendar className="w-3 h-3 text-sky-400" />
+                <span>PUBLIC</span>
+              </span>
+            )}
 
-          <span className="text-xs text-slate-500 font-mono flex items-center gap-1">
+            {/* Category Badge */}
+            {event.category && (
+              <span className="px-2 py-0.5 rounded-md text-[9px] font-mono font-bold bg-slate-950 border border-slate-800 text-slate-300 uppercase">
+                {event.category}
+              </span>
+            )}
+          </div>
+
+          <span className="text-[10px] text-slate-500 font-mono flex items-center gap-1">
             <Clock className="w-3 h-3" />
             <span>{formatTimestamp(event.createdAt)}</span>
           </span>
         </div>
 
-        <h3 className="text-xl font-bold text-white group-hover:text-sky-400 transition-colors leading-snug">
+        <h3 className="text-xl font-bold text-white group-hover:text-purple-300 transition-colors leading-snug">
           {event.title}
         </h3>
 
         <p className="text-xs text-slate-300 line-clamp-2 leading-relaxed">
           {event.description}
         </p>
+
+        {event.creatorName && (
+          <p className="text-[10px] text-slate-400 font-mono">
+            Organized by: <span className="text-slate-200 font-semibold">{event.creatorName}</span>
+          </p>
+        )}
       </div>
 
       <div className="pt-4 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400">

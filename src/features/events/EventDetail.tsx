@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { CampusEvent } from '../../types/models';
-import { getEventById, hasUserRsvpd, toggleRsvpStatus, cancelEvent, getEventParticipantsPaginated, toggleSaveEvent, checkEventIsSaved } from '../../services/eventService';
+import { getEventById, hasUserRsvpd, toggleRsvpStatus, cancelEvent, getEventParticipantsPaginated, toggleSaveEvent, checkEventIsSaved, isGroupMember } from '../../services/eventService';
 import { toggleEventReminder, hasUserReminder } from '../../services/eventReminderService';
 import { useAuth } from '../../hooks/useAuth';
 import toast from 'react-hot-toast';
@@ -67,6 +67,23 @@ export const EventDetail: React.FC = () => {
         if (!evtData) {
           if (mounted) setError('Campus Event not found.');
           return;
+        }
+
+        // Privacy Gate: Verify group membership if event is group-only
+        if ((evtData.visibility === 'group' || evtData.groupId) && evtData.visibility !== 'campus') {
+          if (!currentUser) {
+            if (mounted) setError("You don't have access to this private group event.");
+            return;
+          }
+          if (evtData.groupId) {
+            const isMember = await isGroupMember(evtData.groupId, currentUser.uid);
+            const isCreator = evtData.createdBy === currentUser.uid;
+            const isAdminUser = userProfile?.role === 'admin';
+            if (!isMember && !isCreator && !isAdminUser) {
+              if (mounted) setError("You don't have access to this private group event.");
+              return;
+            }
+          }
         }
 
         if (mounted) {

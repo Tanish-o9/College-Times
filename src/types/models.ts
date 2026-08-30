@@ -147,9 +147,11 @@ export interface CampusEvent {
   coverImage?: string;
   category?: 'Cultural' | 'Technical' | 'Sports' | 'Workshop' | 'Seminar' | 'Placement' | 'Club' | 'Academic' | 'Fest' | 'Competition' | 'Social' | 'Other';
   groupId?: string;
+  groupName?: string;
   status?: 'draft' | 'published' | 'cancelled' | 'completed' | 'archived';
   visibility?: 'campus' | 'group' | 'private';
   createdBy: string;
+  creatorName?: string;
   organizerName?: string;
   rsvpCount: number;
   interestedCount?: number;

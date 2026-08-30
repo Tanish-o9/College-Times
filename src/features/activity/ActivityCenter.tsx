@@ -96,8 +96,8 @@ export const ActivityCenter: React.FC = () => {
     if (blockedUserIds.includes(act.actorId)) return false;
 
     // 2. Group Privacy Filter
-    if (act.groupId && act.isPrivate) {
-      if (!joinedGroupIds.includes(act.groupId)) return false;
+    if (act.groupId && !joinedGroupIds.includes(act.groupId) && act.actorId !== currentUser?.uid) {
+      return false;
     }
 
     // 3. Category Filter

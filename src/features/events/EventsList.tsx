@@ -5,7 +5,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { EventCard } from './EventCard';
 import { CreateEventForm } from './CreateEventForm';
 import { FAB } from '../../components/FAB';
-import { Calendar, RefreshCw, AlertCircle, Inbox, Shield, Search } from 'lucide-react';
+import { Calendar, RefreshCw, AlertCircle, Inbox, Search } from 'lucide-react';
 import { useScrollRestoration } from '../../hooks/useScrollRestoration';
 
 const CATEGORIES = [
@@ -25,7 +25,7 @@ const CATEGORIES = [
 ];
 
 export const EventsList: React.FC = () => {
-  const { currentUser, userProfile } = useAuth();
+  const { currentUser } = useAuth();
   const [events, setEvents] = useState<CampusEvent[]>([]);
   const [activeTab, setActiveTab] = useState<'upcoming' | 'today' | 'this_week' | 'this_month' | 'my_events' | 'past'>('upcoming');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
@@ -36,8 +36,6 @@ export const EventsList: React.FC = () => {
   const [isFormOpen, setIsFormOpen] = useState<boolean>(false);
 
   useScrollRestoration('events', !loading);
-
-  const isAdmin = userProfile?.role === 'admin';
 
   const fetchEvents = async () => {
     if (!currentUser) return;
@@ -92,16 +90,14 @@ export const EventsList: React.FC = () => {
           </p>
         </div>
 
-        {/* Admin Create Event Entry Point */}
-        {isAdmin && (
-          <button
-            onClick={() => setIsFormOpen(true)}
-            className="px-5 py-2.5 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white text-xs font-bold rounded-2xl shadow-[0_0_18px_rgba(168,85,247,0.35)] hover:-translate-y-0.5 flex items-center justify-center gap-2 transition-all shrink-0 cursor-pointer active:scale-95"
-          >
-            <Shield className="w-4 h-4 text-purple-200" />
-            <span>Create Event</span>
-          </button>
-        )}
+        {/* Create Event Entry Point */}
+        <button
+          onClick={() => setIsFormOpen(true)}
+          className="px-5 py-2.5 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white text-xs font-bold rounded-2xl shadow-[0_0_18px_rgba(168,85,247,0.35)] hover:-translate-y-0.5 flex items-center justify-center gap-2 transition-all shrink-0 cursor-pointer active:scale-95"
+        >
+          <Calendar className="w-4 h-4 text-purple-200" />
+          <span>Create Event</span>
+        </button>
       </div>
 
       {/* Filter Toolbar */}
@@ -207,17 +203,15 @@ export const EventsList: React.FC = () => {
         </div>
       )}
 
-      {/* Admin FAB */}
-      {isAdmin && <FAB onClick={() => setIsFormOpen(true)} label="Create Event" />}
+      {/* FAB */}
+      <FAB onClick={() => setIsFormOpen(true)} label="Create Event" />
 
-      {/* Admin Create Form Modal */}
-      {isAdmin && (
-        <CreateEventForm
-          isOpen={isFormOpen}
-          onClose={() => setIsFormOpen(false)}
-          onEventCreated={handleEventCreated}
-        />
-      )}
+      {/* Create Form Modal */}
+      <CreateEventForm
+        isOpen={isFormOpen}
+        onClose={() => setIsFormOpen(false)}
+        onEventCreated={handleEventCreated}
+      />
     </div>
   );
 };

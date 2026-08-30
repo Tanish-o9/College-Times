@@ -3,14 +3,14 @@ import { useAuth } from '../../hooks/useAuth';
 import { 
   getUpcomingGroupEvents, 
   getPastGroupEvents, 
-  createEvent, 
   toggleRsvp, 
   hasUserRsvpd,
   pinEvent,
   getEventParticipants
 } from '../../services/eventService';
 import type { CampusEvent } from '../../types';
-import { Calendar, MapPin, Users, Plus, RefreshCw, X, Check, Pin } from 'lucide-react';
+import { CreateEventForm } from '../events/CreateEventForm';
+import { Calendar, MapPin, Users, Plus, RefreshCw, Check, Pin } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface GroupEventsProps {
@@ -29,11 +29,6 @@ export const GroupEvents: React.FC<GroupEventsProps> = ({ groupId, isMember, use
 
   // Create Event Form state
   const [isCreateOpen, setIsCreateOpen] = useState<boolean>(false);
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [location, setLocation] = useState('');
-  const [eventDate, setEventDate] = useState('');
-  const [creating, setCreating] = useState(false);
 
   const [attendeesMap, setAttendeesMap] = useState<Record<string, { userId: string; userName: string; userAvatar?: string }[]>>({});
   const [loadingAttendees, setLoadingAttendees] = useState<Record<string, boolean>>({});
@@ -123,34 +118,7 @@ export const GroupEvents: React.FC<GroupEventsProps> = ({ groupId, isMember, use
     }
   };
 
-  const handleCreateEvent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title.trim() || !description.trim() || !location.trim() || !eventDate || creating || !currentUser) return;
 
-    setCreating(true);
-    try {
-      await createEvent({
-        title,
-        description,
-        location,
-        eventDate,
-        groupId,
-        visibility: 'group'
-      }, currentUser);
-
-      toast.success('Group event created successfully!');
-      setTitle('');
-      setDescription('');
-      setLocation('');
-      setEventDate('');
-      setIsCreateOpen(false);
-      loadEvents();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to create group event.');
-    } finally {
-      setCreating(false);
-    }
-  };
 
   const isManager = userRole === 'owner' || userRole === 'admin';
   const pinnedEvents = upcomingEvents.filter((e) => e.pinned);
@@ -177,81 +145,13 @@ export const GroupEvents: React.FC<GroupEventsProps> = ({ groupId, isMember, use
       </div>
 
       {/* Create Event Modal */}
-      {isCreateOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm" onClick={() => setIsCreateOpen(false)} />
-          <form onSubmit={handleCreateEvent} className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 z-10 shadow-2xl animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-rose-400" />
-                <span>Create Group Event</span>
-              </h3>
-              <button type="button" onClick={() => setIsCreateOpen(false)} className="text-slate-400 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase font-mono block mb-1">Event Title</label>
-                <input
-                  type="text"
-                  required
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="e.g. Annual Hackathon Planning"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-rose-500/50"
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase font-mono block mb-1">Description</label>
-                <textarea
-                  required
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Provide date details, goals, agenda, etc."
-                  rows={3}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-rose-500/50"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase font-mono block mb-1">Location / Venue</label>
-                  <input
-                     type="text"
-                     required
-                     value={location}
-                     onChange={(e) => setLocation(e.target.value)}
-                     placeholder="e.g. Lab 3 or Zoom"
-                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-rose-500/50"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase font-mono block mb-1">Date & Time</label>
-                  <input
-                    type="datetime-local"
-                    required
-                    value={eventDate}
-                    onChange={(e) => setDateValue(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-rose-500/50"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={creating}
-              className="w-full py-2.5 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-400 hover:to-pink-500 text-white rounded-xl text-xs font-bold shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {creating ? <RefreshCw className="w-4 h-4 animate-spin" /> : null}
-              <span>Publish Event</span>
-            </button>
-          </form>
-        </div>
-      )}
+      <CreateEventForm
+        isOpen={isCreateOpen}
+        onClose={() => setIsCreateOpen(false)}
+        onEventCreated={() => loadEvents()}
+        initialGroupId={groupId}
+        initialVisibility="group"
+      />
 
       {/* Events List */}
       {loading ? (
@@ -482,8 +382,4 @@ export const GroupEvents: React.FC<GroupEventsProps> = ({ groupId, isMember, use
       )}
     </div>
   );
-
-  function setDateValue(val: string) {
-    setEventDate(val);
-  }
 };
