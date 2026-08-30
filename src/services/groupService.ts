@@ -160,19 +160,21 @@ export const searchGroups = async (
   const boundedSize = Math.min(50, Math.max(1, pageSize));
   try {
     const colRef = collection(db, 'groups');
-    let q = query(colRef, where('active', '==', true), limit(50));
+    let q = query(colRef, limit(50));
 
     if (categoryFilter !== 'all') {
       if (['campus', 'department', 'batch', 'community'].includes(categoryFilter)) {
-        q = query(colRef, where('type', '==', categoryFilter), where('active', '==', true), limit(50));
+        q = query(colRef, where('type', '==', categoryFilter), limit(50));
       }
     }
 
     const snap = await getDocs(q);
-    let items = snap.docs.map((d) => ({
-      ...(d.data() as CampusGroup),
-      id: d.id,
-    }));
+    let items = snap.docs
+      .map((d) => ({
+        ...(d.data() as CampusGroup),
+        id: d.id,
+      }))
+      .filter((g) => g.active !== false);
 
     if (categoryFilter !== 'all' && !['campus', 'department', 'batch', 'community'].includes(categoryFilter)) {
       items = items.filter((g) => g.category?.toLowerCase() === categoryFilter.toLowerCase());
