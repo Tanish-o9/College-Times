@@ -5,7 +5,7 @@ import type { CampusEvent } from '../../types';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import toast from 'react-hot-toast';
-import { X, MapPin, Send, RefreshCw, Calendar, Globe, Lock } from 'lucide-react';
+import { X, MapPin, Send, RefreshCw, Calendar, Globe, Lock, Link } from 'lucide-react';
 
 const CATEGORIES = [
   'Cultural',
@@ -56,6 +56,7 @@ export const CreateEventForm: React.FC<CreateEventFormProps> = ({
   const [eventDate, setEventDate] = useState('');
   const [endAt, setEndAt] = useState('');
   const [capacity, setCapacity] = useState<string>('');
+  const [externalUrl, setExternalUrl] = useState<string>('');
   const [visibility, setVisibility] = useState<'campus' | 'group'>(initialVisibility || (initialGroupId ? 'group' : 'campus'));
   const [groupId, setGroupId] = useState<string>(initialGroupId || '');
   const [groupName, setGroupName] = useState<string>(initialGroupName || '');
@@ -73,6 +74,7 @@ export const CreateEventForm: React.FC<CreateEventFormProps> = ({
       setEventDate('');
       setEndAt('');
       setCapacity('');
+      setExternalUrl('');
       setVisibility(initialVisibility || (initialGroupId ? 'group' : 'campus'));
       setGroupId(initialGroupId || '');
       setGroupName(initialGroupName || '');
@@ -148,6 +150,7 @@ export const CreateEventForm: React.FC<CreateEventFormProps> = ({
         eventDate,
         ...(endAt && !isNaN(new Date(endAt).getTime()) ? { endAt } : {}),
         ...(capacity && Number(capacity) > 0 ? { capacity: Number(capacity) } : {}),
+        ...(externalUrl.trim() ? { externalUrl: externalUrl.trim() } : {}),
         visibility,
         ...(visibility === 'group' ? {
           groupId,
@@ -401,6 +404,24 @@ export const CreateEventForm: React.FC<CreateEventFormProps> = ({
               placeholder="Leave empty for unlimited seats"
               className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 focus:border-purple-500 rounded-2xl text-xs text-white placeholder-slate-500 focus:outline-none"
             />
+          </div>
+
+          {/* External Event Link */}
+          <div>
+            <label htmlFor="evt-link" className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 font-mono">
+              Event / Registration Link (Optional)
+            </label>
+            <div className="relative flex items-center">
+              <Link className="absolute left-3.5 w-4 h-4 text-purple-400" />
+              <input
+                id="evt-link"
+                type="url"
+                value={externalUrl}
+                onChange={(e) => setExternalUrl(e.target.value)}
+                placeholder="e.g. https://zoom.us/j/... or https://unstop.com/..."
+                className="w-full pl-10 pr-3.5 py-2 bg-slate-950 border border-slate-800 focus:border-purple-500 rounded-2xl text-xs text-white placeholder-slate-500 focus:outline-none"
+              />
+            </div>
           </div>
 
           {/* Submit */}

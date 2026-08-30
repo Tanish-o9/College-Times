@@ -330,6 +330,23 @@ export const EventDetail: React.FC = () => {
               <ExternalLink className="w-3 h-3" />
             </a>
           </div>
+
+          {event.externalUrl && (
+            <div className="sm:col-span-2 pt-3 border-t border-slate-800 flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2 text-xs font-bold text-purple-300">
+                <ExternalLink className="w-4 h-4 text-purple-400 shrink-0" />
+                <span>Official Registration / Event Link:</span>
+              </div>
+              <a
+                href={event.externalUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-purple-500/20 inline-flex items-center gap-1.5 transition-all hover:scale-105"
+              >
+                <span>Open Link ↗</span>
+              </a>
+            </div>
+          )}
         </div>
 
         {/* Full Event Description */}

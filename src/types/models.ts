@@ -161,6 +161,7 @@ export interface CampusEvent {
   pinned?: boolean;
   isCancelled?: boolean;
   cancellationReason?: string;
+  externalUrl?: string;
   createdAt?: any;
   updatedAt?: any;
 }

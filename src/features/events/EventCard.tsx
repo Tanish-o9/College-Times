@@ -2,7 +2,7 @@ import React from 'react';
 import type { CampusEvent } from '../../types';
 import { formatTimestamp } from '../../utils/format';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, MapPin, Users, ChevronRight, Clock } from 'lucide-react';
+import { Calendar, MapPin, Users, ChevronRight, Clock, ExternalLink } from 'lucide-react';
 
 interface EventCardProps {
   event: CampusEvent;
@@ -86,7 +86,20 @@ export const EventCard: React.FC<EventCardProps> = ({ event }) => {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          {event.externalUrl && (
+            <a
+              href={event.externalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="px-3 py-1.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-purple-300 hover:text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-[0_0_12px_rgba(168,85,247,0.25)] hover:scale-105 cursor-pointer"
+            >
+              <ExternalLink className="w-3.5 h-3.5 text-purple-400" />
+              <span>Event Link ↗</span>
+            </a>
+          )}
+
           <div className="flex items-center gap-1 bg-slate-950/80 px-3 py-1.5 rounded-xl border border-slate-800 text-slate-300 font-mono">
             <Users className="w-3.5 h-3.5 text-emerald-400" />
             <span>{event.rsvpCount ?? 0} Going</span>

@@ -38,6 +38,7 @@ export interface CreateEventPayload {
   visibility?: 'campus' | 'group' | 'private';
   capacity?: number;
   coverImage?: string;
+  externalUrl?: string;
 }
 
 export interface EventParticipant {
@@ -191,6 +192,13 @@ export const createEvent = async (
     if (payload.groupName) newEventData.groupName = payload.groupName;
     if (payload.capacity && payload.capacity > 0) newEventData.capacity = Number(payload.capacity);
     if (payload.coverImage) newEventData.coverImage = payload.coverImage;
+    if (payload.externalUrl?.trim()) {
+      let rawUrl = payload.externalUrl.trim();
+      if (!/^https?:\/\//i.test(rawUrl)) {
+        rawUrl = `https://${rawUrl}`;
+      }
+      newEventData.externalUrl = rawUrl;
+    }
 
     const docRef = await addDoc(eventsRef, newEventData);
 
