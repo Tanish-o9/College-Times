@@ -226,8 +226,9 @@ export const ProfilePage: React.FC = () => {
       }
     }
 
-    if (activeTab === 'friends' && canViewContent) {
-      const showFriends = isSelf || (profile as any).friendListVisibility === 'public' || ((profile as any).friendListVisibility === 'friends' && isFriend);
+    if (activeTab === 'friends') {
+      const friendVis = (profile as any).friendListVisibility || 'public';
+      const showFriends = isSelf || friendVis === 'public' || (friendVis === 'friends' && isFriend);
       if (showFriends) {
         const fetchFriends = async () => {
           const res = await getFriends(profile.uid, 50);

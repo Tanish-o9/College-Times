@@ -347,21 +347,54 @@ export const getOutgoingFriendRequests = async (
  */
 export const getFriends = async (
   uid: string,
-  limitCount: number = 20
+  limitCount: number = 50
 ): Promise<{ uids: string[]; lastDoc: QueryDocumentSnapshot | null }> => {
   if (!uid) return { uids: [], lastDoc: null };
-  const boundedLimit = Math.min(50, Math.max(1, limitCount));
 
+  const foundUids = new Set<string>();
   const colRef = collection(db, 'friendships');
-  // Query friendships where userUids contains the target uid
-  const q = query(colRef, where('userUids', 'array-contains', uid), limit(boundedLimit));
-  const snap = await getDocs(q);
 
-  const uids: string[] = snap.docs.map((d) => {
-    const data = d.data();
-    return data.uidA === uid ? data.uidB : data.uidA;
-  });
-  const lastDoc = snap.docs.length > 0 ? snap.docs[snap.docs.length - 1] : null;
+  try {
+    // Strategy 1: userUids array-contains
+    const q1 = query(colRef, where('userUids', 'array-contains', uid), limit(limitCount));
+    const snap1 = await getDocs(q1);
+    snap1.docs.forEach((d) => {
+      const data = d.data();
+      const other = data.uidA === uid ? data.uidB : data.uidA || (data.userUids || []).find((id: string) => id !== uid);
+      if (other && other !== uid) foundUids.add(other);
+    });
 
-  return { uids, lastDoc };
+    // Strategy 2: uidA == uid
+    if (foundUids.size === 0) {
+      const qA = query(colRef, where('uidA', '==', uid), limit(limitCount));
+      const snapA = await getDocs(qA);
+      snapA.docs.forEach((d) => {
+        const data = d.data();
+        if (data.uidB && data.uidB !== uid) foundUids.add(data.uidB);
+      });
+    }
+
+    // Strategy 3: uidB == uid
+    if (foundUids.size === 0) {
+      const qB = query(colRef, where('uidB', '==', uid), limit(limitCount));
+      const snapB = await getDocs(qB);
+      snapB.docs.forEach((d) => {
+        const data = d.data();
+        if (data.uidA && data.uidA !== uid) foundUids.add(data.uidA);
+      });
+    }
+
+    // Strategy 4: Check users/{uid}/friends subcollection
+    if (foundUids.size === 0) {
+      const userFriendsRef = collection(db, 'users', uid, 'friends');
+      const subSnap = await getDocs(userFriendsRef);
+      subSnap.docs.forEach((d) => {
+        if (d.id && d.id !== uid) foundUids.add(d.id);
+      });
+    }
+  } catch (err) {
+    console.error(`getFriends error for ${uid}:`, err);
+  }
+
+  return { uids: Array.from(foundUids), lastDoc: null };
 };

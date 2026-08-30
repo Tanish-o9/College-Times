@@ -1557,6 +1557,26 @@ service cloud.firestore {
     }
 
     // -------------------------------------------------------------------------
+    // Friendships & Friend Requests System
+    // -------------------------------------------------------------------------
+    match /friendships/{friendshipId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isNotBlocked();
+      allow delete: if isAuthenticated() && isNotBlocked();
+    }
+
+    match /friendRequests/{requestId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isNotBlocked();
+      allow delete: if isAuthenticated() && isNotBlocked();
+    }
+
+    match /users/{userId}/friends/{friendId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated() && isNotBlocked();
+    }
+
+    // -------------------------------------------------------------------------
     // Moderation Audit Trail
     // -------------------------------------------------------------------------
     match /moderationLogs/{logId} {
