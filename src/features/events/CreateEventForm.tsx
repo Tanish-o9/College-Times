@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { createEvent, type CreateEventPayload, getUserJoinedGroupIds } from '../../services/eventService';
 import type { CampusEvent } from '../../types';
@@ -46,6 +46,9 @@ export const CreateEventForm: React.FC<CreateEventFormProps> = ({
 }) => {
   const { currentUser } = useAuth();
 
+  const startInputRef = useRef<HTMLInputElement>(null);
+  const endInputRef = useRef<HTMLInputElement>(null);
+
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('');
@@ -61,25 +64,13 @@ export const CreateEventForm: React.FC<CreateEventFormProps> = ({
   const [loadingGroups, setLoadingGroups] = useState<boolean>(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const getDefaultDateTimeLocal = (hoursOffset: number = 2): string => {
-    const d = new Date(Date.now() + hoursOffset * 3600 * 1000);
-    d.setMinutes(0, 0, 0);
-    const pad = (n: number) => (n < 10 ? '0' + n : n);
-    const year = d.getFullYear();
-    const month = pad(d.getMonth() + 1);
-    const day = pad(d.getDate());
-    const hours = pad(d.getHours());
-    const minutes = pad(d.getMinutes());
-    return `${year}-${month}-${day}T${hours}:${minutes}`;
-  };
-
   useEffect(() => {
     if (isOpen) {
       setTitle('');
       setDescription('');
       setLocation('');
       setCategory('Technical');
-      setEventDate(getDefaultDateTimeLocal(2));
+      setEventDate('');
       setEndAt('');
       setCapacity('');
       setVisibility(initialVisibility || (initialGroupId ? 'group' : 'campus'));
@@ -112,15 +103,6 @@ export const CreateEventForm: React.FC<CreateEventFormProps> = ({
     }
   }, [isOpen, initialGroupId, initialGroupName, initialVisibility, currentUser]);
 
-  const isFormValid =
-    title.trim().length >= 3 &&
-    description.trim().length >= 5 &&
-    location.trim().length > 0 &&
-    eventDate.trim().length > 0 &&
-    !isNaN(new Date(eventDate).getTime()) &&
-    (visibility !== 'group' || groupId.trim().length > 0) &&
-    !submitting;
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser) {
@@ -128,17 +110,28 @@ export const CreateEventForm: React.FC<CreateEventFormProps> = ({
       return;
     }
 
-    if (isNaN(new Date(eventDate).getTime())) {
-      toast.error('Please select a valid start date and time.');
+    if (!title.trim()) {
+      toast.error('Event Title is required.');
+      return;
+    }
+    if (!description.trim()) {
+      toast.error('Description & Agenda is required.');
+      return;
+    }
+    if (!location.trim()) {
+      toast.error('Campus Location / Hall is required.');
+      return;
+    }
+    if (!eventDate || isNaN(new Date(eventDate).getTime())) {
+      toast.error('Please select Start Date & Time using the calendar picker.');
+      return;
+    }
+    if (visibility === 'group' && !groupId.trim()) {
+      toast.error('Please select a Target Group for this group event.');
       return;
     }
 
-    if (!isFormValid) {
-      toast.error('Please fill in all required fields accurately.');
-      return;
-    }
-
-    if (endAt && new Date(endAt).getTime() <= new Date(eventDate).getTime()) {
+    if (endAt && !isNaN(new Date(endAt).getTime()) && new Date(endAt).getTime() <= new Date(eventDate).getTime()) {
       toast.error('End time must be after event start time.');
       return;
     }
@@ -346,27 +339,51 @@ export const CreateEventForm: React.FC<CreateEventFormProps> = ({
               <label htmlFor="evt-start" className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 font-mono">
                 Start Time <span className="text-rose-400">*</span>
               </label>
-              <input
-                id="evt-start"
-                type="datetime-local"
-                value={eventDate}
-                onChange={(e) => setEventDate(e.target.value)}
-                required
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-800 focus:border-purple-500 rounded-2xl text-xs text-white focus:outline-none"
-              />
+              <div className="relative flex items-center">
+                <input
+                  ref={startInputRef}
+                  id="evt-start"
+                  type="datetime-local"
+                  value={eventDate}
+                  onChange={(e) => setEventDate(e.target.value)}
+                  onClick={(e) => (e.currentTarget as any).showPicker?.()}
+                  required
+                  className="w-full pl-3 pr-9 py-2 bg-slate-950 border border-slate-800 focus:border-purple-500 rounded-2xl text-xs text-white focus:outline-none [color-scheme:dark] cursor-pointer"
+                />
+                <button
+                  type="button"
+                  onClick={() => startInputRef.current?.showPicker?.()}
+                  className="absolute right-2.5 p-1 text-purple-400 hover:text-purple-300 transition-colors"
+                  title="Open Calendar Picker"
+                >
+                  <Calendar className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
             <div>
               <label htmlFor="evt-end" className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 font-mono">
                 End Time (Optional)
               </label>
-              <input
-                id="evt-end"
-                type="datetime-local"
-                value={endAt}
-                onChange={(e) => setEndAt(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-800 focus:border-purple-500 rounded-2xl text-xs text-white focus:outline-none"
-              />
+              <div className="relative flex items-center">
+                <input
+                  ref={endInputRef}
+                  id="evt-end"
+                  type="datetime-local"
+                  value={endAt}
+                  onChange={(e) => setEndAt(e.target.value)}
+                  onClick={(e) => (e.currentTarget as any).showPicker?.()}
+                  className="w-full pl-3 pr-9 py-2 bg-slate-950 border border-slate-800 focus:border-purple-500 rounded-2xl text-xs text-white focus:outline-none [color-scheme:dark] cursor-pointer"
+                />
+                <button
+                  type="button"
+                  onClick={() => endInputRef.current?.showPicker?.()}
+                  className="absolute right-2.5 p-1 text-purple-400 hover:text-purple-300 transition-colors"
+                  title="Open Calendar Picker"
+                >
+                  <Calendar className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -390,7 +407,7 @@ export const CreateEventForm: React.FC<CreateEventFormProps> = ({
           <div className="pt-2">
             <button
               type="submit"
-              disabled={!isFormValid || submitting}
+              disabled={submitting}
               className="w-full py-3 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white font-bold text-xs rounded-2xl shadow-lg shadow-purple-500/25 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-98"
             >
               {submitting ? (
