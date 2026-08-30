@@ -173,7 +173,7 @@ export const uploadSingleStoryImage = async (
           resolve({ url: '', storagePath: `local_${Date.now()}_${cleanName}` });
         }
       }
-    }, 8000);
+    }, 1500);
 
     const uploadTask = uploadBytesResumable(storageRef, file, { contentType: file.type });
 

@@ -83,27 +83,34 @@ export const getActiveCampusStories = async (
 ): Promise<GroupedAuthorStories[]> => {
   try {
     const storiesRef = collection(db, 'stories');
-    const nowTimestamp = Timestamp.now();
+    let snap;
+    try {
+      const q = query(storiesRef, where('status', '==', 'active'), limit(100));
+      snap = await getDocs(q);
+    } catch {
+      snap = await getDocs(storiesRef);
+    }
 
-    const q = query(
-      storiesRef,
-      where('status', '==', 'active'),
-      where('expiresAt', '>', nowTimestamp),
-      orderBy('expiresAt', 'asc'),
-      limit(50)
-    );
-
-    const snap = await getDocs(q);
+    const nowMs = Date.now();
     const activeStories = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as Story[];
+
+    const filtered = activeStories.filter((story) => {
+      if (story.status === 'deleted') return false;
+      if (!story.expiresAt) return true;
+      const expMs = typeof (story.expiresAt as any)?.toMillis === 'function' 
+        ? (story.expiresAt as any).toMillis() 
+        : new Date(story.expiresAt).getTime();
+      return isNaN(expMs) || expMs > nowMs;
+    });
 
     // Group stories by authorId
     const authorMap: Record<string, GroupedAuthorStories> = {};
 
-    for (const story of activeStories) {
+    for (const story of filtered) {
       if (!authorMap[story.authorId]) {
         authorMap[story.authorId] = {
           authorId: story.authorId,
-          authorName: story.authorName,
+          authorName: story.authorName || 'Campus Student',
           authorAvatar: story.authorAvatar,
           stories: [],
           hasUnseen: false, // Will be set after checking views
@@ -115,10 +122,14 @@ export const getActiveCampusStories = async (
     // For logged-in users, check per-story view status in parallel (bounded)
     if (currentUser) {
       const uid = currentUser.uid;
-      const viewChecks = activeStories.map(async (story) => {
-        const viewRef = doc(db, 'stories', story.id, 'views', uid);
-        const viewSnap = await getDoc(viewRef);
-        return { storyId: story.id, authorId: story.authorId, viewed: viewSnap.exists() };
+      const viewChecks = filtered.map(async (story) => {
+        try {
+          const viewRef = doc(db, 'stories', story.id, 'views', uid);
+          const viewSnap = await getDoc(viewRef);
+          return { storyId: story.id, authorId: story.authorId, viewed: viewSnap.exists() };
+        } catch {
+          return { storyId: story.id, authorId: story.authorId, viewed: false };
+        }
       });
 
       const viewResults = await Promise.all(viewChecks);
