@@ -332,13 +332,13 @@ export const DiscoverPage: React.FC = () => {
       <main className="max-w-[1700px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 relative z-10">
         
         {/* Navigation Tabs */}
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar border-b border-slate-800/80 pb-2">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar border-b border-slate-800/80 pb-3">
           <button
             onClick={() => handleTabChange('people')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-1.5 shrink-0 ${
+            className={`px-4 py-2.5 rounded-2xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 shrink-0 cursor-pointer shadow-md ${
               activeTab === 'people'
-                ? 'bg-sky-500/15 text-sky-400 border border-sky-500/40 shadow-[0_0_12px_rgba(56,189,248,0.25)]'
-                : 'text-slate-400 hover:text-white hover:bg-slate-900 border border-transparent'
+                ? 'bg-gradient-to-r from-sky-400 via-indigo-500 to-purple-500 text-white shadow-lg shadow-sky-500/25 scale-105 border border-sky-300'
+                : 'bg-slate-950/80 text-slate-400 hover:text-white hover:bg-slate-900 border border-slate-800'
             }`}
           >
             <Users className="w-4 h-4" />
@@ -347,16 +347,16 @@ export const DiscoverPage: React.FC = () => {
 
           <button
             onClick={() => handleTabChange('requests')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-1.5 shrink-0 ${
+            className={`px-4 py-2.5 rounded-2xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 shrink-0 cursor-pointer shadow-md ${
               activeTab === 'requests'
-                ? 'bg-amber-500/15 text-amber-400 border border-amber-500/40 shadow-[0_0_12px_rgba(251,191,36,0.25)]'
-                : 'text-slate-400 hover:text-white hover:bg-slate-900 border border-transparent'
+                ? 'bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500 text-slate-950 font-black shadow-lg shadow-amber-500/25 scale-105 border border-amber-300'
+                : 'bg-slate-950/80 text-slate-400 hover:text-white hover:bg-slate-900 border border-slate-800'
             }`}
           >
             <UserCheck className="w-4 h-4" />
             <span>Friend Requests</span>
             {pendingRequests.length > 0 && (
-              <span className="px-1.5 py-0.5 bg-amber-500 text-slate-950 font-bold text-[9px] rounded-full">
+              <span className="px-2 py-0.5 bg-rose-500 text-white font-mono font-bold text-[10px] rounded-full animate-bounce">
                 {pendingRequests.length}
               </span>
             )}
@@ -364,10 +364,10 @@ export const DiscoverPage: React.FC = () => {
 
           <button
             onClick={() => handleTabChange('suggested_friends')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-1.5 shrink-0 ${
+            className={`px-4 py-2.5 rounded-2xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 shrink-0 cursor-pointer shadow-md ${
               activeTab === 'suggested_friends'
-                ? 'bg-purple-500/15 text-purple-400 border border-purple-500/40 shadow-[0_0_12px_rgba(168,85,247,0.25)]'
-                : 'text-slate-400 hover:text-white hover:bg-slate-900 border border-transparent'
+                ? 'bg-gradient-to-r from-purple-500 via-indigo-500 to-sky-400 text-white shadow-lg shadow-purple-500/25 scale-105 border border-purple-300'
+                : 'bg-slate-950/80 text-slate-400 hover:text-white hover:bg-slate-900 border border-slate-800'
             }`}
           >
             <UserPlus className="w-4 h-4 text-purple-400" />
@@ -376,10 +376,10 @@ export const DiscoverPage: React.FC = () => {
 
           <button
             onClick={() => handleTabChange('suggested_groups')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-1.5 shrink-0 ${
+            className={`px-4 py-2.5 rounded-2xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 shrink-0 cursor-pointer shadow-md ${
               activeTab === 'suggested_groups'
-                ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/40 shadow-[0_0_12px_rgba(99,102,241,0.25)]'
-                : 'text-slate-400 hover:text-white hover:bg-slate-900 border border-transparent'
+                ? 'bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white shadow-lg shadow-indigo-500/25 scale-105 border border-indigo-300'
+                : 'bg-slate-950/80 text-slate-400 hover:text-white hover:bg-slate-900 border border-slate-800'
             }`}
           >
             <Users className="w-4 h-4 text-indigo-400" />
@@ -388,10 +388,10 @@ export const DiscoverPage: React.FC = () => {
 
           <button
             onClick={() => handleTabChange('trending_posts')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-1.5 shrink-0 ${
+            className={`px-4 py-2.5 rounded-2xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 shrink-0 cursor-pointer shadow-md ${
               activeTab === 'trending_posts'
-                ? 'bg-rose-500/15 text-rose-400 border border-rose-500/40 shadow-[0_0_12px_rgba(244,63,94,0.25)]'
-                : 'text-slate-400 hover:text-white hover:bg-slate-900 border border-transparent'
+                ? 'bg-gradient-to-r from-rose-500 via-pink-500 to-purple-500 text-white shadow-lg shadow-rose-500/25 scale-105 border border-rose-300'
+                : 'bg-slate-950/80 text-slate-400 hover:text-white hover:bg-slate-900 border border-slate-800'
             }`}
           >
             <Flame className="w-4 h-4 text-rose-400" />
@@ -400,10 +400,10 @@ export const DiscoverPage: React.FC = () => {
 
           <button
             onClick={() => handleTabChange('trending_events')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-1.5 shrink-0 ${
+            className={`px-4 py-2.5 rounded-2xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 shrink-0 cursor-pointer shadow-md ${
               activeTab === 'trending_events'
-                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/40 shadow-[0_0_12px_rgba(52,211,153,0.25)]'
-                : 'text-slate-400 hover:text-white hover:bg-slate-900 border border-transparent'
+                ? 'bg-gradient-to-r from-emerald-400 via-teal-500 to-sky-500 text-slate-950 font-black shadow-lg shadow-emerald-500/25 scale-105 border border-emerald-300'
+                : 'bg-slate-950/80 text-slate-400 hover:text-white hover:bg-slate-900 border border-slate-800'
             }`}
           >
             <Calendar className="w-4 h-4 text-emerald-400" />
@@ -580,22 +580,23 @@ export const DiscoverPage: React.FC = () => {
             {/* Discovery Sections */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Groups You May Like */}
-              <section className="p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-4 shadow-xl">
-                <h2 className="text-sm font-bold text-white flex items-center gap-2 border-b border-slate-800 pb-3">
-                  <Users className="w-4.5 h-4.5 text-sky-400" />
+              <section className="p-6 bg-slate-900/90 border-2 border-slate-800 rounded-3xl space-y-4 shadow-2xl relative overflow-hidden group">
+                <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-sky-400 via-indigo-500 to-purple-500 opacity-70 group-hover:opacity-100 transition-opacity" />
+                <h2 className="text-sm font-extrabold text-white flex items-center gap-2 border-b border-slate-800/80 pb-3">
+                  <Users className="w-5 h-5 text-sky-400 animate-pulse" />
                   <span>Groups You May Like</span>
                 </h2>
                 <div className="space-y-3">
                   {groups.map((g) => (
-                    <div key={g.id} className="p-3 bg-slate-950/40 border border-slate-800/80 rounded-2xl flex items-center justify-between gap-3">
+                    <div key={g.id} className="p-4 bg-slate-950/70 border border-slate-800 hover:border-sky-500/50 hover:shadow-lg hover:-translate-y-0.5 rounded-2xl flex items-center justify-between gap-3 transition-all duration-200 group/item">
                       <div className="min-w-0">
-                        <h3 className="text-xs font-bold text-white truncate">{g.name}</h3>
-                        <p className="text-[10px] text-slate-400 line-clamp-1 mt-0.5">{g.description}</p>
-                        <span className="text-[9px] text-sky-400 font-mono mt-1 block">★ {g.explanation}</span>
+                        <h3 className="text-xs font-black text-white truncate group-hover/item:text-sky-300 transition-colors">{g.name}</h3>
+                        <p className="text-[11px] text-slate-400 line-clamp-1 mt-0.5">{g.description}</p>
+                        <span className="text-[9px] text-sky-400 font-mono mt-1 block font-bold">★ {g.explanation}</span>
                       </div>
                       <button
                         onClick={() => navigate(`/groups/${g.id}`)}
-                        className="px-3 py-1 bg-sky-500 text-slate-950 font-bold text-[10px] rounded-lg shrink-0 hover:bg-sky-400 transition-all"
+                        className="px-4 py-1.5 bg-gradient-to-r from-sky-400 via-indigo-500 to-purple-600 hover:from-sky-300 hover:to-purple-500 text-white font-extrabold text-xs rounded-xl shadow-md shadow-sky-500/20 hover:scale-105 transition-all shrink-0 cursor-pointer"
                       >
                         View
                       </button>
@@ -605,9 +606,10 @@ export const DiscoverPage: React.FC = () => {
               </section>
 
               {/* People You May Know */}
-              <section className="p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-4 shadow-xl">
-                <h2 className="text-sm font-bold text-white flex items-center gap-2 border-b border-slate-800 pb-3">
-                  <UserPlus className="w-4.5 h-4.5 text-emerald-400" />
+              <section className="p-6 bg-slate-900/90 border-2 border-slate-800 rounded-3xl space-y-4 shadow-2xl relative overflow-hidden group">
+                <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-emerald-400 via-teal-500 to-sky-500 opacity-70 group-hover:opacity-100 transition-opacity" />
+                <h2 className="text-sm font-extrabold text-white flex items-center gap-2 border-b border-slate-800/80 pb-3">
+                  <UserPlus className="w-5 h-5 text-emerald-400 animate-pulse" />
                   <span>People You May Know</span>
                 </h2>
                 <div className="space-y-3">
@@ -616,21 +618,21 @@ export const DiscoverPage: React.FC = () => {
                     const isBusy = actionBusyUid === p.uid;
 
                     return (
-                      <div key={p.uid} className="p-3 bg-slate-950/40 border border-slate-800/80 rounded-2xl flex items-center justify-between gap-3">
+                      <div key={p.uid} className="p-3.5 bg-slate-950/70 border border-slate-800 hover:border-emerald-500/50 hover:shadow-lg hover:-translate-y-0.5 rounded-2xl flex items-center justify-between gap-3 transition-all duration-200 group/item">
                         <div 
                           onClick={() => navigate(`/profile/${p.username || p.uid}`)}
-                          className="min-w-0 flex items-center gap-2.5 cursor-pointer hover:opacity-80 transition-opacity"
+                          className="min-w-0 flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
                         >
                           {p.photoURL ? (
-                            <img src={p.photoURL} className="w-8 h-8 rounded-full object-cover border border-slate-800 shrink-0" alt="" />
+                            <img src={p.photoURL} className="w-9 h-9 rounded-full object-cover border border-slate-700 shrink-0 group-hover/item:scale-105 transition-transform" alt="" />
                           ) : (
-                            <div className="w-8 h-8 rounded-full bg-slate-850 flex items-center justify-center text-xs font-bold text-slate-300 shrink-0">
+                            <div className="w-9 h-9 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-xs font-black text-emerald-300 shrink-0">
                               {(p.displayName || 'Student').slice(0, 1)}
                             </div>
                           )}
                           <div className="min-w-0">
-                            <h3 className="text-xs font-bold text-white truncate">{p.displayName || 'Student'}</h3>
-                            <span className="text-[9px] text-emerald-400 font-mono block">★ {p.explanation}</span>
+                            <h3 className="text-xs font-black text-white truncate group-hover/item:text-emerald-300 transition-colors">{p.displayName || 'Student'}</h3>
+                            <span className="text-[9px] text-emerald-400 font-mono block font-bold">★ {p.explanation}</span>
                           </div>
                         </div>
 
@@ -639,7 +641,7 @@ export const DiscoverPage: React.FC = () => {
                             <button
                               onClick={() => handleRelationshipAction(p.uid, 'NONE')}
                               disabled={isBusy}
-                              className="px-3 py-1 bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-[10px] rounded-lg transition-colors"
+                              className="px-3.5 py-1.5 bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-300 hover:to-teal-400 text-slate-950 font-black text-[11px] rounded-xl shadow-md shadow-emerald-500/20 hover:scale-105 transition-all cursor-pointer"
                             >
                               Add Friend
                             </button>
@@ -648,7 +650,7 @@ export const DiscoverPage: React.FC = () => {
                             <button
                               onClick={() => handleRelationshipAction(p.uid, 'OUTGOING_PENDING')}
                               disabled={isBusy}
-                              className="px-3 py-1 bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 border border-slate-750 font-bold text-[10px] rounded-lg transition-colors"
+                              className="px-3.5 py-1.5 bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 border border-slate-700 font-bold text-[11px] rounded-xl transition-all cursor-pointer"
                               title="Click to Cancel Request"
                             >
                               Requested
@@ -659,7 +661,7 @@ export const DiscoverPage: React.FC = () => {
                               <button
                                 onClick={() => handleRelationshipAction(p.uid, 'INCOMING_PENDING')}
                                 disabled={isBusy}
-                                className="px-2.5 py-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-[10px] rounded-lg transition-colors"
+                                className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-[11px] rounded-xl transition-all cursor-pointer"
                               >
                                 Accept
                               </button>
@@ -679,7 +681,7 @@ export const DiscoverPage: React.FC = () => {
                                   }
                                 }}
                                 disabled={isBusy}
-                                className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-[10px] rounded-lg transition-colors"
+                                className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-[11px] rounded-xl transition-all cursor-pointer"
                               >
                                 Decline
                               </button>
@@ -689,7 +691,7 @@ export const DiscoverPage: React.FC = () => {
                             <button
                               onClick={() => handleRelationshipAction(p.uid, 'FRIENDS')}
                               disabled={isBusy}
-                              className="px-3 py-1 bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-300 border border-slate-700 font-bold text-[10px] rounded-lg transition-colors"
+                              className="px-3.5 py-1.5 bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-300 border border-slate-700 font-bold text-[11px] rounded-xl transition-all cursor-pointer"
                               title="Click to Remove Friend"
                             >
                               Friends
@@ -703,22 +705,23 @@ export const DiscoverPage: React.FC = () => {
               </section>
 
               {/* Upcoming Events */}
-              <section className="p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-4 shadow-xl">
-                <h2 className="text-sm font-bold text-white flex items-center gap-2 border-b border-slate-800 pb-3">
-                  <Calendar className="w-4.5 h-4.5 text-purple-400" />
+              <section className="p-6 bg-slate-900/90 border-2 border-slate-800 rounded-3xl space-y-4 shadow-2xl relative overflow-hidden group">
+                <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-purple-400 via-pink-500 to-rose-400 opacity-70 group-hover:opacity-100 transition-opacity" />
+                <h2 className="text-sm font-extrabold text-white flex items-center gap-2 border-b border-slate-800/80 pb-3">
+                  <Calendar className="w-5 h-5 text-purple-400 animate-pulse" />
                   <span>Upcoming Events</span>
                 </h2>
                 <div className="space-y-3">
                   {events.map((e) => (
-                    <div key={e.id} className="p-3 bg-slate-950/40 border border-slate-800/80 rounded-2xl flex items-center justify-between gap-3">
+                    <div key={e.id} className="p-4 bg-slate-950/70 border border-slate-800 hover:border-purple-500/50 hover:shadow-lg hover:-translate-y-0.5 rounded-2xl flex items-center justify-between gap-3 transition-all duration-200 group/item">
                       <div className="min-w-0">
-                        <h3 className="text-xs font-bold text-white truncate">{e.title}</h3>
-                        <p className="text-[10px] text-slate-400 line-clamp-1 mt-0.5">{e.location}</p>
-                        <span className="text-[9px] text-purple-400 font-mono mt-1 block">★ {e.explanation}</span>
+                        <h3 className="text-xs font-black text-white truncate group-hover/item:text-purple-300 transition-colors">{e.title}</h3>
+                        <p className="text-[11px] text-slate-400 line-clamp-1 mt-0.5">{e.location}</p>
+                        <span className="text-[9px] text-purple-400 font-mono mt-1 block font-bold">★ {e.explanation}</span>
                       </div>
                       <button
                         onClick={() => navigate(`/events`)}
-                        className="px-3 py-1 bg-purple-500 text-slate-950 font-bold text-[10px] rounded-lg shrink-0 hover:bg-purple-400 transition-all"
+                        className="px-4 py-1.5 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-400 hover:to-pink-400 text-white font-extrabold text-xs rounded-xl shadow-md shadow-purple-500/20 hover:scale-105 transition-all shrink-0 cursor-pointer"
                       >
                         RSVP
                       </button>
@@ -728,22 +731,23 @@ export const DiscoverPage: React.FC = () => {
               </section>
 
               {/* Recommended Opportunities */}
-              <section className="p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-4 shadow-xl">
-                <h2 className="text-sm font-bold text-white flex items-center gap-2 border-b border-slate-800 pb-3">
-                  <Briefcase className="w-4.5 h-4.5 text-indigo-400" />
+              <section className="p-6 bg-slate-900/90 border-2 border-slate-800 rounded-3xl space-y-4 shadow-2xl relative overflow-hidden group">
+                <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-indigo-400 via-sky-400 to-purple-400 opacity-70 group-hover:opacity-100 transition-opacity" />
+                <h2 className="text-sm font-extrabold text-white flex items-center gap-2 border-b border-slate-800/80 pb-3">
+                  <Briefcase className="w-5 h-5 text-indigo-400 animate-pulse" />
                   <span>Internships & Opportunities</span>
                 </h2>
                 <div className="space-y-3">
                   {opportunities.map((o) => (
-                    <div key={o.id} className="p-3 bg-slate-950/40 border border-slate-800/80 rounded-2xl flex items-center justify-between gap-3">
+                    <div key={o.id} className="p-4 bg-slate-950/70 border border-slate-800 hover:border-indigo-500/50 hover:shadow-lg hover:-translate-y-0.5 rounded-2xl flex items-center justify-between gap-3 transition-all duration-200 group/item">
                       <div className="min-w-0">
-                        <h3 className="text-xs font-bold text-white truncate">{o.title}</h3>
-                        <p className="text-[10px] text-slate-400 line-clamp-1 mt-0.5">{o.organization || 'AKGEC Campus'}</p>
-                        <span className="text-[9px] text-indigo-400 font-mono mt-1 block">★ {o.explanation}</span>
+                        <h3 className="text-xs font-black text-white truncate group-hover/item:text-indigo-300 transition-colors">{o.title}</h3>
+                        <p className="text-[11px] text-slate-400 line-clamp-1 mt-0.5">{o.organization || 'AKGEC Campus'}</p>
+                        <span className="text-[9px] text-indigo-400 font-mono mt-1 block font-bold">★ {o.explanation}</span>
                       </div>
                       <button
                         onClick={() => navigate(`/opportunities`)}
-                        className="px-3 py-1 bg-indigo-500 text-slate-950 font-bold text-[10px] rounded-lg shrink-0 hover:bg-indigo-400 transition-all"
+                        className="px-4 py-1.5 bg-gradient-to-r from-indigo-500 to-sky-500 hover:from-indigo-400 hover:to-sky-400 text-white font-extrabold text-xs rounded-xl shadow-md shadow-indigo-500/20 hover:scale-105 transition-all shrink-0 cursor-pointer"
                       >
                         Apply
                       </button>
@@ -754,14 +758,15 @@ export const DiscoverPage: React.FC = () => {
             </div>
 
             {/* Marketplace Picks */}
-            <section className="p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-4 shadow-xl">
-              <h2 className="text-sm font-bold text-white flex items-center gap-2 border-b border-slate-800 pb-3">
-                <ShoppingBag className="w-4.5 h-4.5 text-amber-400" />
+            <section className="p-6 sm:p-7 bg-slate-900/90 border-2 border-slate-800 rounded-3xl space-y-4 shadow-2xl relative overflow-hidden group">
+              <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500 opacity-70 group-hover:opacity-100 transition-opacity" />
+              <h2 className="text-sm font-extrabold text-white flex items-center gap-2 border-b border-slate-800/80 pb-3">
+                <ShoppingBag className="w-5 h-5 text-amber-400 animate-pulse" />
                 <span>Marketplace Deals</span>
               </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-5">
                 {listings.map((l) => (
-                  <div key={l.id} className="p-4 bg-slate-950/40 border border-slate-800 rounded-2xl flex flex-col justify-between gap-3">
+                  <div key={l.id} className="p-4 bg-slate-950/70 border border-slate-800 hover:border-amber-500/50 hover:shadow-xl hover:-translate-y-1 rounded-2xl flex flex-col justify-between gap-3 transition-all duration-200 group/item">
                     <div className="min-w-0">
                       <h3 className="text-xs font-bold text-white truncate">{l.title}</h3>
                       <p className="text-emerald-400 font-mono font-bold text-xs mt-1">₹{l.price}</p>
