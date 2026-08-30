@@ -204,16 +204,20 @@ export const createEvent = async (
     const docRef = await addDoc(eventsRef, newEventData);
 
     if (payload.groupId) {
-      await logGroupActivityEvent(
-        payload.groupId,
-        'event',
-        currentUser.uid,
-        currentUser.displayName || 'Group Member',
-        currentUser.photoURL || undefined,
-        docRef.id,
-        'event',
-        `Created event: ${payload.title}`
-      );
+      try {
+        await logGroupActivityEvent(
+          payload.groupId,
+          'event',
+          currentUser.uid,
+          currentUser.displayName || 'Group Member',
+          currentUser.photoURL || undefined,
+          docRef.id,
+          'event',
+          `Created event: ${payload.title}`
+        );
+      } catch (activityErr) {
+        console.warn('Group activity timeline log warning:', activityErr);
+      }
     }
 
     // Award reputation and track challenge
