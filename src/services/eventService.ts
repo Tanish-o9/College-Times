@@ -220,22 +220,35 @@ export const createEvent = async (
       }
     }
 
-    // Award reputation and track challenge
-    awardReputation(currentUser.uid, docRef.id, 'create_event', 20, `Created event: ${payload.title}`).catch((e) => console.warn(e));
-    trackChallengeAction(currentUser.uid, 'events', 1).catch((e) => console.warn(e));
+    // Award reputation and track challenge safely
+    try {
+      await awardReputation(currentUser.uid, docRef.id, 'create_event', 20, `Created event: ${payload.title}`);
+    } catch (repErr) {
+      console.warn('Reputation award warning:', repErr);
+    }
+
+    try {
+      await trackChallengeAction(currentUser.uid, 'events', 1);
+    } catch (chErr) {
+      console.warn('Challenge action tracking warning:', chErr);
+    }
 
     // Log campus activity only if PUBLIC / CAMPUS event
     if (newEventData.visibility !== 'group' && newEventData.visibility !== 'private') {
-      logCampusActivity({
-        type: 'event',
-        action: 'created a new campus event',
-        actorId: currentUser.uid,
-        actorName: currentUser.displayName || 'Campus Organizer',
-        actorAvatar: currentUser.photoURL || undefined,
-        targetId: docRef.id,
-        targetTitle: payload.title,
-        previewText: payload.description?.slice(0, 150),
-      });
+      try {
+        await logCampusActivity({
+          type: 'event',
+          action: 'created a new campus event',
+          actorId: currentUser.uid,
+          actorName: currentUser.displayName || 'Campus Organizer',
+          actorAvatar: currentUser.photoURL || undefined,
+          targetId: docRef.id,
+          targetTitle: payload.title,
+          previewText: payload.description?.slice(0, 150),
+        });
+      } catch (actErr) {
+        console.warn('Campus activity log warning:', actErr);
+      }
     }
 
     return {

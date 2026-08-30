@@ -398,6 +398,12 @@ service cloud.firestore {
       }
     }
 
+    // Campus Activities Collection
+    match /campusActivities/{activityId} {
+      allow read, create, update: if isAuthenticated();
+      allow delete: if isAdmin();
+    }
+
     // Admin Audit Logs Collection (Admin-only read, admin/backend write, immutable)
     match /adminAuditLogs/{logId} {
       allow read: if isAdmin();
