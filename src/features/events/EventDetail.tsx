@@ -28,11 +28,20 @@ import { ShareModal } from '../../components/ShareModal';
 export const EventDetail: React.FC = () => {
   const { eventId } = useParams<{ eventId: string }>();
   const navigate = useNavigate();
-  const { currentUser, userProfile } = useAuth();
+  const { currentUser, userProfile, isAdmin } = useAuth();
 
   const [event, setEvent] = useState<CampusEvent | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+
+  const isCreatorOrAdmin = Boolean(
+    currentUser &&
+      event &&
+      (event.createdBy === currentUser.uid ||
+        (event as any).creatorId === currentUser.uid ||
+        (event as any).organizerId === currentUser.uid ||
+        isAdmin)
+  );
 
   // RSVP state
   const [userRsvpStatus, setUserRsvpStatus] = useState<string | null>(null);
@@ -492,7 +501,7 @@ export const EventDetail: React.FC = () => {
                   <span className="hidden sm:inline">{hasReminder ? 'Reminder On' : 'Remind Me'}</span>
                 </button>
 
-                {currentUser && (
+                {isCreatorOrAdmin && (
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setIsCancelModalOpen(true)}

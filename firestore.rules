@@ -17,11 +17,7 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() && (
-        (request.auth.token.email != null && (
-          request.auth.token.email == "tanish25153162@akgec.ac.in" ||
-          request.auth.token.email == "tanish@college.edu" ||
-          request.auth.token.email == "admin@college.edu"
-        )) ||
+        (request.auth.token.email != null && request.auth.token.email == "tanish25153162@akgec.ac.in") ||
         (request.auth.token.admin == true) ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin")
@@ -623,12 +619,21 @@ service cloud.firestore {
 
     // Campus Events Collection
     match /events/{eventId} {
-      allow read, write: if isAuthenticated();
-
-      match /{allSubcollections=**} {
-        allow read, write: if isAuthenticated();
-      }
-    }
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isNotBlocked();
+      allow update: if isAuthenticated() && isNotBlocked() && (
+        resource.data.createdBy == request.auth.uid ||
+        resource.data.creatorId == request.auth.uid ||
+        resource.data.organizerId == request.auth.uid ||
+        isAdmin() ||
+        request.resource.data.diff(resource.data).affectedKeys().hasAny(['rsvpCount', 'interestedCount', 'attendeeCount', 'saveCount', 'reminderCount'])
+      );
+      allow delete: if isAuthenticated() && isNotBlocked() && (
+        resource.data.createdBy == request.auth.uid ||
+        resource.data.creatorId == request.auth.uid ||
+        resource.data.organizerId == request.auth.uid ||
+        isAdmin()
+      );
 
       // Event RSVPs / Attendees Sub-collection
       match /rsvps/{userId} {
@@ -1513,3 +1518,4 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
   }
+}

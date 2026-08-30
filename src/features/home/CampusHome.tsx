@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import { getTodaySummary, type TodaySummary } from '../../services/campusIntelligenceService';
 import { ActiveIncidentStrip } from '../incidents/ActiveIncidentStrip';
 import { collection, getDocs, limit, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -106,10 +107,12 @@ export const CampusHome: React.FC = () => {
   const [suggestedGroups, setSuggestedGroups] = useState<SuggestedGroup[]>([]);
 
   const [loading, setLoading] = useState(true);
+  const [todaySummary, setTodaySummary] = useState<TodaySummary | null>(null);
 
   const loadDashboardData = async () => {
     if (!currentUser) return;
     setLoading(true);
+    getTodaySummary(currentUser.uid, userProfile).then(setTodaySummary).catch(() => {});
     try {
       const results = await Promise.allSettled([
         getDocs(query(collection(db, 'posts'), where('status', '==', 'active'), limit(5))),
@@ -259,9 +262,57 @@ export const CampusHome: React.FC = () => {
         {/* Emergency Alert Widget */}
         <ActiveIncidentStrip />
 
-        {/* Quick Actions Strip */}
+        {/* Phase 49A — Smart Today Dashboard Banner */}
+        {todaySummary && todaySummary.items.length > 0 && (
+          <section className="p-5 bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-indigo-500/30 rounded-3xl space-y-3 shadow-xl animate-fadeIn">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-indigo-400 animate-pulse" />
+                <h3 className="text-sm font-black text-white uppercase tracking-wider">
+                  Today's Campus Priorities
+                </h3>
+              </div>
+              {todaySummary.urgentCount > 0 && (
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-rose-500/20 text-rose-300 border border-rose-500/40 animate-pulse">
+                  {todaySummary.urgentCount} Urgent
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {todaySummary.items.map((item) => (
+                <div
+                  key={item.id}
+                  onClick={() => item.linkUrl && navigate(item.linkUrl)}
+                  className={`p-3.5 rounded-2xl border transition-all cursor-pointer hover:-translate-y-0.5 ${
+                    item.priority === 'URGENT'
+                      ? 'bg-rose-500/10 border-rose-500/30 hover:border-rose-500/60 text-rose-100'
+                      : item.priority === 'HIGH'
+                      ? 'bg-amber-500/10 border-amber-500/30 hover:border-amber-500/60 text-amber-100'
+                      : 'bg-slate-900/80 border-slate-800 hover:border-slate-700 text-slate-200'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                      {item.type}
+                    </span>
+                    <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                      item.priority === 'URGENT' ? 'bg-rose-500/20 text-rose-300' : 'bg-amber-500/20 text-amber-300'
+                    }`}>
+                      {item.priority}
+                    </span>
+                  </div>
+                  <h4 className="text-xs font-bold text-white mt-1 truncate">{item.title}</h4>
+                  <p className="text-[11px] text-slate-400 truncate mt-0.5">{item.subtitle}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* 1. Quick Action Palette */}
         {isWidgetVisible('quick_actions') && (
-          <section className="p-5 bg-slate-900/80 backdrop-blur-xl border border-slate-800/90 rounded-3xl space-y-3.5 shadow-2xl relative z-10">
+          <section className="p-4 sm:p-5 bg-slate-900/90 border border-slate-800/90 rounded-3xl space-y-3.5 shadow-xl relative overflow-hidden backdrop-blur-xl">
             <h3 className="text-xs font-bold text-slate-300 uppercase font-mono flex items-center gap-1.5">
               <Sparkles className="w-4 h-4 text-sky-400 animate-pulse" />
               <span className="bg-gradient-to-r from-sky-400 to-purple-400 bg-clip-text text-transparent">Campus Quick Actions</span>

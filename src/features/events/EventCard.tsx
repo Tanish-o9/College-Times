@@ -14,10 +14,18 @@ interface EventCardProps {
 
 export const EventCard: React.FC<EventCardProps> = ({ event, onDelete }) => {
   const navigate = useNavigate();
-  const { currentUser } = useAuth();
+  const { currentUser, isAdmin } = useAuth();
   const [deleting, setDeleting] = useState(false);
 
-  const isCreatorOrAdmin = Boolean(currentUser);
+  const isCreatorOrAdmin = Boolean(
+    currentUser &&
+      (
+        (Boolean(event.createdBy) && event.createdBy === currentUser.uid) ||
+        (Boolean((event as any).creatorId) && (event as any).creatorId === currentUser.uid) ||
+        (Boolean((event as any).organizerId) && (event as any).organizerId === currentUser.uid) ||
+        isAdmin
+      )
+  );
 
   const handleDelete = async (e: React.MouseEvent) => {
     e.stopPropagation();

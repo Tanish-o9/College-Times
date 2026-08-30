@@ -952,12 +952,26 @@ export const subscribeGroupEvents = (
  */
 export const deleteEvent = async (
   eventId: string,
-  userId: string
+  userId: string,
+  isAdminUser?: boolean
 ): Promise<void> => {
   if (!eventId) throw new Error('Event ID is required.');
   if (!userId) throw new Error('Authentication is required.');
 
   const eventRef = doc(db, 'events', eventId);
+  const snap = await getDoc(eventRef);
+  if (snap.exists()) {
+    const eventData = snap.data();
+    const isCreator =
+      eventData.createdBy === userId ||
+      eventData.creatorId === userId ||
+      eventData.organizerId === userId;
+
+    if (!isCreator && !isAdminUser) {
+      throw new Error('Permission denied: Only the event creator or platform admin can delete this event.');
+    }
+  }
+
   await deleteDoc(eventRef);
 };
 

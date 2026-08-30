@@ -1,7 +1,7 @@
 import type { User as FirebaseUser } from 'firebase/auth';
 
 export const PRIMARY_ADMIN_EMAIL = 'tanish25153162@akgec.ac.in';
-export const ADMIN_EMAILS = [PRIMARY_ADMIN_EMAIL, 'tanish@college.edu', 'admin@college.edu'];
+export const ADMIN_EMAILS = [PRIMARY_ADMIN_EMAIL];
 
 export interface AdminNotificationPayload {
   type: 'report' | 'moderation' | 'block' | 'confession_report' | 'event_report' | 'group_report';
