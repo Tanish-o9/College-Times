@@ -295,18 +295,22 @@ export const createGroup = async (
     console.warn(`Initial invite code generation notice for group ${groupId}:`, err);
   }
 
-  logCampusActivity({
-    type: 'group',
-    action: 'created a new group',
-    actorId: currentUser.uid,
-    actorName: userProfile?.displayName || currentUser.displayName || 'Campus Leader',
-    actorAvatar: userProfile?.photoURL || currentUser.photoURL || undefined,
-    groupId,
-    groupName: cleanName,
-    targetId: groupId,
-    targetTitle: cleanName,
-    isPrivate: newGroup.visibility === 'private',
-  });
+  try {
+    await logCampusActivity({
+      type: 'group',
+      action: 'created a new group',
+      actorId: currentUser.uid,
+      actorName: userProfile?.displayName || currentUser.displayName || 'Campus Leader',
+      actorAvatar: userProfile?.photoURL || currentUser.photoURL || undefined,
+      groupId,
+      groupName: cleanName,
+      targetId: groupId,
+      targetTitle: cleanName,
+      isPrivate: newGroup.visibility === 'private',
+    });
+  } catch (actErr) {
+    console.warn('Campus activity log warning:', actErr);
+  }
 
   logAnalyticsEvent('group_created', { groupType: newGroup.type, visibility: newGroup.visibility });
 
