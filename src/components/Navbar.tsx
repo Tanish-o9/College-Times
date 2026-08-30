@@ -24,6 +24,7 @@ import {
   Settings,
   Activity,
   Menu,
+  Lock,
 } from 'lucide-react';
 
 import { useChatAccess } from '../hooks/useChatAccess';
@@ -233,6 +234,11 @@ export const Navbar: React.FC = () => {
           <NavLink to="/events" className={linkClass}>
             <Calendar className="w-4 h-4 text-purple-400" />
             <span>Events</span>
+          </NavLink>
+
+          <NavLink to="/confessions" className={linkClass}>
+            <Lock className="w-4 h-4 text-purple-400" />
+            <span>Confessions</span>
           </NavLink>
 
           <NavLink to="/activity" className={linkClass}>

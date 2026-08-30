@@ -71,6 +71,7 @@ const SettingsHub = lazy(() => import('./features/settings/SettingsHub').then(m 
 const SavedPage = lazy(() => import('./features/saved/SavedPage').then(m => ({ default: m.SavedPage })));
 const ActivityPage = lazy(() => import('./features/profile/ActivityPage').then(m => ({ default: m.ActivityPage })));
 const ReportsPage = lazy(() => import('./features/profile/ReportsPage').then(m => ({ default: m.ReportsPage })));
+const ConfessionPage = lazy(() => import('./features/confessions/ConfessionPage').then(m => ({ default: m.ConfessionPage })));
 
 // Code-split heavy AdminPortal route
 const AdminPage = lazy(() => import('./features/admin/AdminPage').then(module => ({ default: module.AdminPage })));
@@ -128,6 +129,7 @@ export function App() {
               <Route element={<RequireAuth />}>
                 <Route path="/" element={<CampusHome />} />
                 <Route path="/feed" element={<FeedPage />} />
+                <Route path="/confessions" element={<ConfessionPage />} />
                 <Route path="/search" element={<SearchPage />} />
                 <Route path="/marketplace" element={<MarketplacePage />} />
                 <Route path="/marketplace/:listingId" element={<ListingDetailPage />} />

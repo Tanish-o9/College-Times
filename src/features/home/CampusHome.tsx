@@ -27,8 +27,10 @@ import {
   Flame,
   Lightbulb,
   Trophy,
+  Lock,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { ConfessionModal } from '../confessions/ConfessionModal';
 import { formatTimestamp } from '../../utils/format';
 
 interface DashboardWidgetConfig {
@@ -55,6 +57,7 @@ export const CampusHome: React.FC = () => {
 
   const [widgetConfig, setWidgetConfig] = useState<DashboardWidgetConfig[]>(DEFAULT_WIDGETS);
   const [showConfigModal, setShowConfigModal] = useState(false);
+  const [isConfessionModalOpen, setIsConfessionModalOpen] = useState(false);
 
   useEffect(() => {
     if (profile?.dashboardConfig) {
@@ -263,20 +266,21 @@ export const CampusHome: React.FC = () => {
               <Sparkles className="w-4 h-4 text-sky-400 animate-pulse" />
               <span className="bg-gradient-to-r from-sky-400 to-purple-400 bg-clip-text text-transparent">Campus Quick Actions</span>
             </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
               {[
-                { label: 'Create Post', path: '/feed', color: 'text-sky-400', glow: 'hover:border-sky-500/50 hover:shadow-[0_0_18px_rgba(56,189,248,0.25)]', icon: PlusCircle },
-                { label: 'Create Group', path: '/groups', color: 'text-purple-400', glow: 'hover:border-purple-500/50 hover:shadow-[0_0_18px_rgba(168,85,247,0.25)]', icon: Users },
-                { label: 'Create Event', path: '/events', color: 'text-emerald-400', glow: 'hover:border-emerald-500/50 hover:shadow-[0_0_18px_rgba(52,211,153,0.25)]', icon: Calendar },
-                { label: 'Create Poll', path: '/voting', color: 'text-amber-400', glow: 'hover:border-amber-500/50 hover:shadow-[0_0_18px_rgba(251,191,36,0.25)]', icon: BarChart3 },
-                { label: 'Group Instant', path: '/groups', color: 'text-rose-400', glow: 'hover:border-rose-500/50 hover:shadow-[0_0_18px_rgba(244,63,94,0.25)]', icon: Flame },
-                { label: 'Search Campus', path: '/search', color: 'text-cyan-400', glow: 'hover:border-cyan-500/50 hover:shadow-[0_0_18px_rgba(6,182,212,0.25)]', icon: Search },
+                { label: 'Create Post', onClick: () => navigate('/feed'), color: 'text-sky-400', glow: 'hover:border-sky-500/50 hover:shadow-[0_0_18px_rgba(56,189,248,0.25)]', icon: PlusCircle },
+                { label: 'Create Group', onClick: () => navigate('/groups'), color: 'text-purple-400', glow: 'hover:border-purple-500/50 hover:shadow-[0_0_18px_rgba(168,85,247,0.25)]', icon: Users },
+                { label: 'Create Event', onClick: () => navigate('/events'), color: 'text-emerald-400', glow: 'hover:border-emerald-500/50 hover:shadow-[0_0_18px_rgba(52,211,153,0.25)]', icon: Calendar },
+                { label: 'Create Poll', onClick: () => navigate('/voting'), color: 'text-amber-400', glow: 'hover:border-amber-500/50 hover:shadow-[0_0_18px_rgba(251,191,36,0.25)]', icon: BarChart3 },
+                { label: 'Confession', onClick: () => setIsConfessionModalOpen(true), color: 'text-purple-400', glow: 'hover:border-purple-500/50 hover:shadow-[0_0_18px_rgba(168,85,247,0.35)]', icon: Lock },
+                { label: 'Group Instant', onClick: () => navigate('/groups'), color: 'text-rose-400', glow: 'hover:border-rose-500/50 hover:shadow-[0_0_18px_rgba(244,63,94,0.25)]', icon: Flame },
+                { label: 'Search Campus', onClick: () => navigate('/search'), color: 'text-cyan-400', glow: 'hover:border-cyan-500/50 hover:shadow-[0_0_18px_rgba(6,182,212,0.25)]', icon: Search },
               ].map((action, idx) => {
                 const Icon = action.icon;
                 return (
                   <button
                     key={idx}
-                    onClick={() => navigate(action.path)}
+                    onClick={action.onClick}
                     className={`p-3 bg-slate-950/70 hover:bg-slate-900 border border-slate-800/90 ${action.glow} hover:-translate-y-1 active:scale-95 rounded-2xl text-left space-y-1.5 transition-all duration-200 cursor-pointer group`}
                   >
                     <Icon className={`w-4.5 h-4.5 ${action.color} group-hover:scale-110 transition-transform duration-200`} />
@@ -287,6 +291,8 @@ export const CampusHome: React.FC = () => {
             </div>
           </section>
         )}
+
+        <ConfessionModal isOpen={isConfessionModalOpen} onClose={() => setIsConfessionModalOpen(false)} />
 
         {/* Unread Alert Banners */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 shrink-0">
