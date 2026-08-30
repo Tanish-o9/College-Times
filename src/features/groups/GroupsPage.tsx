@@ -305,7 +305,7 @@ export const GroupsPage: React.FC = () => {
               <div
                 key={group.id}
                 onClick={() => navigate(`/groups/${group.id}`)}
-                className="bg-slate-900/80 hover:bg-slate-900 border border-slate-800/90 hover:border-slate-700 rounded-3xl p-5 shadow-xl flex flex-col justify-between cursor-pointer group transition-all duration-300 relative overflow-hidden"
+                className="bg-slate-900/80 hover:bg-slate-900 border border-slate-800/90 hover:border-sky-500/30 hover:translate-y-[-3px] hover:shadow-sky-500/10 rounded-3xl p-5 shadow-xl flex flex-col justify-between cursor-pointer group transition-all duration-200 relative overflow-hidden"
               >
                 <div className="space-y-3">
                   <div className="flex items-start justify-between gap-3">
