@@ -68,6 +68,26 @@ export const LoginPage: React.FC = () => {
   const [photoURL, setPhotoURL] = useState(DEFAULT_AVATARS[0]);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
+  // Forgot Password Modal State
+  const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [resetSending, setResetSending] = useState(false);
+
+  const handleSendResetLink = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!forgotEmail.trim() || resetSending) return;
+
+    setResetSending(true);
+    try {
+      await resetPasswordEmail(forgotEmail.trim());
+      setIsForgotModalOpen(false);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to send password reset link.');
+    } finally {
+      setResetSending(false);
+    }
+  };
+
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -307,6 +327,19 @@ export const LoginPage: React.FC = () => {
                     <span>Sign In</span>
                   )}
                 </button>
+
+                <div className="text-center pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForgotEmail(email);
+                      setIsForgotModalOpen(true);
+                    }}
+                    className="text-xs font-semibold text-sky-400 hover:text-sky-300 transition-colors hover:underline"
+                  >
+                    Forgot Password? Reset via Email
+                  </button>
+                </div>
               </form>
             ) : (
               <form onSubmit={handleSignupSubmit} className="space-y-4">
@@ -556,6 +589,63 @@ export const LoginPage: React.FC = () => {
                 <span>Mobile OTP</span>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Forgot Password Modal */}
+      {isForgotModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+          <div className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Lock className="w-4 h-4 text-sky-400" /> Reset Your Password
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsForgotModalOpen(false)}
+                className="text-slate-400 hover:text-white text-xs font-bold p-1"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Enter your registered email address below. We will send you an official password reset link immediately.
+            </p>
+            <form onSubmit={handleSendResetLink} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                  Email Address *
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                  <input
+                    type="email"
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                    placeholder="e.g. tanish@college.edu"
+                    required
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-sky-500"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsForgotModalOpen(false)}
+                  className="flex-1 py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-white font-semibold rounded-xl text-xs transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={resetSending}
+                  className="flex-1 py-2.5 px-4 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 disabled:opacity-50 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition-all"
+                >
+                  {resetSending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <span>Send Reset Link</span>}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
