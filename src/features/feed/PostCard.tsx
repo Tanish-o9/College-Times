@@ -251,7 +251,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showPinButton, onPinTo
     <>
       <article
         id={post.id ? `post-${post.id}` : undefined}
-        className={`w-full max-w-xl bg-slate-900/80 backdrop-blur-xl border rounded-3xl p-6 sm:p-8 shadow-2xl flex flex-col justify-between relative overflow-hidden group hover:translate-y-[-3px] hover:border-slate-700/80 hover:shadow-sky-500/5 transition-all duration-200 ${
+        className={`w-full max-w-xl bg-slate-900/80 backdrop-blur-xl border rounded-3xl p-6 sm:p-8 shadow-2xl flex flex-col justify-between relative overflow-hidden group hover:-translate-y-1 hover:border-sky-500/40 hover:shadow-xl hover:shadow-sky-500/10 transition-all duration-200 ease-out ${
           isOptimistic ? 'border-sky-500/40 ring-1 ring-sky-500/20' : 'border-slate-800'
         }`}
       >

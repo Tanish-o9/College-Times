@@ -26,7 +26,7 @@ export const EventCard: React.FC<EventCardProps> = ({ event }) => {
   return (
     <article
       onClick={() => navigate(`/events/${event.id}`)}
-      className="w-full bg-slate-900/80 backdrop-blur-xl border border-slate-800 hover:border-purple-500/40 hover:translate-y-[-3px] hover:shadow-purple-500/10 rounded-3xl p-6 shadow-xl flex flex-col justify-between gap-4 cursor-pointer group transition-all duration-200"
+      className="w-full bg-slate-900/80 backdrop-blur-xl border border-slate-800 hover:border-purple-500/40 hover:-translate-y-1 hover:shadow-xl hover:shadow-purple-500/10 rounded-3xl p-6 shadow-xl flex flex-col justify-between gap-4 cursor-pointer group transition-all duration-200 ease-out"
     >
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-2">

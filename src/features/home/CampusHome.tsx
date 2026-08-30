@@ -269,7 +269,7 @@ export const CampusHome: React.FC = () => {
                   <button
                     key={idx}
                     onClick={() => navigate(action.path)}
-                    className="p-3 bg-slate-950/60 hover:bg-slate-800 border border-slate-800 rounded-2xl text-left space-y-1.5 transition-all"
+                    className="p-3 bg-slate-950/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 hover:-translate-y-0.5 active:scale-95 rounded-2xl text-left space-y-1.5 transition-all duration-150"
                   >
                     <Icon className={`w-4.5 h-4.5 ${action.color}`} />
                     <div className="text-[10px] font-bold text-white leading-tight">{action.label}</div>

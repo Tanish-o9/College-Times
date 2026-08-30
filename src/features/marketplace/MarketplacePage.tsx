@@ -272,7 +272,7 @@ export const MarketplacePage: React.FC = () => {
               <div
                 key={item.id}
                 onClick={() => navigate(`/marketplace/${item.id}`)}
-                className="p-4 bg-slate-900 border border-slate-800 rounded-3xl cursor-pointer hover:border-amber-500/30 hover:translate-y-[-3px] hover:shadow-amber-500/10 transition-all duration-200 space-y-3 shadow-xl flex flex-col justify-between"
+                className="p-4 bg-slate-900 border border-slate-800 rounded-3xl cursor-pointer hover:border-amber-500/40 hover:-translate-y-1 hover:shadow-xl hover:shadow-amber-500/10 transition-all duration-200 ease-out space-y-3 shadow-xl flex flex-col justify-between"
               >
                 <div className="space-y-3">
                   {item.images && item.images.length > 0 ? (
