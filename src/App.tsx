@@ -94,7 +94,11 @@ export function App() {
     <AuthProvider>
       <GlobalCacheProvider>
         <Router>
-          <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans overflow-x-hidden w-full max-w-[100vw]">
+          <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans overflow-x-hidden w-full max-w-[100vw] relative">
+            {/* Global Floating Colorful Background Auras */}
+            <div className="fixed top-[-80px] left-1/2 -translate-x-1/2 w-full max-w-6xl h-96 bg-gradient-to-r from-sky-500/20 via-purple-500/20 to-pink-500/20 blur-3xl opacity-75 pointer-events-none rounded-full animate-gradient-x animate-float-slow z-0" />
+            <div className="fixed bottom-[-80px] right-[-50px] w-96 h-96 bg-gradient-to-tr from-indigo-500/20 via-rose-500/20 to-amber-500/15 blur-3xl opacity-65 pointer-events-none rounded-full animate-gradient-x z-0" />
+
           <Toaster 
             position="top-right" 
             toastOptions={{
@@ -109,7 +113,7 @@ export function App() {
           />
           <Navbar />
           <CampusNotificationPrompt />
-          <main className="flex-1 container mx-auto px-2 sm:px-4 py-4 sm:py-6 overflow-x-hidden max-w-[100vw]">
+          <main className="flex-1 container mx-auto px-2 sm:px-4 py-4 sm:py-6 overflow-x-hidden max-w-[100vw] relative z-10">
             <ActiveIncidentStrip />
             <CampusAlertBanner />
             <BreakingAlertBanner />

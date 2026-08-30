@@ -12,6 +12,7 @@
 
   button:not(:disabled):hover, [role="button"]:not(:disabled):hover {
     transform: translateY(-1.5px);
+    box-shadow: 0 0 16px rgba(168, 85, 247, 0.3);
   }
 
   button:not(:disabled):active, [role="button"]:not(:disabled):active {
