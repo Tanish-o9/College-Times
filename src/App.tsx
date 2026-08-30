@@ -93,7 +93,7 @@ export const App: React.FC = () => {
     <AuthProvider>
       <GlobalCacheProvider>
         <Router>
-          <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+          <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans overflow-x-hidden w-full max-w-[100vw]">
           <Toaster 
             position="top-right" 
             toastOptions={{
@@ -108,7 +108,7 @@ export const App: React.FC = () => {
           />
           <Navbar />
           <CampusNotificationPrompt />
-          <main className="flex-1 container mx-auto px-4 py-6">
+          <main className="flex-1 container mx-auto px-2 sm:px-4 py-4 sm:py-6 overflow-x-hidden max-w-[100vw]">
             <ActiveIncidentStrip />
             <CampusAlertBanner />
             <BreakingAlertBanner />
