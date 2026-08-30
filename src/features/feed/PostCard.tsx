@@ -12,6 +12,7 @@ import { CommentSheet } from './CommentSheet';
 import { db } from '../../lib/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 import toast from 'react-hot-toast';
+import { AdminBlockModal } from '../../components/AdminBlockModal';
 import { 
   Clock, 
   User, 
@@ -28,6 +29,7 @@ import {
   Edit2,
   Trash2,
   X,
+  Ban,
 } from 'lucide-react';
 
 interface PostCardProps {
@@ -38,7 +40,8 @@ interface PostCardProps {
 
 export const PostCard: React.FC<PostCardProps> = ({ post, showPinButton, onPinToggle }) => {
   const navigate = useNavigate();
-  const { currentUser } = useAuth();
+  const { currentUser, isAdmin } = useAuth();
+  const [isBlockModalOpen, setIsBlockModalOpen] = useState(false);
 
   // Like state
   const [likeCount, setLikeCount] = useState<number>(post.likeCount ?? 0);
@@ -293,18 +296,20 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showPinButton, onPinTo
             <div className="flex items-center gap-2 text-xs text-slate-400 shrink-0 font-mono">
               <Clock className="w-3.5 h-3.5 text-slate-500" />
               <span>{formatTimestamp(post.timestamp)}</span>
-              {currentUser?.uid === post.authorId && (
-                <div className="flex items-center gap-1 ml-2 border-l border-slate-850 pl-2">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setIsEditing(true);
-                    }}
-                    className="p-1 text-slate-500 hover:text-sky-400 hover:bg-slate-850 rounded-lg transition-colors"
-                    title="Edit Post"
-                  >
-                    <Edit2 className="w-3.5 h-3.5" />
-                  </button>
+              {(currentUser?.uid === post.authorId || isAdmin) && (
+                <div className="flex items-center gap-1.5 ml-2 border-l border-slate-800 pl-2">
+                  {currentUser?.uid === post.authorId && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsEditing(true);
+                      }}
+                      className="p-1 text-slate-500 hover:text-sky-400 hover:bg-slate-850 rounded-lg transition-colors"
+                      title="Edit Post"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -315,6 +320,19 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showPinButton, onPinTo
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
+                  {isAdmin && post.authorId && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsBlockModalOpen(true);
+                      }}
+                      className="px-2 py-0.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                      title="Block User (Admin Only)"
+                    >
+                      <Ban className="w-3 h-3 text-rose-400" />
+                      <span>Block</span>
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -567,6 +585,16 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showPinButton, onPinTo
             </form>
           </div>
         </div>
+      )}
+
+      {/* Admin Block User Modal */}
+      {isAdmin && (
+        <AdminBlockModal
+          targetUserId={post.authorId}
+          targetUserName={post.authorName}
+          isOpen={isBlockModalOpen}
+          onClose={() => setIsBlockModalOpen(false)}
+        />
       )}
     </>
   );

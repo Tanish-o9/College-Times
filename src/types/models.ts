@@ -16,6 +16,10 @@ export interface User {
   department?: string;
   profileVisibility?: 'public' | 'private';
   profileStatus?: 'active' | 'suspended';
+  moderationStatus?: 'active' | 'blocked';
+  blockedAt?: Timestamp | FieldValue;
+  blockedBy?: string;
+  blockReason?: string;
   friendListVisibility?: 'public' | 'friends' | 'private';
   postVisibility?: 'public' | 'friends';
   storyVisibility?: 'public' | 'friends';

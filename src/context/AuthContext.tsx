@@ -7,9 +7,13 @@ import { initUserPresence } from '../services/presenceService';
 import type { User } from '../types';
 import toast from 'react-hot-toast';
 
+import { isEmailAdmin } from '../services/adminNotificationService';
+
 export interface AuthContextType {
   currentUser: FirebaseUser | null;
   userProfile: User | null;
+  isAdmin: boolean;
+  isBlocked: boolean;
   loading: boolean;
   refreshProfile: (targetUid?: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -150,11 +154,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
+  const isAdmin = Boolean(
+    currentUser &&
+      (userProfile?.role === 'admin' || isEmailAdmin(currentUser.email))
+  );
+
+  const isBlocked = Boolean(
+    userProfile?.moderationStatus === 'blocked' || userProfile?.profileStatus === 'suspended'
+  );
+
   return (
     <AuthContext.Provider 
       value={{ 
         currentUser, 
         userProfile, 
+        isAdmin,
+        isBlocked,
         loading, 
         refreshProfile, 
         signOut: handleSignOut,

@@ -33,7 +33,7 @@ import { getMyChannels } from '../services/channelService';
 import type { Channel } from '../types/chat';
 
 export const Navbar: React.FC = () => {
-  const { currentUser } = useAuth();
+  const { currentUser, isAdmin } = useAuth();
   const { joinedGroupIds } = useGlobalCache();
   const navigate = useNavigate();
   const { isEligible: isChatEligible } = useChatAccess();
@@ -289,6 +289,12 @@ export const Navbar: React.FC = () => {
 
           {currentUser ? (
             <div className="flex items-center gap-2 pl-2 border-l border-slate-800">
+              {isAdmin && (
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-purple-500/20 text-purple-300 border border-purple-500/30 tracking-wider shadow-sm animate-pulse">
+                  ADMIN
+                </span>
+              )}
+
               <div className="relative">
                 <button
                   onClick={() => setIsTrayOpen(!isTrayOpen)}

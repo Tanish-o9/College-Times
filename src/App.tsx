@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
 import { GlobalCacheProvider } from './context/GlobalCacheContext';
+import { BlockedUserGuard } from './components/BlockedUserGuard';
 import { Navbar } from './components/Navbar';
 import { RequireAuth } from './components/RequireAuth';
 import { RequireAdmin } from './components/RequireAdmin';
@@ -93,7 +94,8 @@ export function App() {
 
   return (
     <AuthProvider>
-      <GlobalCacheProvider>
+      <BlockedUserGuard>
+        <GlobalCacheProvider>
         <Router>
           <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans overflow-x-hidden w-full max-w-[100vw] relative">
             {/* Global Floating Colorful Background Auras */}
@@ -220,6 +222,7 @@ export function App() {
         </div>
       </Router>
       </GlobalCacheProvider>
+      </BlockedUserGuard>
     </AuthProvider>
   );
 };

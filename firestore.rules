@@ -16,9 +16,23 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isAuthenticated() && 
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
+      return isAuthenticated() && (
+        (request.auth.token.email != null && (
+          request.auth.token.email == "tanish25153162@akgec.ac.in" ||
+          request.auth.token.email == "tanish@college.edu" ||
+          request.auth.token.email == "admin@college.edu"
+        )) ||
+        (request.auth.token.admin == true) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin")
+      );
+    }
+
+    function isNotBlocked() {
+      return isAuthenticated() && (
+        !exists(/databases/$(database)/documents/users/$(request.auth.uid)) ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.moderationStatus != "blocked"
+      );
     }
 
     // Users Collection
@@ -1467,5 +1481,35 @@ service cloud.firestore {
       allow read: if isOwner(userId) || isAdmin();
       allow create, update: if isOwner(userId) || isAdmin();
       allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    // -------------------------------------------------------------------------
+    // Campus Confessions & Private Metadata
+    // -------------------------------------------------------------------------
+    match /confessions/{confessionId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isNotBlocked()
+        && !request.resource.data.keys().hasAny(['authorId', 'authorEmail', 'authorName', 'uid', 'email']);
+      allow update, delete: if isAdmin() || (isAuthenticated() && isNotBlocked());
+
+      match /comments/{commentId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated() && isNotBlocked();
+        allow update, delete: if isAdmin() || resource.data.authorId == request.auth.uid;
+      }
+    }
+
+    match /confessionPrivateMetadata/{confessionId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated() && isNotBlocked()
+        && request.resource.data.authorId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    // -------------------------------------------------------------------------
+    // Moderation Audit Trail
+    // -------------------------------------------------------------------------
+    match /moderationLogs/{logId} {
+      allow read, write: if isAdmin();
     }
   }

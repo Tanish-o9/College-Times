@@ -9,6 +9,8 @@ import {
   subscribeConfessionComments,
   reportConfession,
 } from '../../services/confessionService';
+import { AdminAuthorModal } from '../../components/AdminAuthorModal';
+import { moderateContent } from '../../services/adminService';
 import {
   Heart,
   MessageSquare,
@@ -19,6 +21,8 @@ import {
   RefreshCw,
   X,
   AlertTriangle,
+  Trash2,
+  Eye,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -37,7 +41,7 @@ const REPORT_REASONS = [
 ];
 
 export const ConfessionCard: React.FC<ConfessionCardProps> = ({ confession }) => {
-  const { currentUser } = useAuth();
+  const { currentUser, isAdmin } = useAuth();
   const [liked, setLiked] = useState(false);
   const [likesCount, setLikesCount] = useState(confession.likesCount || 0);
   const [likeLiking, setLikeLiking] = useState(false);
@@ -51,6 +55,28 @@ export const ConfessionCard: React.FC<ConfessionCardProps> = ({ confession }) =>
   const [showReportModal, setShowReportModal] = useState(false);
   const [selectedReason, setSelectedReason] = useState(REPORT_REASONS[0]);
   const [reporting, setReporting] = useState(false);
+
+  const [isAdminAuthorModalOpen, setIsAdminAuthorModalOpen] = useState(false);
+  const [isDeletingConfession, setIsDeletingConfession] = useState(false);
+  const [isDeleted, setIsDeleted] = useState(false);
+
+  const handleAdminDelete = async () => {
+    if (!currentUser || isDeletingConfession) return;
+    if (!window.confirm('Are you sure you want to delete this confession as Admin?')) return;
+
+    setIsDeletingConfession(true);
+    try {
+      await moderateContent('confession', confession.id, 'delete', 'Admin moderation removal', currentUser);
+      toast.success('Confession removed.');
+      setIsDeleted(true);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete confession.');
+    } finally {
+      setIsDeletingConfession(false);
+    }
+  };
+
+  if (isDeleted) return null;
 
   // Check if current user liked
   useEffect(() => {
@@ -173,15 +199,44 @@ export const ConfessionCard: React.FC<ConfessionCardProps> = ({ confession }) =>
           </div>
         </div>
 
-        {/* Report Button */}
-        <button
-          type="button"
-          onClick={() => setShowReportModal(true)}
-          className="p-2 text-slate-400 hover:text-rose-400 rounded-xl hover:bg-slate-800 transition-colors opacity-80 group-hover:opacity-100"
-          title="Report inappropriate confession"
-        >
-          <Flag className="w-4 h-4" />
-        </button>
+        {/* Admin Controls & Report Button */}
+        <div className="flex items-center gap-1.5">
+          {isAdmin && (
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setIsAdminAuthorModalOpen(true)}
+                className="px-2.5 py-1 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 rounded-xl text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer"
+                title="View Author Identity (Admin Only)"
+              >
+                <Eye className="w-3.5 h-3.5 text-purple-400" />
+                <span className="hidden sm:inline">View Author</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleAdminDelete}
+                disabled={isDeletingConfession}
+                className="p-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 rounded-xl transition-all cursor-pointer"
+                title="Remove Confession (Admin)"
+              >
+                {isDeletingConfession ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                )}
+              </button>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setShowReportModal(true)}
+            className="p-2 text-slate-400 hover:text-rose-400 rounded-xl hover:bg-slate-800 transition-colors opacity-80 group-hover:opacity-100"
+            title="Report inappropriate confession"
+          >
+            <Flag className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Confession Content */}
@@ -337,6 +392,15 @@ export const ConfessionCard: React.FC<ConfessionCardProps> = ({ confession }) =>
             </form>
           </div>
         </div>
+      )}
+
+      {/* Admin Author Identity Modal */}
+      {isAdmin && (
+        <AdminAuthorModal
+          confessionId={confession.id}
+          isOpen={isAdminAuthorModalOpen}
+          onClose={() => setIsAdminAuthorModalOpen(false)}
+        />
       )}
     </article>
   );

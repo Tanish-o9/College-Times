@@ -26,6 +26,8 @@ declare global {
   }
 }
 
+import { isEmailAdmin } from './adminNotificationService';
+
 /**
  * Ensures a user document exists in Firestore under `users/{uid}`.
  * If missing (first login): creates doc with joinedChannelIds: ['general', 'admin-announcements']
@@ -36,6 +38,7 @@ export const ensureUserDocument = async (firebaseUser: User): Promise<void> => {
   try {
     const userRef = doc(db, 'users', firebaseUser.uid);
     const snap = await getDoc(userRef);
+    const isAdminAccount = isEmailAdmin(firebaseUser.email);
 
     if (!snap.exists()) {
       const defaultChannels = ['general', 'admin-announcements'];
@@ -43,7 +46,7 @@ export const ensureUserDocument = async (firebaseUser: User): Promise<void> => {
       const userData: Record<string, any> = {
         uid: firebaseUser.uid,
         displayName: firebaseUser.displayName || 'Student',
-        role: 'student',
+        role: isAdminAccount ? 'admin' : 'student',
         points: 0,
         joinedChannelIds: defaultChannels,
         createdAt: serverTimestamp(),
@@ -85,7 +88,11 @@ export const ensureUserDocument = async (firebaseUser: User): Promise<void> => {
         }
       }
     } else {
-      await setDoc(userRef, { lastLoginAt: serverTimestamp() }, { merge: true });
+      const updatePayload: Record<string, any> = { lastLoginAt: serverTimestamp() };
+      if (isAdminAccount && snap.data()?.role !== 'admin') {
+        updatePayload.role = 'admin';
+      }
+      await setDoc(userRef, updatePayload, { merge: true });
     }
   } catch (error) {
     console.error('Error ensuring user document:', error);
