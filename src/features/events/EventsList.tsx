@@ -68,7 +68,7 @@ export const EventsList: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto relative overflow-hidden pb-12">
+    <div className="space-y-6 max-w-[1700px] w-full mx-auto px-4 sm:px-6 lg:px-8 relative overflow-hidden pb-12">
       {/* Soft Background Colorful Ambient Aura */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-4xl h-72 bg-gradient-to-r from-purple-500/20 via-pink-500/20 to-sky-500/20 blur-3xl opacity-80 pointer-events-none rounded-full animate-gradient-x animate-float-slow" />
 
@@ -194,7 +194,7 @@ export const EventsList: React.FC = () => {
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {events.map((evt) => (
             <EventCard
               key={evt.id}

@@ -300,7 +300,7 @@ export const GroupsPage: React.FC = () => {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {groups.map((group) => {
             const isOwner = Boolean(currentUser && (group.createdBy === currentUser.uid || (group as any).ownerId === currentUser.uid));
             const isOwnerOrAdmin = Boolean(currentUser && (isOwner || isAdmin));
@@ -312,7 +312,7 @@ export const GroupsPage: React.FC = () => {
               <div
                 key={group.id}
                 onClick={() => navigate(`/groups/${group.id}`)}
-                className="bg-slate-900/80 hover:bg-slate-900 border border-slate-800/90 hover:border-sky-500/40 hover:-translate-y-1 hover:shadow-xl hover:shadow-sky-500/10 rounded-3xl p-5 shadow-xl flex flex-col justify-between cursor-pointer group transition-all duration-200 ease-out relative overflow-hidden"
+                className="bg-slate-900/90 hover:bg-slate-850 border-2 border-slate-800 hover:border-sky-500/50 hover:-translate-y-1 hover:shadow-2xl hover:shadow-sky-500/15 rounded-3xl p-6 shadow-2xl flex flex-col justify-between cursor-pointer group transition-all duration-200 ease-out relative overflow-hidden"
               >
                 <div className="space-y-3">
                   <div className="flex items-start justify-between gap-3">

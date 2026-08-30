@@ -271,12 +271,12 @@ export const MarketplacePage: React.FC = () => {
             No listings found matching the filters.
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
             {filteredAndSortedListings.map((item) => (
               <div
                 key={item.id}
                 onClick={() => navigate(`/marketplace/${item.id}`)}
-                className="p-4 bg-slate-900 border border-slate-800 rounded-3xl cursor-pointer hover:border-amber-500/40 hover:-translate-y-1 hover:shadow-xl hover:shadow-amber-500/10 transition-all duration-200 ease-out space-y-3 shadow-xl flex flex-col justify-between"
+                className="p-5 bg-slate-900 border-2 border-slate-800 rounded-3xl cursor-pointer hover:border-amber-500/50 hover:-translate-y-1 hover:shadow-2xl hover:shadow-amber-500/15 transition-all duration-200 ease-out space-y-3 shadow-2xl flex flex-col justify-between"
               >
                 <div className="space-y-3">
                   {item.images && item.images.length > 0 ? (

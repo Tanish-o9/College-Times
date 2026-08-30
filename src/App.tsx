@@ -117,7 +117,7 @@ export function App() {
           />
           <Navbar />
           <CampusNotificationPrompt />
-          <main className="flex-1 container mx-auto px-2 sm:px-4 py-4 sm:py-6 overflow-x-hidden max-w-[100vw] relative z-10">
+          <main className="flex-1 w-full mx-auto px-2 sm:px-4 lg:px-6 py-4 sm:py-6 overflow-x-hidden relative z-10">
             <ActiveIncidentStrip />
             <CampusAlertBanner />
             <BreakingAlertBanner />
