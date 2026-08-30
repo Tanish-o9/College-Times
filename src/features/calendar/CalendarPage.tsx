@@ -201,7 +201,7 @@ export const CalendarPage: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white p-4 sm:p-8 flex flex-col lg:flex-row gap-8 relative overflow-hidden">
+    <div className="min-h-screen bg-slate-950 text-white max-w-[1700px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col lg:flex-row gap-8 relative overflow-hidden">
       {/* Calendar Grid Section */}
       <div className="flex-1 space-y-6">
         {/* Header toolbar */}

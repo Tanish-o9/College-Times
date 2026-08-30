@@ -329,7 +329,7 @@ export const DiscoverPage: React.FC = () => {
       </header>
 
       {/* Main Grid content */}
-      <main className="max-w-6xl mx-auto p-4 sm:p-6 space-y-6 relative z-10">
+      <main className="max-w-[1700px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 relative z-10">
         
         {/* Navigation Tabs */}
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar border-b border-slate-800/80 pb-2">

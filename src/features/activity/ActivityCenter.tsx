@@ -162,7 +162,7 @@ export const ActivityCenter: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white p-4 sm:p-8 space-y-6">
+    <div className="min-h-screen bg-slate-950 text-white max-w-[1700px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
       {/* Header */}
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
         <div className="space-y-1">

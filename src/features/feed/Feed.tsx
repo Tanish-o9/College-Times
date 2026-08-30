@@ -346,7 +346,7 @@ export const Feed: React.FC = () => {
   ];
 
   return (
-    <div className="w-full max-w-7xl mx-auto space-y-4 pb-20">
+    <div className="w-full max-w-[1700px] mx-auto px-4 sm:px-6 lg:px-8 space-y-6 pb-20">
       {/* Top Feed Header & Mode Bar */}
       <div className="bg-slate-900/90 backdrop-blur-xl border border-slate-800/90 rounded-3xl p-4 sm:p-5 shadow-2xl space-y-3 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-br from-sky-500/10 via-purple-500/10 to-pink-500/10 blur-3xl pointer-events-none rounded-full" />

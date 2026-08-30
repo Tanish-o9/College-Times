@@ -194,7 +194,7 @@ export const GroupsPage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 pb-12 max-w-6xl mx-auto relative overflow-hidden">
+    <div className="space-y-6 pb-12 max-w-[1700px] w-full mx-auto px-4 sm:px-6 lg:px-8 relative overflow-hidden">
       {/* Hero Header */}
       <div className="relative overflow-hidden bg-slate-900/80 border border-slate-800/90 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-xl">
         <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-sky-500/20 via-purple-500/20 to-pink-500/20 rounded-full blur-3xl -z-0 pointer-events-none animate-gradient-x animate-float-slow opacity-70" />

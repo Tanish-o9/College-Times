@@ -36,7 +36,7 @@ export const ConfessionPage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto pb-24 px-1 sm:px-2">
+    <div className="space-y-6 max-w-[1700px] w-full mx-auto px-4 sm:px-6 lg:px-8 pb-24">
       {/* Header Banner */}
       <section className="relative p-6 sm:p-8 bg-slate-900/90 backdrop-blur-xl border border-slate-800/90 rounded-3xl overflow-hidden shadow-2xl space-y-3">
         {/* Glow Accents */}
