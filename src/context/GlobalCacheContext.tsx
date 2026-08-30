@@ -37,14 +37,15 @@ export const GlobalCacheProvider: React.FC<{ children: React.ReactNode }> = ({ c
     if (!currentUser) return;
     setLoadingCache(true);
     try {
-      // Fetch blocked user IDs
       const blockedColl = collection(db, 'users', currentUser.uid, 'blockedUsers');
-      const blockedSnap = await getDocs(blockedColl);
-      setBlockedUserIds(blockedSnap.docs.map((d) => d.id));
-
-      // Fetch friendships
       const friendsColl = collection(db, 'users', currentUser.uid, 'friends');
-      const friendsSnap = await getDocs(friendsColl);
+
+      const [blockedSnap, friendsSnap] = await Promise.all([
+        getDocs(blockedColl),
+        getDocs(friendsColl),
+      ]);
+
+      setBlockedUserIds(blockedSnap.docs.map((d) => d.id));
       setFriendIds(friendsSnap.docs.map((d) => d.id));
     } catch (err) {
       console.error('Failed to pre-fetch cache logs:', err);
