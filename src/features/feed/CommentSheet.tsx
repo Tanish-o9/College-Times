@@ -6,7 +6,8 @@ import { getCommentsPage, addComment, deleteComment, reactToComment, getRepliesP
 import type { Comment } from '../../types';
 import { formatTimestamp } from '../../utils/format';
 import toast from 'react-hot-toast';
-import { X, Send, MessageSquare, User, RefreshCw, Sparkles, Trash2, CornerDownRight, Heart, AtSign } from 'lucide-react';
+import { AdminBlockModal } from '../../components/AdminBlockModal';
+import { X, Send, MessageSquare, User, RefreshCw, Sparkles, Trash2, CornerDownRight, Heart, AtSign, Ban } from 'lucide-react';
 import type { QueryDocumentSnapshot } from 'firebase/firestore';
 import { collection, query, where, limit, getDocs } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -24,7 +25,8 @@ export const CommentSheet: React.FC<CommentSheetProps> = ({
   postAuthorId,
   onClose,
 }) => {
-  const { currentUser, userProfile } = useAuth();
+  const { currentUser, userProfile, isAdmin } = useAuth();
+  const [selectedBlockUser, setSelectedBlockUser] = useState<{ id: string; name?: string } | null>(null);
   const navigate = useNavigate();
   useOverlayBackHandler(isOpen, onClose);
 
@@ -327,15 +329,24 @@ export const CommentSheet: React.FC<CommentSheetProps> = ({
                           )}
                           <span className="text-xs font-semibold text-white">{c.authorName || 'Student'}</span>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5">
                           <span className="text-[9px] text-slate-500 font-mono">{formatTimestamp(c.timestamp)}</span>
-                          {currentUser && c.authorId === currentUser.uid && (
+                          {(isAdmin || (currentUser && c.authorId === currentUser.uid)) && (
                             <button
                               onClick={() => handleDelete(c.id!)}
-                              className="text-slate-500 hover:text-rose-400 p-1 rounded transition-colors opacity-0 group-hover:opacity-100"
+                              className="text-slate-500 hover:text-rose-400 p-1 rounded transition-colors opacity-80 group-hover:opacity-100 cursor-pointer"
                               title="Delete Comment"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {isAdmin && c.authorId && (
+                            <button
+                              onClick={() => setSelectedBlockUser({ id: c.authorId, name: c.authorName })}
+                              className="p-1 text-rose-400 hover:bg-rose-500/20 rounded transition-colors cursor-pointer"
+                              title="Block Comment Author (Admin Only)"
+                            >
+                              <Ban className="w-3.5 h-3.5 text-rose-400" />
                             </button>
                           )}
                         </div>
@@ -491,6 +502,15 @@ export const CommentSheet: React.FC<CommentSheetProps> = ({
           </form>
         </div>
       </div>
+
+      {isAdmin && selectedBlockUser && (
+        <AdminBlockModal
+          targetUserId={selectedBlockUser.id}
+          targetUserName={selectedBlockUser.name}
+          isOpen={Boolean(selectedBlockUser)}
+          onClose={() => setSelectedBlockUser(null)}
+        />
+      )}
     </div>
   );
 };

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import { AdminBlockModal } from '../../components/AdminBlockModal';
+import { Ban } from 'lucide-react';
 import { BackButton } from '../../components/BackButton';
 import {
   getGroupById,
@@ -82,7 +84,7 @@ export type GroupTab =
 export const GroupDetailPage: React.FC = () => {
   const { groupId } = useParams<{ groupId: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { currentUser, userProfile } = useAuth();
+  const { currentUser, userProfile, isAdmin } = useAuth();
   const navigate = useNavigate();
 
   const [group, setGroup] = useState<CampusGroup | null>(null);
@@ -91,6 +93,7 @@ export const GroupDetailPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [actionBusy, setActionBusy] = useState<boolean>(false);
   const [ownerName, setOwnerName] = useState<string>('Campus Peer');
+  const [isBlockOwnerModalOpen, setIsBlockOwnerModalOpen] = useState(false);
 
   // Tab State
   const initialTab = (searchParams.get('tab') as GroupTab) || 'overview';
@@ -405,17 +408,29 @@ export const GroupDetailPage: React.FC = () => {
                   </p>
                 </div>
 
-                <button
-                  onClick={handleToggleMembership}
-                  disabled={actionBusy || isOwner}
-                  className={`px-5 py-2.5 rounded-xl font-bold text-xs shadow-md transition-all flex items-center gap-1.5 ${
-                    isOwner
-                      ? 'bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 cursor-default'
-                      : isMember
-                      ? 'bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-300 border border-slate-700'
-                      : 'bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-slate-950'
-                  }`}
-                >
+                <div className="flex items-center gap-2 flex-wrap">
+                  {isAdmin && group.createdBy && (
+                    <button
+                      onClick={() => setIsBlockOwnerModalOpen(true)}
+                      className="px-3.5 py-2.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-md"
+                      title="Block Group Owner (Admin Only)"
+                    >
+                      <Ban className="w-4 h-4 text-rose-400" />
+                      <span>Block Owner</span>
+                    </button>
+                  )}
+
+                  <button
+                    onClick={handleToggleMembership}
+                    disabled={actionBusy || isOwner}
+                    className={`px-5 py-2.5 rounded-xl font-bold text-xs shadow-md transition-all flex items-center gap-1.5 ${
+                      isOwner
+                        ? 'bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 cursor-default'
+                        : isMember
+                        ? 'bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-300 border border-slate-700'
+                        : 'bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-slate-950'
+                    }`}
+                  >
                   {actionBusy ? (
                     <RefreshCw className="w-4 h-4 animate-spin" />
                   ) : isOwner ? (
@@ -436,6 +451,7 @@ export const GroupDetailPage: React.FC = () => {
                   )}
                 </button>
               </div>
+            </div>
 
               <p className="text-xs text-slate-300 leading-relaxed bg-slate-950/60 p-4 rounded-2xl border border-slate-800/80">
                 {group.description || 'Official campus community group for College Times.'}
@@ -835,6 +851,15 @@ export const GroupDetailPage: React.FC = () => {
             setIsMember(true);
             loadGroupDetails();
           }}
+        />
+      )}
+
+      {isAdmin && group?.createdBy && (
+        <AdminBlockModal
+          targetUserId={group.createdBy}
+          targetUserName={ownerName}
+          isOpen={isBlockOwnerModalOpen}
+          onClose={() => setIsBlockOwnerModalOpen(false)}
         />
       )}
     </div>
