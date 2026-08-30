@@ -398,6 +398,21 @@ service cloud.firestore {
       }
     }
 
+    // Campus Opportunities Collection
+    match /opportunities/{oppId} {
+      allow read, create, update, delete: if isAuthenticated();
+    }
+
+    // Marketplace Listings Collection
+    match /marketplaceListings/{listingId} {
+      allow read, create, update, delete: if isAuthenticated();
+    }
+
+    // Root Notifications Collection
+    match /notifications/{notifId} {
+      allow read, create, update, delete: if isAuthenticated();
+    }
+
     // Campus Activities Collection
     match /campusActivities/{activityId} {
       allow read, create, update: if isAuthenticated();

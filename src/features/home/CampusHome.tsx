@@ -108,49 +108,49 @@ export const CampusHome: React.FC = () => {
     if (!currentUser) return;
     setLoading(true);
     try {
-      // Bounded parallel queries
-      const [
-        postsSnap,
-        groupsSnap,
-        eventsSnap,
-        oppsSnap,
-        listingsSnap,
-        lostFoundSnap,
-        notifsSnap,
-        recEvts,
-        recOpps,
-        suggGrps,
-      ] = await Promise.all([
+      const results = await Promise.allSettled([
         getDocs(query(collection(db, 'posts'), where('status', '==', 'active'), limit(5))),
-        getDocs(query(collection(db, 'groups'), limit(10))), // retrieve to filter/sort
+        getDocs(query(collection(db, 'groups'), limit(10))),
         getDocs(query(collection(db, 'events'), limit(5))),
         getDocs(query(collection(db, 'opportunities'), limit(5))),
         getDocs(query(collection(db, 'marketplaceListings'), where('status', '==', 'active'), limit(5))),
         getDocs(query(collection(db, 'posts'), where('category', '==', 'LostFound'), limit(5))),
-        getDocs(query(collection(db, 'notifications'), where('recipientId', '==', currentUser.uid), where('read', '==', false), limit(20))),
+        getDocs(query(collection(db, 'users', currentUser.uid, 'notifications'), where('read', '==', false), limit(20))),
         getRecommendedEvents(currentUser.uid, 3),
         getRecommendedOpportunities(currentUser.uid, 3),
         getSuggestedGroups(currentUser.uid, 3),
       ]);
 
-      setPosts(postsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      
-      const allGroups = groupsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      setTrendingGroups(allGroups.slice(0, 5));
-      setJoinedGroups(allGroups.slice(5, 10)); // simulated joined list
+      const postsSnap = results[0].status === 'fulfilled' ? results[0].value : null;
+      const groupsSnap = results[1].status === 'fulfilled' ? results[1].value : null;
+      const eventsSnap = results[2].status === 'fulfilled' ? results[2].value : null;
+      const oppsSnap = results[3].status === 'fulfilled' ? results[3].value : null;
+      const listingsSnap = results[4].status === 'fulfilled' ? results[4].value : null;
+      const lostFoundSnap = results[5].status === 'fulfilled' ? results[5].value : null;
+      const notifsSnap = results[6].status === 'fulfilled' ? results[6].value : null;
+      const recEvts = results[7].status === 'fulfilled' ? results[7].value : [];
+      const recOpps = results[8].status === 'fulfilled' ? results[8].value : [];
+      const suggGrps = results[9].status === 'fulfilled' ? results[9].value : [];
 
-      setEvents(eventsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      setOpportunities(oppsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      setListings(listingsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      setLostFound(lostFoundSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      setUnreadNotificationsCount(notifsSnap.docs.length);
+      if (postsSnap) setPosts(postsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      
+      if (groupsSnap) {
+        const allGroups = groupsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        setTrendingGroups(allGroups.slice(0, 5));
+        setJoinedGroups(allGroups.slice(5, 10));
+      }
+
+      if (eventsSnap) setEvents(eventsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      if (oppsSnap) setOpportunities(oppsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      if (listingsSnap) setListings(listingsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      if (lostFoundSnap) setLostFound(lostFoundSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      if (notifsSnap) setUnreadNotificationsCount(notifsSnap.docs.length);
 
       setRecommendedEvents(recEvts);
       setRecommendedOpps(recOpps);
       setSuggestedGroups(suggGrps);
     } catch (err) {
       console.error('Failed to load dashboard feeds:', err);
-      toast.error('Failed to load home dashboard widgets.');
     } finally {
       setLoading(false);
     }
