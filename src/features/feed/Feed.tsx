@@ -31,15 +31,18 @@ import {
   Star,
   Bookmark,
   Users,
+  Lock,
+  PlusCircle,
 } from 'lucide-react';
 
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { collection, query, orderBy, limit, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 
 type CategoryFilter = 'All' | 'General' | 'Event' | 'Mishap' | 'LostFound';
 
 export const Feed: React.FC = () => {
+  const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [searchParams] = useSearchParams();
   const targetPostId = searchParams.get('postId');
@@ -343,11 +346,39 @@ export const Feed: React.FC = () => {
   ];
 
   return (
-    <div className="relative w-full h-[calc(100vh-4.5rem)] flex flex-col overflow-hidden">
-      {/* Feed Mode Selector & Category Bar */}
-      <div className="sticky top-0 z-30 bg-slate-950/90 backdrop-blur-md border-b border-slate-800/80 px-4 py-2.5 space-y-2 shrink-0">
-        {/* Mode Tabs Row */}
-        <div className="flex items-center justify-between gap-3">
+    <div className="w-full max-w-7xl mx-auto space-y-4 pb-20">
+      {/* Top Feed Header & Mode Bar */}
+      <div className="bg-slate-900/90 backdrop-blur-xl border border-slate-800/90 rounded-3xl p-4 sm:p-5 shadow-2xl space-y-3 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-br from-sky-500/10 via-purple-500/10 to-pink-500/10 blur-3xl pointer-events-none rounded-full" />
+
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-10">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-sky-500/20 to-purple-500/20 border border-sky-500/30 text-sky-400 flex items-center justify-center shadow-inner shrink-0">
+              <Sparkles className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <h1 className="text-lg sm:text-xl font-black text-white tracking-tight flex items-center gap-2">
+                Campus Live Feed
+                <span className="px-2 py-0.5 text-[10px] font-mono font-extrabold uppercase rounded-full bg-sky-500/15 text-sky-400 border border-sky-500/30">
+                  Realtime
+                </span>
+              </h1>
+              <p className="text-xs text-slate-400 font-medium">Discover posts, campus updates, and discussions in real-time.</p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsModalOpen(true)}
+            className="px-4 py-2.5 bg-gradient-to-r from-sky-500 via-indigo-500 to-purple-600 hover:from-sky-400 hover:to-purple-500 text-white font-bold rounded-xl text-xs shadow-lg shadow-sky-500/20 flex items-center justify-center gap-2 transition-all hover:scale-105 cursor-pointer shrink-0"
+          >
+            <PlusCircle className="w-4 h-4" />
+            <span>Create Post</span>
+          </button>
+        </div>
+
+        {/* Mode Selector & Category Sub-Filters */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 pt-3 border-t border-slate-800/80 relative z-10">
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
             {feedModes.map((item) => {
               const isSelected = feedMode === item.mode;
@@ -355,10 +386,10 @@ export const Feed: React.FC = () => {
                 <button
                   key={item.mode}
                   onClick={() => handleModeSelect(item.mode)}
-                  className={`px-3.5 py-1.5 rounded-full text-xs font-bold border transition-all flex items-center gap-1.5 shrink-0 ${
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
                     isSelected
                       ? 'bg-sky-500 text-slate-950 border-sky-400 shadow-md shadow-sky-500/20'
-                      : 'bg-slate-900/80 text-slate-400 border-slate-800 hover:border-slate-700 hover:text-slate-200'
+                      : 'bg-slate-950/70 text-slate-400 border-slate-800/90 hover:border-slate-700 hover:text-slate-200'
                   }`}
                 >
                   {item.icon}
@@ -368,10 +399,32 @@ export const Feed: React.FC = () => {
             })}
           </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 self-end md:self-auto">
+            {(feedMode === 'latest' || feedMode === 'personalized') && (
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar text-[11px]">
+                {categories.map((cat) => {
+                  const isSelected = selectedCategory === cat.label;
+                  return (
+                    <button
+                      key={cat.label}
+                      onClick={() => setSelectedCategory(cat.label)}
+                      className={`px-2.5 py-1 rounded-lg font-bold transition-all flex items-center gap-1 shrink-0 ${
+                        isSelected
+                          ? 'bg-slate-800 text-sky-400 border border-sky-500/30'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      {cat.icon}
+                      <span>{cat.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
             <button
               onClick={() => setIsPrefModalOpen(true)}
-              className="p-2 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-sky-400 rounded-xl border border-slate-800 transition-all text-xs flex items-center gap-1"
+              className="p-2 bg-slate-950 hover:bg-slate-800 text-slate-400 hover:text-sky-400 rounded-xl border border-slate-800 transition-all text-xs flex items-center gap-1"
               title="Feed Preferences"
             >
               <Sliders className="w-3.5 h-3.5" />
@@ -380,41 +433,18 @@ export const Feed: React.FC = () => {
             <button
               onClick={() => fetchInitialPosts(feedMode, selectedCategory)}
               disabled={loadingInitial}
-              className="p-2 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl border border-slate-800 transition-all text-xs flex items-center gap-1"
+              className="p-2 bg-slate-950 hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl border border-slate-800 transition-all text-xs flex items-center gap-1"
               title="Refresh Feed"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loadingInitial ? 'animate-spin text-sky-400' : ''}`} />
             </button>
           </div>
         </div>
-
-        {/* Category Sub-Filters Row (Shown in Latest & Personalized modes) */}
-        {(feedMode === 'latest' || feedMode === 'personalized') && (
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-1 text-[11px]">
-            {categories.map((cat) => {
-              const isSelected = selectedCategory === cat.label;
-              return (
-                <button
-                  key={cat.label}
-                  onClick={() => setSelectedCategory(cat.label)}
-                  className={`px-3 py-1 rounded-lg font-semibold transition-all flex items-center gap-1 shrink-0 ${
-                    isSelected
-                      ? 'bg-slate-800 text-sky-400 border border-sky-500/30'
-                      : 'text-slate-500 hover:text-slate-300'
-                  }`}
-                >
-                  {cat.icon}
-                  <span>{cat.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
       </div>
 
       {/* Floating New Posts Available Pill */}
       {pendingRecentPosts.length > 0 && (
-        <div className="absolute top-14 inset-x-0 z-40 flex justify-center pointer-events-none">
+        <div className="sticky top-20 z-40 flex justify-center pointer-events-none">
           <button
             onClick={mergeNewPosts}
             className="pointer-events-auto px-4 py-2 bg-sky-500 text-slate-950 font-bold text-xs rounded-full shadow-2xl flex items-center gap-2 border border-sky-300 animate-bounce hover:bg-sky-400 transition-all"
@@ -425,31 +455,98 @@ export const Feed: React.FC = () => {
         </div>
       )}
 
-      {/* Scroll Container — normal scroll, no snap so it doesn't fight scrolling */}
-      <div
-        ref={feedScrollRef}
-        className="flex-1 overflow-y-auto scroll-smooth w-full p-3 sm:p-4"
-      >
-        {/* Phase 32: Campus 24-Hour Stories Bar */}
-        <StoryBar />
-        {/* Trending Posts Carousel (Shown when in Trending or Personalized modes) */}
-        {(feedMode === 'trending' || feedMode === 'personalized') && (
-          <div className="p-4 border-b border-slate-800/80 bg-slate-950/40">
-            <TrendingPosts
-              onSelectPost={(postId) => {
-                const elem = document.getElementById(`post-${postId}`);
-                if (elem) {
-                  elem.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }
-              }}
-            />
-          </div>
-        )}
+      {/* 3-Column Desktop Grid Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        {/* Left Sidebar (Desktop Only) */}
+        <aside className="hidden lg:block lg:col-span-3 space-y-4 sticky top-20">
+          {/* User Profile Mini Widget */}
+          <div className="p-5 bg-slate-900/80 backdrop-blur-xl border border-slate-800/90 rounded-3xl space-y-4 shadow-xl">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-sky-500 to-indigo-600 text-white font-extrabold text-sm flex items-center justify-center border border-sky-400/30 shadow-md shrink-0">
+                {currentUser?.displayName ? currentUser.displayName[0].toUpperCase() : 'U'}
+              </div>
+              <div className="overflow-hidden">
+                <h3 className="text-xs font-bold text-white truncate">{currentUser?.displayName || 'Campus Student'}</h3>
+                <p className="text-[10px] text-slate-400 font-mono truncate">{currentUser?.email || 'Student'}</p>
+              </div>
+            </div>
 
-        {/* Error State */}
-        {error && (
-          <div className="h-full flex items-center justify-center p-4">
-            <div className="max-w-md w-full p-6 bg-rose-500/10 border border-rose-500/20 rounded-3xl text-rose-300 text-sm text-center space-y-3">
+            <div className="pt-3 border-t border-slate-800/80 grid grid-cols-2 gap-2 text-center text-[10px] font-mono">
+              <div className="p-2 bg-slate-950/80 rounded-xl border border-slate-800">
+                <div className="text-sky-400 font-bold text-xs">{posts.length}</div>
+                <div className="text-slate-500 uppercase">Posts Loaded</div>
+              </div>
+              <div className="p-2 bg-slate-950/80 rounded-xl border border-slate-800">
+                <div className="text-emerald-400 font-bold text-xs">Live</div>
+                <div className="text-slate-500 uppercase">Network</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Shortcuts */}
+          <div className="p-4 bg-slate-900/80 backdrop-blur-xl border border-slate-800/90 rounded-3xl space-y-2 shadow-xl text-xs font-semibold">
+            <button
+              onClick={() => navigate('/confessions')}
+              className="w-full p-2.5 rounded-2xl bg-purple-500/10 border border-purple-500/20 hover:bg-purple-500/20 text-purple-300 flex items-center justify-between transition-all cursor-pointer group"
+            >
+              <div className="flex items-center gap-2">
+                <Lock className="w-4 h-4 text-purple-400" />
+                <span>Campus Confessions</span>
+              </div>
+              <span className="text-[10px] font-mono text-purple-400 font-bold">100% Secret ↗</span>
+            </button>
+
+            <button
+              onClick={() => navigate('/groups')}
+              className="w-full p-2.5 rounded-2xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 flex items-center justify-between transition-all cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-indigo-400" />
+                <span>Campus Groups</span>
+              </div>
+              <span className="text-[10px] font-mono text-slate-500 font-bold">Explore</span>
+            </button>
+
+            <button
+              onClick={() => navigate('/events')}
+              className="w-full p-2.5 rounded-2xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 flex items-center justify-between transition-all cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-emerald-400" />
+                <span>Campus Events</span>
+              </div>
+              <span className="text-[10px] font-mono text-slate-500 font-bold">Calendar</span>
+            </button>
+          </div>
+        </aside>
+
+        {/* Center Main Feed */}
+        <main className="col-span-12 lg:col-span-6 space-y-4">
+          {/* Phase 32: Campus 24-Hour Stories Bar */}
+          <StoryBar />
+
+          {/* Quick Post Prompt Bar */}
+          <div
+            onClick={() => setIsModalOpen(true)}
+            className="p-4 bg-slate-900/80 backdrop-blur-xl border border-slate-800/90 hover:border-sky-500/40 rounded-3xl flex items-center gap-3 cursor-pointer shadow-xl hover:shadow-sky-500/5 transition-all group"
+          >
+            <div className="w-9 h-9 rounded-2xl bg-sky-500/20 border border-sky-500/30 text-sky-400 font-bold text-xs flex items-center justify-center shrink-0">
+              {currentUser?.displayName ? currentUser.displayName[0].toUpperCase() : 'U'}
+            </div>
+            <div className="flex-1 bg-slate-950 border border-slate-800/80 rounded-2xl px-4 py-2 text-xs text-slate-500 group-hover:text-slate-300 transition-colors">
+              What's happening on campus today? Post an update...
+            </div>
+            <button
+              type="button"
+              className="p-2 bg-sky-500 group-hover:bg-sky-400 text-slate-950 font-bold rounded-xl transition-all shrink-0"
+            >
+              <PlusCircle className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Error State */}
+          {error && (
+            <div className="p-6 bg-rose-500/10 border border-rose-500/20 rounded-3xl text-rose-300 text-sm text-center space-y-3">
               <AlertCircle className="w-8 h-8 text-rose-400 mx-auto" />
               <p className="font-semibold">{error}</p>
               <button
@@ -459,44 +556,30 @@ export const Feed: React.FC = () => {
                 Retry Fetching
               </button>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Initial Loading Skeletons */}
-        {loadingInitial && (
-          <div className="w-full">
-            {[1, 2].map((i) => (
-              <div
-                key={i}
-                className="mb-4 flex items-center justify-center"
-              >
-                <div className="w-full max-w-xl bg-slate-900/50 border border-slate-800/60 rounded-3xl p-8 space-y-6 flex flex-col justify-between">
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <Skeleton variant="button" className="w-28" />
-                      <Skeleton variant="text" className="w-20" />
-                    </div>
-                    <Skeleton variant="text" className="h-8 w-3/4" />
-                    <div className="space-y-2">
-                      <Skeleton variant="text" />
-                      <Skeleton variant="text" className="w-5/6" />
-                      <Skeleton variant="text" className="w-2/3" />
-                    </div>
+          {/* Initial Loading Skeletons */}
+          {loadingInitial && (
+            <div className="w-full space-y-4">
+              {[1, 2].map((i) => (
+                <div key={i} className="p-6 bg-slate-900/60 border border-slate-800/80 rounded-3xl space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Skeleton variant="button" className="w-28" />
+                    <Skeleton variant="text" className="w-20" />
                   </div>
-                  <div className="pt-4 border-t border-slate-800/60 flex items-center justify-between">
-                    <Skeleton variant="rectangular" className="w-32 h-8" />
-                    <Skeleton variant="rectangular" className="w-24 h-8" />
+                  <Skeleton variant="text" className="h-8 w-3/4" />
+                  <div className="space-y-2">
+                    <Skeleton variant="text" />
+                    <Skeleton variant="text" className="w-5/6" />
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
 
-        {/* Empty State */}
-        {!loadingInitial && !error && posts.length === 0 && (
-          <div className="h-full flex items-center justify-center p-4">
-            <div className="bg-slate-900/60 border border-slate-800 rounded-3xl p-10 text-center max-w-md w-full shadow-2xl space-y-4">
+          {/* Empty State */}
+          {!loadingInitial && !error && posts.length === 0 && (
+            <div className="bg-slate-900/60 border border-slate-800 rounded-3xl p-10 text-center w-full shadow-2xl space-y-4">
               <div className="w-16 h-16 rounded-2xl bg-sky-500/10 border border-sky-500/20 text-sky-400 flex items-center justify-center mx-auto">
                 <Inbox className="w-8 h-8" />
               </div>
@@ -514,39 +597,54 @@ export const Feed: React.FC = () => {
                 <span>Create First Post</span>
               </button>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Posts List with Infinite Scroll Sentinel */}
-        {!loadingInitial && !error && posts.length > 0 && (
-          <>
-            {posts.map((post) => (
-              <div
-                key={post.id}
-                className="mb-4 flex items-center justify-center"
-              >
-                <PostCard post={post} />
+          {/* Posts List with Infinite Scroll Sentinel */}
+          {!loadingInitial && !error && posts.length > 0 && (
+            <div className="space-y-4">
+              {posts.map((post) => (
+                <div key={post.id} className="w-full">
+                  <PostCard post={post} />
+                </div>
+              ))}
+
+              {/* Pagination Loading & Caught Up Footer */}
+              <div ref={sentinelRef} className="py-8 flex flex-col items-center justify-center space-y-2">
+                {loadingMore && (
+                  <div className="flex items-center gap-2 px-4 py-2 bg-slate-900 border border-slate-800 rounded-full text-xs font-medium text-sky-400 shadow-xl">
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Loading more posts...</span>
+                  </div>
+                )}
+
+                {!hasMore && (
+                  <div className="flex items-center gap-2 px-4 py-2 bg-slate-900/80 border border-slate-800 rounded-full text-xs font-semibold text-slate-400 shadow-lg">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    <span>You're all caught up!</span>
+                  </div>
+                )}
               </div>
-            ))}
-
-            {/* Pagination Loading & Caught Up Footer */}
-            <div ref={sentinelRef} className="py-8 flex flex-col items-center justify-center space-y-2">
-              {loadingMore && (
-                <div className="flex items-center gap-2 px-4 py-2 bg-slate-900 border border-slate-800 rounded-full text-xs font-medium text-sky-400 shadow-xl">
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>Loading more posts...</span>
-                </div>
-              )}
-
-              {!hasMore && (
-                <div className="flex items-center gap-2 px-4 py-2 bg-slate-900/80 border border-slate-800 rounded-full text-xs font-semibold text-slate-400 shadow-lg">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span>You're all caught up!</span>
-                </div>
-              )}
             </div>
-          </>
-        )}
+          )}
+        </main>
+
+        {/* Right Sidebar (Desktop Only) */}
+        <aside className="hidden lg:block lg:col-span-3 space-y-4 sticky top-20">
+          <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800/90 rounded-3xl p-4 shadow-xl space-y-3">
+            <h3 className="text-xs font-bold text-white flex items-center gap-2 font-mono uppercase tracking-wider">
+              <Flame className="w-4 h-4 text-amber-400 animate-pulse" />
+              <span>Campus Trending</span>
+            </h3>
+            <TrendingPosts
+              onSelectPost={(postId) => {
+                const elem = document.getElementById(`post-${postId}`);
+                if (elem) {
+                  elem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+              }}
+            />
+          </div>
+        </aside>
       </div>
 
       {/* Floating Action Button */}
