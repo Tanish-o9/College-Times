@@ -413,6 +413,26 @@ service cloud.firestore {
       allow read, create, update, delete: if isAuthenticated();
     }
 
+    // Users Collection & All Sub-collections
+    match /users/{userId} {
+      allow read, create, update: if isAuthenticated();
+      allow delete: if isAdmin();
+
+      match /{allSubcollections=**} {
+        allow read, create, update, delete: if isAuthenticated();
+      }
+    }
+
+    // Campus Groups Collection & All Sub-collections
+    match /groups/{groupId} {
+      allow read, create, update: if isAuthenticated();
+      allow delete: if isAdmin();
+
+      match /{allSubcollections=**} {
+        allow read, create, update, delete: if isAuthenticated();
+      }
+    }
+
     // Group Invite Passcodes Collection
     match /groupInviteCodes/{code} {
       allow read, create, update, delete: if isAuthenticated();

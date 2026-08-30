@@ -408,6 +408,7 @@ export const GroupsPage: React.FC = () => {
         onGroupCreated={(newGroup) => {
           setGroups((prev) => [newGroup, ...prev]);
           setJoinedGroupIds((prev) => new Set([...prev, newGroup.id]));
+          loadGroupsAndFilter();
         }}
       />
 
