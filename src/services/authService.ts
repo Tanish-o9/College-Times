@@ -9,6 +9,7 @@ import {
   signOut,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  sendPasswordResetEmail,
   type ConfirmationResult, 
   type User 
 } from 'firebase/auth';
@@ -99,18 +100,16 @@ export const signInWithGoogle = async (): Promise<User> => {
     const provider = new GoogleAuthProvider();
     const result = await signInWithPopup(auth, provider);
     await ensureUserDocument(result.user);
-    toast.success('Logged in with Google successfully!', { id: 'google-login-success' });
+    logAnalyticsEvent('auth_login_google', { uid: result.user.uid });
+    toast.success('Logged in with Google! 🚀');
     return result.user;
   } catch (error: any) {
-    console.error('Error signing in with Google:', error);
     let friendlyMessage = error.message || 'Google sign-in failed. Please try again.';
-
     if (error.code === 'auth/popup-closed-by-user') {
       friendlyMessage = 'Google sign-in was cancelled.';
     } else if (error.code === 'auth/popup-blocked') {
       friendlyMessage = 'Sign-in popup was blocked by browser. Please allow popups for this site.';
     }
-
     toast.error(friendlyMessage, { id: 'google-login-error' });
     throw new Error(friendlyMessage);
   }
@@ -543,11 +542,32 @@ export const signUpWithEmailPassword = async (
 };
 
 /**
+ * Sends a password reset link to user's email.
+ */
+export const resetPasswordEmail = async (email: string): Promise<void> => {
+  if (!email || !email.trim()) {
+    throw new Error('Please enter your email address to reset password.');
+  }
+  try {
+    await sendPasswordResetEmail(auth, email.trim());
+    toast.success('Password reset link sent to your email! 📩 Please check your inbox.');
+  } catch (err: any) {
+    if (err.code === 'auth/user-not-found') {
+      throw new Error('No account found with this email address.');
+    }
+    if (err.code === 'auth/invalid-email') {
+      throw new Error('Please enter a valid email address.');
+    }
+    throw new Error(err.message || 'Failed to send password reset email.');
+  }
+};
+
+/**
  * Sign in a user using standard Email & Password.
  */
 export const signInWithEmailPassword = async (email: string, password: string): Promise<User> => {
   try {
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
     await ensureUserDocument(userCredential.user);
     logAnalyticsEvent('auth_login_email_password', { uid: userCredential.user.uid });
     toast.success('Logged in successfully! 👋');
@@ -555,8 +575,17 @@ export const signInWithEmailPassword = async (email: string, password: string): 
   } catch (err: any) {
     if (err.code === 'auth/operation-not-allowed') {
       throw new Error(
-        'Email/Password Sign-In Method is NOT enabled in your Firebase Console! Please go to Firebase Console -> Authentication -> Sign-in method -> Email/Password and Enable it.'
+        'Email/Password Sign-In Method is NOT enabled in your Firebase Console!'
       );
+    }
+    if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
+      throw new Error('Incorrect email or password. If you forgot your password, click "Forgot Password?" below to reset it.');
+    }
+    if (err.code === 'auth/invalid-email') {
+      throw new Error('Please enter a valid email address.');
+    }
+    if (err.code === 'auth/too-many-requests') {
+      throw new Error('Access temporarily disabled due to multiple failed login attempts. Please reset your password or try again later.');
     }
     throw err;
   }

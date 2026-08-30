@@ -5,7 +5,8 @@ import imageCompression from 'browser-image-compression';
 import { 
   signUpWithEmailPassword, 
   signInWithEmailPassword, 
-  signInWithGoogle 
+  signInWithGoogle,
+  resetPasswordEmail,
 } from '../../services/authService';
 import { PhoneLogin } from './PhoneLogin';
 import { 
@@ -115,6 +116,18 @@ export const LoginPage: React.FC = () => {
       toast.error(err.message || 'Login failed. Please check credentials.');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email.trim()) {
+      toast.error('Please enter your email address in the email field above to reset your password.');
+      return;
+    }
+    try {
+      await resetPasswordEmail(email.trim());
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to send password reset email.');
     }
   };
 
@@ -258,9 +271,18 @@ export const LoginPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">
-                    Password
-                  </label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-300">
+                      Password
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleForgotPassword}
+                      className="text-[11px] font-semibold text-sky-400 hover:text-sky-300 transition-colors hover:underline"
+                    >
+                      Forgot Password?
+                    </button>
+                  </div>
                   <div className="relative">
                     <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                     <input
