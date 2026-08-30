@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useOverlayBackHandler } from '../hooks/useOverlayBackHandler';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -68,12 +69,15 @@ export const BugReportModal: React.FC<BugReportModalProps> = ({ isOpen, onClose 
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
-      <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm" onClick={onClose} />
-
-      <div className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden z-10 my-auto">
-        <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !submitting) onClose();
+      }}
+    >
+      <div className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden z-10 my-auto flex flex-col max-h-[90vh]">
+        <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center">
               <Bug className="w-4 h-4" />
@@ -85,7 +89,7 @@ export const BugReportModal: React.FC<BugReportModalProps> = ({ isOpen, onClose 
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
           <div>
             <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
               Bug Description <span className="text-rose-400">*</span>
@@ -144,7 +148,7 @@ export const BugReportModal: React.FC<BugReportModalProps> = ({ isOpen, onClose 
             <button
               type="submit"
               disabled={!description.trim() || submitting}
-              className="px-5 py-2.5 bg-rose-500 hover:bg-rose-600 disabled:opacity-40 text-white font-semibold text-sm rounded-xl shadow-lg shadow-rose-500/20 flex items-center gap-2"
+              className="px-5 py-2.5 bg-rose-500 hover:bg-rose-600 disabled:opacity-40 text-white font-semibold text-sm rounded-xl shadow-lg shadow-rose-500/20 flex items-center gap-2 cursor-pointer"
             >
               {submitting ? (
                 <>
@@ -161,6 +165,7 @@ export const BugReportModal: React.FC<BugReportModalProps> = ({ isOpen, onClose 
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
