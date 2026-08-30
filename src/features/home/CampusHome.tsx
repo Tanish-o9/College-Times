@@ -180,13 +180,17 @@ export const CampusHome: React.FC = () => {
       {/* Top Banner Header */}
       <header className="sticky top-0 z-30 bg-slate-950/80 backdrop-blur-2xl border-b border-slate-800/80 px-4 py-3.5 sm:px-6 flex items-center justify-between shadow-lg">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-sky-500/20 to-indigo-500/20 border border-sky-500/40 ring-2 ring-sky-500/20 flex items-center justify-center text-sky-300 font-extrabold text-sm shadow-[0_0_12px_rgba(56,189,248,0.25)]">
-            {profile?.displayName ? profile.displayName[0].toUpperCase() : 'C'}
+          <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-sky-500 via-purple-500 to-pink-500 p-0.5 shadow-[0_0_15px_rgba(168,85,247,0.4)] animate-gradient-x">
+            <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center text-sky-300 font-extrabold text-sm">
+              {profile?.displayName ? profile.displayName[0].toUpperCase() : 'C'}
+            </div>
           </div>
           <div>
-            <h1 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
-              <span>Welcome back, {profile?.displayName || 'Student'}</span>
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.5)]" />
+            <h1 className="text-sm sm:text-base font-bold flex items-center gap-2">
+              <span className="bg-gradient-to-r from-sky-300 via-purple-300 to-pink-300 bg-clip-text text-transparent">
+                Welcome back, {profile?.displayName || 'Student'}
+              </span>
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.7)]" />
             </h1>
             <p className="text-[11px] text-slate-400 font-mono">
               @{profile?.displayName?.toLowerCase().replace(/\s+/g, '') || 'campus'} • {profile?.role || 'AKGEC Campus'}
@@ -197,14 +201,14 @@ export const CampusHome: React.FC = () => {
         <div className="flex gap-2">
           <button
             onClick={() => setShowConfigModal(!showConfigModal)}
-            className="px-3.5 py-1.5 bg-slate-900/90 border border-slate-800 hover:border-sky-500/40 hover:text-white hover:-translate-y-0.5 text-slate-300 rounded-xl transition-all text-xs font-semibold flex items-center gap-1.5 shadow-md active:scale-95"
+            className="px-3.5 py-1.5 bg-slate-900/90 border border-slate-800 hover:border-sky-500/50 hover:shadow-[0_0_15px_rgba(56,189,248,0.2)] hover:text-white hover:-translate-y-0.5 text-slate-300 rounded-xl transition-all text-xs font-semibold flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer"
           >
             <Sliders className="w-3.5 h-3.5 text-sky-400" />
             <span>Customize</span>
           </button>
           <button
             onClick={() => navigate('/settings/notifications')}
-            className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-900 border border-slate-800 hover:border-slate-700 hover:-translate-y-0.5 transition-all flex items-center gap-1.5 text-xs font-semibold active:scale-95"
+            className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-900 border border-slate-800 hover:border-purple-500/40 hover:-translate-y-0.5 transition-all flex items-center gap-1.5 text-xs font-semibold active:scale-95 cursor-pointer"
           >
             <span>Settings</span>
           </button>
@@ -213,8 +217,8 @@ export const CampusHome: React.FC = () => {
 
       {/* Main Container */}
       <main className="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6 space-y-6 relative">
-        {/* Soft Background Ambient Glow */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-4xl h-72 bg-gradient-to-r from-sky-500/10 via-purple-500/10 to-indigo-500/10 blur-3xl opacity-70 pointer-events-none rounded-full" />
+        {/* Soft Background Colorful Ambient Aura */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-5xl h-80 bg-gradient-to-r from-sky-500/20 via-purple-500/20 to-pink-500/20 blur-3xl opacity-80 pointer-events-none rounded-full animate-gradient-x animate-float-slow" />
 
         {/* Customization Drawer Panel */}
         {showConfigModal && (
@@ -256,27 +260,27 @@ export const CampusHome: React.FC = () => {
         {isWidgetVisible('quick_actions') && (
           <section className="p-5 bg-slate-900/80 backdrop-blur-xl border border-slate-800/90 rounded-3xl space-y-3.5 shadow-2xl relative z-10">
             <h3 className="text-xs font-bold text-slate-300 uppercase font-mono flex items-center gap-1.5">
-              <Sparkles className="w-4 h-4 text-sky-400" />
-              <span>Campus Quick Actions</span>
+              <Sparkles className="w-4 h-4 text-sky-400 animate-pulse" />
+              <span className="bg-gradient-to-r from-sky-400 to-purple-400 bg-clip-text text-transparent">Campus Quick Actions</span>
             </h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
               {[
-                { label: 'Create Post', path: '/feed', color: 'text-sky-400', icon: PlusCircle },
-                { label: 'Create Group', path: '/groups', color: 'text-purple-400', icon: Users },
-                { label: 'Create Event', path: '/events', color: 'text-emerald-400', icon: Calendar },
-                { label: 'Create Poll', path: '/voting', color: 'text-amber-400', icon: BarChart3 },
-                { label: 'Group Instant', path: '/groups', color: 'text-rose-400', icon: Flame },
-                { label: 'Search Campus', path: '/search', color: 'text-cyan-400', icon: Search },
+                { label: 'Create Post', path: '/feed', color: 'text-sky-400', glow: 'hover:border-sky-500/50 hover:shadow-[0_0_18px_rgba(56,189,248,0.25)]', icon: PlusCircle },
+                { label: 'Create Group', path: '/groups', color: 'text-purple-400', glow: 'hover:border-purple-500/50 hover:shadow-[0_0_18px_rgba(168,85,247,0.25)]', icon: Users },
+                { label: 'Create Event', path: '/events', color: 'text-emerald-400', glow: 'hover:border-emerald-500/50 hover:shadow-[0_0_18px_rgba(52,211,153,0.25)]', icon: Calendar },
+                { label: 'Create Poll', path: '/voting', color: 'text-amber-400', glow: 'hover:border-amber-500/50 hover:shadow-[0_0_18px_rgba(251,191,36,0.25)]', icon: BarChart3 },
+                { label: 'Group Instant', path: '/groups', color: 'text-rose-400', glow: 'hover:border-rose-500/50 hover:shadow-[0_0_18px_rgba(244,63,94,0.25)]', icon: Flame },
+                { label: 'Search Campus', path: '/search', color: 'text-cyan-400', glow: 'hover:border-cyan-500/50 hover:shadow-[0_0_18px_rgba(6,182,212,0.25)]', icon: Search },
               ].map((action, idx) => {
                 const Icon = action.icon;
                 return (
                   <button
                     key={idx}
                     onClick={() => navigate(action.path)}
-                    className="p-3 bg-slate-950/70 hover:bg-slate-850 border border-slate-800/80 hover:border-sky-500/40 hover:shadow-[0_0_15px_rgba(56,189,248,0.15)] hover:-translate-y-1 active:scale-95 rounded-2xl text-left space-y-1.5 transition-all duration-200 cursor-pointer group"
+                    className={`p-3 bg-slate-950/70 hover:bg-slate-900 border border-slate-800/90 ${action.glow} hover:-translate-y-1 active:scale-95 rounded-2xl text-left space-y-1.5 transition-all duration-200 cursor-pointer group`}
                   >
                     <Icon className={`w-4.5 h-4.5 ${action.color} group-hover:scale-110 transition-transform duration-200`} />
-                    <div className="text-[10px] font-bold text-white leading-tight group-hover:text-sky-300 transition-colors">{action.label}</div>
+                    <div className="text-[10px] font-bold text-white leading-tight group-hover:text-sky-200 transition-colors">{action.label}</div>
                   </button>
                 );
               })}
