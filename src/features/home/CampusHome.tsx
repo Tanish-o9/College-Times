@@ -27,10 +27,6 @@ import {
   Flame,
   Lightbulb,
   Trophy,
-  Award,
-  BookOpen,
-  LifeBuoy,
-  Bot,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatTimestamp } from '../../utils/format';
@@ -259,21 +255,14 @@ export const CampusHome: React.FC = () => {
               <Sparkles className="w-4 h-4 text-sky-400" />
               <span>Campus Quick Actions</span>
             </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
               {[
                 { label: 'Create Post', path: '/feed', color: 'text-sky-400', icon: PlusCircle },
                 { label: 'Create Group', path: '/groups', color: 'text-purple-400', icon: Users },
-                { label: 'Start Message', path: '/messages', color: 'text-pink-400', icon: MessageSquare },
                 { label: 'Create Event', path: '/events', color: 'text-emerald-400', icon: Calendar },
-                { label: 'Voting Center', path: '/voting', color: 'text-amber-400', icon: BarChart3 },
-                { label: 'Challenges', path: '/challenges', color: 'text-purple-450', icon: Trophy },
-                { label: 'Clubs & Orgs', path: '/clubs', color: 'text-indigo-400', icon: Award },
-                { label: 'Academic Hub', path: '/academic', color: 'text-emerald-400', icon: BookOpen },
-                { label: 'Support Desk', path: '/support', color: 'text-rose-455', icon: LifeBuoy },
-                { label: 'AI Assistant', path: '/assistant', color: 'text-purple-400', icon: Bot },
-                { label: 'Feedback Desk', path: '/feedback', color: 'text-cyan-400', icon: MessageSquare },
-                { label: 'Campus Planner', path: '/calendar', color: 'text-emerald-450', icon: Calendar },
-                { label: 'My Analytics', path: '/analytics', color: 'text-sky-400', icon: Sliders },
+                { label: 'Create Poll', path: '/voting', color: 'text-amber-400', icon: BarChart3 },
+                { label: 'Group Instant', path: '/groups', color: 'text-rose-400', icon: Flame },
+                { label: 'Search Campus', path: '/search', color: 'text-cyan-400', icon: Search },
               ].map((action, idx) => {
                 const Icon = action.icon;
                 return (
