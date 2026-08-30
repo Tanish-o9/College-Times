@@ -223,9 +223,9 @@ export const CampusHome: React.FC = () => {
       </header>
 
       {/* Main Container */}
-      <main className="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6 space-y-6 relative">
+      <main className="flex-1 max-w-[1700px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 relative">
         {/* Soft Background Colorful Ambient Aura */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-5xl h-80 bg-gradient-to-r from-sky-500/20 via-purple-500/20 to-pink-500/20 blur-3xl opacity-80 pointer-events-none rounded-full animate-gradient-x animate-float-slow" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-96 bg-gradient-to-r from-sky-500/20 via-purple-500/20 to-pink-500/20 blur-3xl opacity-80 pointer-events-none rounded-full animate-gradient-x animate-float-slow" />
 
         {/* Customization Drawer Panel */}
         {showConfigModal && (
@@ -313,31 +313,31 @@ export const CampusHome: React.FC = () => {
 
         {/* 1. Quick Action Palette */}
         {isWidgetVisible('quick_actions') && (
-          <section className="p-4 sm:p-5 bg-slate-900/90 border border-slate-800/90 rounded-3xl space-y-3.5 shadow-xl relative overflow-hidden backdrop-blur-xl">
-            <h3 className="text-xs font-bold text-slate-300 uppercase font-mono flex items-center gap-1.5">
+          <section className="p-6 bg-slate-900/90 border-2 border-slate-800/90 rounded-3xl space-y-4 shadow-2xl relative overflow-hidden backdrop-blur-xl">
+            <h3 className="text-xs font-black text-slate-300 uppercase font-mono flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-sky-400 animate-pulse" />
-              <span className="bg-gradient-to-r from-sky-400 to-purple-400 bg-clip-text text-transparent">Campus Quick Actions</span>
+              <span className="bg-gradient-to-r from-sky-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">Campus Quick Actions</span>
             </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-8 gap-3 sm:gap-4">
               {[
-                { label: 'Create Post', onClick: () => navigate('/feed'), color: 'text-sky-400', glow: 'hover:border-sky-500/50 hover:shadow-[0_0_18px_rgba(56,189,248,0.25)]', icon: PlusCircle },
-                { label: 'Create Group', onClick: () => navigate('/groups'), color: 'text-purple-400', glow: 'hover:border-purple-500/50 hover:shadow-[0_0_18px_rgba(168,85,247,0.25)]', icon: Users },
-                { label: 'Create Event', onClick: () => navigate('/events'), color: 'text-emerald-400', glow: 'hover:border-emerald-500/50 hover:shadow-[0_0_18px_rgba(52,211,153,0.25)]', icon: Calendar },
-                { label: 'Create Poll', onClick: () => navigate('/voting'), color: 'text-amber-400', glow: 'hover:border-amber-500/50 hover:shadow-[0_0_18px_rgba(251,191,36,0.25)]', icon: BarChart3 },
-                { label: 'Confession', onClick: () => setIsConfessionModalOpen(true), color: 'text-purple-400', glow: 'hover:border-purple-500/50 hover:shadow-[0_0_18px_rgba(168,85,247,0.35)]', icon: Lock },
-                { label: 'Group Instant', onClick: () => navigate('/groups'), color: 'text-rose-400', glow: 'hover:border-rose-500/50 hover:shadow-[0_0_18px_rgba(244,63,94,0.25)]', icon: Flame },
-                { label: 'Academics Hub', onClick: () => navigate('/academics'), color: 'text-emerald-400', glow: 'hover:border-emerald-500/50 hover:shadow-[0_0_18px_rgba(52,211,153,0.25)]', icon: GraduationCap },
-                { label: 'Search Campus', onClick: () => navigate('/search'), color: 'text-cyan-400', glow: 'hover:border-cyan-500/50 hover:shadow-[0_0_18px_rgba(6,182,212,0.25)]', icon: Search },
+                { label: 'Create Post', onClick: () => navigate('/feed'), color: 'text-sky-400', glow: 'hover:border-sky-500/60 hover:shadow-[0_0_20px_rgba(56,189,248,0.3)]', icon: PlusCircle },
+                { label: 'Create Group', onClick: () => navigate('/groups'), color: 'text-purple-400', glow: 'hover:border-purple-500/60 hover:shadow-[0_0_20px_rgba(168,85,247,0.3)]', icon: Users },
+                { label: 'Create Event', onClick: () => navigate('/events'), color: 'text-emerald-400', glow: 'hover:border-emerald-500/60 hover:shadow-[0_0_20px_rgba(52,211,153,0.3)]', icon: Calendar },
+                { label: 'Create Poll', onClick: () => navigate('/voting'), color: 'text-amber-400', glow: 'hover:border-amber-500/60 hover:shadow-[0_0_20px_rgba(251,191,36,0.3)]', icon: BarChart3 },
+                { label: 'Confession', onClick: () => setIsConfessionModalOpen(true), color: 'text-purple-400', glow: 'hover:border-purple-500/60 hover:shadow-[0_0_20px_rgba(168,85,247,0.35)]', icon: Lock },
+                { label: 'Group Instant', onClick: () => navigate('/groups'), color: 'text-rose-400', glow: 'hover:border-rose-500/60 hover:shadow-[0_0_20px_rgba(244,63,94,0.3)]', icon: Flame },
+                { label: 'Academics Hub', onClick: () => navigate('/academics'), color: 'text-emerald-400', glow: 'hover:border-emerald-500/60 hover:shadow-[0_0_20px_rgba(52,211,153,0.3)]', icon: GraduationCap },
+                { label: 'Search Campus', onClick: () => navigate('/search'), color: 'text-cyan-400', glow: 'hover:border-cyan-500/60 hover:shadow-[0_0_20px_rgba(6,182,212,0.3)]', icon: Search },
               ].map((action, idx) => {
                 const Icon = action.icon;
                 return (
                   <button
                     key={idx}
                     onClick={action.onClick}
-                    className={`p-3 bg-slate-950/70 hover:bg-slate-900 border border-slate-800/90 ${action.glow} hover:-translate-y-1 active:scale-95 rounded-2xl text-left space-y-1.5 transition-all duration-200 cursor-pointer group`}
+                    className={`p-4 bg-slate-950/80 hover:bg-slate-900 border-2 border-slate-850 ${action.glow} hover:-translate-y-1 active:scale-95 rounded-2xl text-left space-y-2 transition-all duration-200 cursor-pointer group shadow-xl`}
                   >
-                    <Icon className={`w-4.5 h-4.5 ${action.color} group-hover:scale-110 transition-transform duration-200`} />
-                    <div className="text-[10px] font-bold text-white leading-tight group-hover:text-sky-200 transition-colors">{action.label}</div>
+                    <Icon className={`w-6 h-6 ${action.color} group-hover:scale-110 transition-transform duration-200`} />
+                    <div className="text-xs font-black text-white leading-tight group-hover:text-sky-300 transition-colors">{action.label}</div>
                   </button>
                 );
               })}
