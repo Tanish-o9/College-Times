@@ -119,17 +119,19 @@ export const MarketplacePage: React.FC = () => {
   }, [listings, selectedCategory, searchQuery, minPrice, maxPrice, sortBy, currentUser, viewSaved, viewMyListings]);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white flex flex-col">
+    <div className="min-h-screen bg-slate-950 text-white flex flex-col relative overflow-hidden">
       {/* Header */}
-      <header className="sticky top-0 z-30 bg-slate-950/90 backdrop-blur-xl border-b border-slate-800 px-4 py-3.5 sm:px-6 flex items-center justify-between">
+      <header className="sticky top-0 z-30 bg-slate-950/80 backdrop-blur-2xl border-b border-slate-800/80 px-4 py-3.5 sm:px-6 flex items-center justify-between shadow-lg">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/')} className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-900">
+          <button onClick={() => navigate('/')} className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-900 border border-slate-800 hover:border-slate-700 hover:-translate-y-0.5 transition-all cursor-pointer active:scale-95">
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
-              <ShoppingBag className="w-5 h-5 text-amber-400" />
-              <span>Campus Marketplace</span>
+            <h1 className="text-base sm:text-lg font-bold flex items-center gap-2">
+              <ShoppingBag className="w-5 h-5 text-amber-400 animate-pulse" />
+              <span className="bg-gradient-to-r from-amber-300 via-rose-300 to-purple-300 bg-clip-text text-transparent font-extrabold">
+                Campus Marketplace
+              </span>
             </h1>
             <p className="text-[11px] text-slate-400 font-mono">Buy & Sell within College Community</p>
           </div>
@@ -143,9 +145,9 @@ export const MarketplacePage: React.FC = () => {
                   setViewSaved(!viewSaved);
                   setViewMyListings(false);
                 }}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 border transition-all ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 border transition-all duration-200 cursor-pointer active:scale-95 ${
                   viewSaved
-                    ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                    ? 'bg-amber-500/20 text-amber-400 border-amber-500/40 shadow-[0_0_12px_rgba(251,191,36,0.2)]'
                     : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
                 }`}
               >
@@ -158,9 +160,9 @@ export const MarketplacePage: React.FC = () => {
                   setViewMyListings(!viewMyListings);
                   setViewSaved(false);
                 }}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 border transition-all ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 border transition-all duration-200 cursor-pointer active:scale-95 ${
                   viewMyListings
-                    ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                    ? 'bg-amber-500/20 text-amber-400 border-amber-500/40 shadow-[0_0_12px_rgba(251,191,36,0.2)]'
                     : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
                 }`}
               >
@@ -171,7 +173,7 @@ export const MarketplacePage: React.FC = () => {
 
           <button
             onClick={() => setCreateModalOpen(true)}
-            className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-md"
+            className="px-3.5 py-1.5 bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-400 hover:to-rose-400 text-slate-950 font-black text-xs rounded-xl flex items-center gap-1.5 shadow-[0_0_15px_rgba(251,191,36,0.3)] hover:-translate-y-0.5 transition-all cursor-pointer active:scale-95"
           >
             <Plus className="w-4 h-4" />
             <span>Sell Item</span>
@@ -180,7 +182,9 @@ export const MarketplacePage: React.FC = () => {
       </header>
 
       {/* Main Container */}
-      <main className="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 space-y-6">
+      <main className="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 space-y-6 relative">
+        {/* Soft Background Colorful Ambient Aura */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-4xl h-72 bg-gradient-to-r from-amber-500/20 via-rose-500/20 to-purple-500/20 blur-3xl opacity-80 pointer-events-none rounded-full animate-gradient-x animate-float-slow" />
         {/* Discovery Component */}
         <MarketplaceDiscovery />
 

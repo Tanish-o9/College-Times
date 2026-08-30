@@ -72,17 +72,22 @@ export const EventsList: React.FC = () => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto py-6 px-4 space-y-6">
-      {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/60 border border-slate-800 rounded-3xl p-6 shadow-xl">
+    <div className="space-y-6 max-w-5xl mx-auto relative overflow-hidden pb-12">
+      {/* Soft Background Colorful Ambient Aura */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-4xl h-72 bg-gradient-to-r from-purple-500/20 via-pink-500/20 to-sky-500/20 blur-3xl opacity-80 pointer-events-none rounded-full animate-gradient-x animate-float-slow" />
+
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-4 relative z-10">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="p-2 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400">
-              <Calendar className="w-5 h-5" />
+          <div className="flex items-center gap-2.5">
+            <span className="p-2 rounded-2xl bg-gradient-to-tr from-purple-500/20 to-pink-500/20 border border-purple-500/40 text-purple-300 shadow-[0_0_12px_rgba(168,85,247,0.3)]">
+              <Calendar className="w-5 h-5 animate-pulse" />
             </span>
-            <h1 className="text-2xl font-black text-white tracking-tight">Campus Calendar</h1>
+            <h1 className="text-2xl font-black tracking-tight bg-gradient-to-r from-purple-300 via-pink-300 to-sky-300 bg-clip-text text-transparent">
+              Campus Calendar
+            </h1>
           </div>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs text-slate-400 mt-1.5 font-mono">
             Discover upcoming hackathons, fests, workshops, and RSVP to participate!
           </p>
         </div>
@@ -91,7 +96,7 @@ export const EventsList: React.FC = () => {
         {isAdmin && (
           <button
             onClick={() => setIsFormOpen(true)}
-            className="px-5 py-2.5 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white text-xs font-bold rounded-2xl shadow-lg shadow-purple-500/20 flex items-center justify-center gap-2 transition-all shrink-0"
+            className="px-5 py-2.5 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white text-xs font-bold rounded-2xl shadow-[0_0_18px_rgba(168,85,247,0.35)] hover:-translate-y-0.5 flex items-center justify-center gap-2 transition-all shrink-0 cursor-pointer active:scale-95"
           >
             <Shield className="w-4 h-4 text-purple-200" />
             <span>Create Event</span>

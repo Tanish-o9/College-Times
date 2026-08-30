@@ -304,19 +304,24 @@ export const DiscoverPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 pb-12">
+    <div className="min-h-screen bg-slate-950 text-slate-100 pb-12 relative overflow-hidden">
+      {/* Soft Background Colorful Ambient Aura */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-5xl h-80 bg-gradient-to-r from-sky-500/20 via-purple-500/20 to-pink-500/20 blur-3xl opacity-80 pointer-events-none rounded-full animate-gradient-x animate-float-slow" />
+
       {/* Header */}
-      <header className="sticky top-0 z-30 bg-slate-950/90 backdrop-blur-xl border-b border-slate-800 px-4 py-4 sm:px-6 flex items-center justify-between">
+      <header className="sticky top-0 z-30 bg-slate-950/80 backdrop-blur-2xl border-b border-slate-800/80 px-4 py-4 sm:px-6 flex items-center justify-between shadow-lg">
         <div>
-          <h1 className="text-lg font-bold text-white flex items-center gap-2">
-            <Flame className="w-5 h-5 text-amber-500 animate-pulse" />
-            <span>Campus Discovery Hub</span>
+          <h1 className="text-lg font-bold flex items-center gap-2">
+            <Flame className="w-5 h-5 text-amber-400 animate-pulse" />
+            <span className="bg-gradient-to-r from-sky-300 via-purple-300 to-pink-300 bg-clip-text text-transparent font-extrabold">
+              Campus Discovery Hub
+            </span>
           </h1>
           <p className="text-[11px] text-slate-400 font-mono">Personalized groups, events, opportunities, and connections</p>
         </div>
         <button
           onClick={loadDiscoveryData}
-          className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-900 transition-all"
+          className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-900 border border-slate-800 hover:border-sky-500/40 hover:-translate-y-0.5 transition-all cursor-pointer active:scale-95"
           title="Refresh Recommendations"
         >
           <RefreshCw className="w-4 h-4" />
@@ -324,16 +329,16 @@ export const DiscoverPage: React.FC = () => {
       </header>
 
       {/* Main Grid content */}
-      <main className="max-w-6xl mx-auto p-4 sm:p-6 space-y-6">
+      <main className="max-w-6xl mx-auto p-4 sm:p-6 space-y-6 relative z-10">
         
         {/* Navigation Tabs */}
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar border-b border-slate-800 pb-2">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar border-b border-slate-800/80 pb-2">
           <button
             onClick={() => handleTabChange('people')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-1.5 shrink-0 ${
               activeTab === 'people'
-                ? 'bg-sky-500/10 text-sky-400 border border-sky-500/30'
-                : 'text-slate-400 hover:text-white'
+                ? 'bg-sky-500/15 text-sky-400 border border-sky-500/40 shadow-[0_0_12px_rgba(56,189,248,0.25)]'
+                : 'text-slate-400 hover:text-white hover:bg-slate-900 border border-transparent'
             }`}
           >
             <Users className="w-4 h-4" />
@@ -342,10 +347,10 @@ export const DiscoverPage: React.FC = () => {
 
           <button
             onClick={() => handleTabChange('requests')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-1.5 shrink-0 ${
               activeTab === 'requests'
-                ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
-                : 'text-slate-400 hover:text-white'
+                ? 'bg-amber-500/15 text-amber-400 border border-amber-500/40 shadow-[0_0_12px_rgba(251,191,36,0.25)]'
+                : 'text-slate-400 hover:text-white hover:bg-slate-900 border border-transparent'
             }`}
           >
             <UserCheck className="w-4 h-4" />
@@ -359,49 +364,49 @@ export const DiscoverPage: React.FC = () => {
 
           <button
             onClick={() => handleTabChange('suggested_friends')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-1.5 shrink-0 ${
               activeTab === 'suggested_friends'
-                ? 'bg-purple-500/10 text-purple-400 border border-purple-500/30'
-                : 'text-slate-400 hover:text-white'
+                ? 'bg-purple-500/15 text-purple-400 border border-purple-500/40 shadow-[0_0_12px_rgba(168,85,247,0.25)]'
+                : 'text-slate-400 hover:text-white hover:bg-slate-900 border border-transparent'
             }`}
           >
-            <UserPlus className="w-4 h-4" />
+            <UserPlus className="w-4 h-4 text-purple-400" />
             <span>Suggested</span>
           </button>
 
           <button
             onClick={() => handleTabChange('suggested_groups')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-1.5 shrink-0 ${
               activeTab === 'suggested_groups'
-                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
-                : 'text-slate-400 hover:text-white'
+                ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/40 shadow-[0_0_12px_rgba(99,102,241,0.25)]'
+                : 'text-slate-400 hover:text-white hover:bg-slate-900 border border-transparent'
             }`}
           >
-            <Users className="w-4 h-4" />
+            <Users className="w-4 h-4 text-indigo-400" />
             <span>Groups</span>
           </button>
 
           <button
             onClick={() => handleTabChange('trending_posts')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-1.5 shrink-0 ${
               activeTab === 'trending_posts'
-                ? 'bg-orange-500/10 text-orange-400 border border-orange-500/30'
-                : 'text-slate-400 hover:text-white'
+                ? 'bg-rose-500/15 text-rose-400 border border-rose-500/40 shadow-[0_0_12px_rgba(244,63,94,0.25)]'
+                : 'text-slate-400 hover:text-white hover:bg-slate-900 border border-transparent'
             }`}
           >
-            <Flame className="w-4 h-4" />
+            <Flame className="w-4 h-4 text-rose-400" />
             <span>Trending</span>
           </button>
 
           <button
             onClick={() => handleTabChange('trending_events')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-1.5 shrink-0 ${
               activeTab === 'trending_events'
-                ? 'bg-sky-500/10 text-sky-400 border border-sky-500/30'
-                : 'text-slate-400 hover:text-white'
+                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/40 shadow-[0_0_12px_rgba(52,211,153,0.25)]'
+                : 'text-slate-400 hover:text-white hover:bg-slate-900 border border-transparent'
             }`}
           >
-            <Calendar className="w-4 h-4" />
+            <Calendar className="w-4 h-4 text-emerald-400" />
             <span>Events</span>
           </button>
         </div>
@@ -423,7 +428,7 @@ export const DiscoverPage: React.FC = () => {
             ) : (
               <div className="space-y-3">
                 {suggestedFriends.map((p) => (
-                  <div key={p.uid} className="p-4 bg-slate-900 border border-slate-800 rounded-2xl flex items-center gap-3">
+                  <div key={p.uid} className="p-4 bg-slate-900/80 backdrop-blur-xl border border-slate-800/90 hover:border-purple-500/40 hover:-translate-y-1 hover:shadow-[0_0_18px_rgba(168,85,247,0.15)] rounded-2xl flex items-center gap-3 transition-all duration-200 shadow-lg group">
                     {p.photoURL ? (
                       <img src={p.photoURL} className="w-10 h-10 rounded-full object-cover border border-slate-700" alt="" />
                     ) : (
@@ -432,13 +437,13 @@ export const DiscoverPage: React.FC = () => {
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-white truncate">{p.displayName}</p>
+                      <p className="text-sm font-semibold text-white truncate group-hover:text-purple-300 transition-colors">{p.displayName}</p>
                       <p className="text-[11px] text-purple-400 font-mono">@{p.username}</p>
                       <p className="text-[10px] text-slate-500 mt-0.5">{p.explanation}</p>
                     </div>
                     <button
                       onClick={() => navigate(`/profile/${p.uid}`)}
-                      className="px-3 py-1.5 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-xl text-xs font-bold transition-all"
+                      className="px-3.5 py-1.5 bg-purple-500/15 hover:bg-purple-500 text-purple-300 hover:text-slate-950 border border-purple-500/40 rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer"
                     >
                       View
                     </button>
@@ -466,7 +471,7 @@ export const DiscoverPage: React.FC = () => {
             ) : (
               <div className="space-y-3">
                 {suggestedGroups.map((g) => (
-                  <div key={g.id} className="p-4 bg-slate-900 border border-slate-800 rounded-2xl flex items-center gap-3">
+                  <div key={g.id} className="p-4 bg-slate-900/80 backdrop-blur-xl border border-slate-800/90 hover:border-emerald-500/40 hover:-translate-y-1 hover:shadow-[0_0_18px_rgba(52,211,153,0.15)] rounded-2xl flex items-center gap-3 transition-all duration-200 shadow-lg group">
                     {g.iconUrl ? (
                       <img src={g.iconUrl} className="w-10 h-10 rounded-xl object-cover border border-slate-700" alt="" />
                     ) : (
@@ -475,13 +480,13 @@ export const DiscoverPage: React.FC = () => {
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-white truncate">{g.name}</p>
+                      <p className="text-sm font-semibold text-white truncate group-hover:text-emerald-300 transition-colors">{g.name}</p>
                       <p className="text-[11px] text-slate-400 line-clamp-1">{g.description}</p>
                       <p className="text-[10px] text-emerald-400 mt-0.5">{g.explanation}</p>
                     </div>
                     <button
                       onClick={() => navigate(`/groups/${g.id}`)}
-                      className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-xl text-xs font-bold transition-all"
+                      className="px-3.5 py-1.5 bg-emerald-500/15 hover:bg-emerald-500 text-emerald-300 hover:text-slate-950 border border-emerald-500/40 rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer"
                     >
                       View
                     </button>
