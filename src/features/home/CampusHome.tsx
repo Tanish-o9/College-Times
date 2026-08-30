@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { ActiveIncidentStrip } from '../incidents/ActiveIncidentStrip';
@@ -34,6 +34,10 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatTimestamp } from '../../utils/format';
+import { SceneFallback } from '../../components/3d/SceneFallback';
+
+const CampusScene = lazy(() => import('../../components/3d/CampusScene'));
+const CampusOrb = lazy(() => import('../../components/3d/CampusOrb'));
 
 interface DashboardWidgetConfig {
   id: string;
@@ -42,6 +46,7 @@ interface DashboardWidgetConfig {
 }
 
 const DEFAULT_WIDGETS: DashboardWidgetConfig[] = [
+  { id: 'campus_scene', label: 'Interactive 3D Campus', visible: true },
   { id: 'quick_actions', label: 'Quick Actions', visible: true },
   { id: 'recommendations', label: 'Recommendations', visible: true },
   { id: 'feed', label: 'Campus Feed', visible: true },
@@ -189,6 +194,9 @@ export const CampusHome: React.FC = () => {
           </div>
           <div>
             <h1 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
+              <Suspense fallback={<div className="w-6 h-6 rounded-full bg-sky-500/20 animate-pulse" />}>
+                <CampusOrb />
+              </Suspense>
               <span>Welcome back, {profile?.displayName || 'Student'}</span>
             </h1>
             <p className="text-[11px] text-slate-400 font-mono">
@@ -251,6 +259,13 @@ export const CampusHome: React.FC = () => {
 
         {/* Emergency Alert Widget */}
         <ActiveIncidentStrip />
+
+        {/* 3D Campus Scene Hero Visual */}
+        {isWidgetVisible('campus_scene') && (
+          <Suspense fallback={<SceneFallback />}>
+            <CampusScene />
+          </Suspense>
+        )}
 
         {/* Quick Actions Strip */}
         {isWidgetVisible('quick_actions') && (

@@ -1,4 +1,4 @@
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
@@ -74,13 +74,15 @@ const ReportsPage = lazy(() => import('./features/profile/ReportsPage').then(m =
 
 // Code-split heavy AdminPortal route
 const AdminPage = lazy(() => import('./features/admin/AdminPage').then(module => ({ default: module.AdminPage })));
+import { ThreeDProvider } from './components/3d/ThreeDProvider';
 
-export const App: React.FC = () => {
+export function App() {
   const [isOnline, setIsOnline] = React.useState(navigator.onLine);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
+
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     return () => {
@@ -92,7 +94,8 @@ export const App: React.FC = () => {
   return (
     <AuthProvider>
       <GlobalCacheProvider>
-        <Router>
+        <ThreeDProvider>
+          <Router>
           <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans overflow-x-hidden w-full max-w-[100vw]">
           <Toaster 
             position="top-right" 
@@ -212,6 +215,7 @@ export const App: React.FC = () => {
           )}
         </div>
       </Router>
+      </ThreeDProvider>
       </GlobalCacheProvider>
     </AuthProvider>
   );

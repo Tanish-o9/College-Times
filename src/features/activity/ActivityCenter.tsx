@@ -24,6 +24,8 @@ import { formatTimestamp } from '../../utils/format';
 import toast from 'react-hot-toast';
 import { useScrollRestoration } from '../../hooks/useScrollRestoration';
 
+import { ActivityPulse } from '../../components/3d/ActivityPulse';
+
 export const ActivityCenter: React.FC = () => {
   const { currentUser } = useAuth();
   const { joinedGroupIds, blockedUserIds } = useGlobalCache();
@@ -163,6 +165,8 @@ export const ActivityCenter: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white p-4 sm:p-8 space-y-6">
+      <ActivityPulse />
+
       {/* Header */}
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
         <div className="space-y-0.5">
