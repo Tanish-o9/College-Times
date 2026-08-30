@@ -95,11 +95,11 @@ export const getUpcomingEvents = async (): Promise<CampusEvent[]> => {
   try {
     const eventsRef = collection(db, 'events');
     const querySnapshot = await getDocs(eventsRef);
-    const nowMs = Date.now();
+    const startOfTodayMs = new Date().setHours(0, 0, 0, 0);
 
     const list = querySnapshot.docs
       .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() } as CampusEvent))
-      .filter((evt) => parseEventDateMs(evt.eventDate) >= nowMs)
+      .filter((evt) => parseEventDateMs(evt.eventDate) >= startOfTodayMs)
       .sort((a, b) => parseEventDateMs(a.eventDate) - parseEventDateMs(b.eventDate));
 
     return list;
@@ -116,11 +116,11 @@ export const getPastEvents = async (): Promise<CampusEvent[]> => {
   try {
     const eventsRef = collection(db, 'events');
     const querySnapshot = await getDocs(eventsRef);
-    const nowMs = Date.now();
+    const startOfTodayMs = new Date().setHours(0, 0, 0, 0);
 
     const list = querySnapshot.docs
       .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() } as CampusEvent))
-      .filter((evt) => parseEventDateMs(evt.eventDate) < nowMs)
+      .filter((evt) => parseEventDateMs(evt.eventDate) < startOfTodayMs)
       .sort((a, b) => parseEventDateMs(b.eventDate) - parseEventDateMs(a.eventDate));
 
     return list;
@@ -588,38 +588,37 @@ export const getEventsFiltered = async (
     const joinedSet = new Set(userJoinedGroups);
     list = list.filter((e) => {
       if (!e.groupId) return true;
-      if (e.visibility === 'campus' || (e.visibility as any) === 'public') return true;
+      if (!e.visibility || e.visibility === 'campus' || (e.visibility as any) === 'public') return true;
       if (joinedSet.has(e.groupId)) return true;
       if (e.createdBy === currentUser.uid) return true;
       return false;
     });
 
     // 2. Tab Filter by Date Range
-    const nowMs = Date.now();
-    const todayStartMs = new Date().setHours(0, 0, 0, 0);
+    const startOfTodayMs = new Date().setHours(0, 0, 0, 0);
     const todayEndMs = new Date().setHours(23, 59, 59, 999);
     const weekEndMs = Date.now() + 7 * 24 * 60 * 60 * 1000;
     const monthEndMs = Date.now() + 30 * 24 * 60 * 60 * 1000;
 
     if (filters.tab === 'past') {
-      list = list.filter((e) => parseEventDateMs(e.eventDate) < nowMs);
+      list = list.filter((e) => parseEventDateMs(e.eventDate) < startOfTodayMs);
       list.sort((a, b) => parseEventDateMs(b.eventDate) - parseEventDateMs(a.eventDate));
     } else if (filters.tab === 'today') {
       list = list.filter((e) => {
         const ms = parseEventDateMs(e.eventDate);
-        return ms >= todayStartMs && ms <= todayEndMs;
+        return ms >= startOfTodayMs && ms <= todayEndMs;
       });
       list.sort((a, b) => parseEventDateMs(a.eventDate) - parseEventDateMs(b.eventDate));
     } else if (filters.tab === 'this_week') {
       list = list.filter((e) => {
         const ms = parseEventDateMs(e.eventDate);
-        return ms >= nowMs && ms <= weekEndMs;
+        return ms >= startOfTodayMs && ms <= weekEndMs;
       });
       list.sort((a, b) => parseEventDateMs(a.eventDate) - parseEventDateMs(b.eventDate));
     } else if (filters.tab === 'this_month') {
       list = list.filter((e) => {
         const ms = parseEventDateMs(e.eventDate);
-        return ms >= nowMs && ms <= monthEndMs;
+        return ms >= startOfTodayMs && ms <= monthEndMs;
       });
       list.sort((a, b) => parseEventDateMs(a.eventDate) - parseEventDateMs(b.eventDate));
     } else if (filters.tab === 'my_events') {
@@ -639,7 +638,7 @@ export const getEventsFiltered = async (
       list.sort((a, b) => parseEventDateMs(a.eventDate) - parseEventDateMs(b.eventDate));
     } else {
       // 'upcoming' (default)
-      list = list.filter((e) => parseEventDateMs(e.eventDate) >= nowMs);
+      list = list.filter((e) => parseEventDateMs(e.eventDate) >= startOfTodayMs);
       list.sort((a, b) => parseEventDateMs(a.eventDate) - parseEventDateMs(b.eventDate));
     }
 
