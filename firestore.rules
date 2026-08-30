@@ -178,6 +178,11 @@ service cloud.firestore {
         allow update: if false;
       }
 
+      // User Challenge Progress Sub-collection
+      match /challengeProgress/{challengeId} {
+        allow read, create, update, delete: if isOwner(userId);
+      }
+
       // Phase 41: Group Notification Preferences Sub-collection
       match /groupNotificationPreferences/{groupId} {
         allow read, create, update, delete: if isOwner(userId);
@@ -379,6 +384,18 @@ service cloud.firestore {
     match /notificationsDelivery/{postId} {
       allow read: if isAdmin();
       allow write: if false;
+    }
+
+    // Campus Challenges Collection
+    match /challenges/{challengeId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAdmin();
+
+      match /participants/{userId} {
+        allow read: if isAuthenticated();
+        allow create, update: if isAuthenticated() && (userId == request.auth.uid || isAdmin());
+        allow delete: if isAdmin();
+      }
     }
 
     // Admin Audit Logs Collection (Admin-only read, admin/backend write, immutable)
