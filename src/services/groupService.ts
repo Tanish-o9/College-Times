@@ -43,13 +43,15 @@ const MAX_GROUP_CAPACITY = 10000;
 export const getPublicGroups = async (): Promise<CampusGroup[]> => {
   try {
     const colRef = collection(db, 'groups');
-    const q = query(colRef, where('active', '==', true), limit(50));
+    const q = query(colRef, limit(50));
     const snap = await getDocs(q);
 
-    return snap.docs.map((d) => ({
-      ...(d.data() as CampusGroup),
-      id: d.id,
-    }));
+    return snap.docs
+      .map((d) => ({
+        ...(d.data() as CampusGroup),
+        id: d.id,
+      }))
+      .filter((g) => g.active !== false);
   } catch (err) {
     console.error('Error fetching public groups:', err);
     return [];
