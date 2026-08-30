@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { 
-  getUpcomingGroupEvents, 
-  getPastGroupEvents, 
+  subscribeGroupEvents, 
   toggleRsvp, 
   hasUserRsvpd,
   pinEvent,
@@ -54,40 +53,32 @@ export const GroupEvents: React.FC<GroupEventsProps> = ({ groupId, isMember, use
 
   const canCreate = isMember || userProfile?.role === 'admin';
 
-  const loadEvents = async () => {
+  useEffect(() => {
     if (!groupId) return;
     setLoading(true);
-    try {
-      const [upcoming, past] = await Promise.all([
-        getUpcomingGroupEvents(groupId),
-        getPastGroupEvents(groupId),
-      ]);
+
+    const unsubscribe = subscribeGroupEvents(groupId, (upcoming, past) => {
       setUpcomingEvents(upcoming);
       setPastEvents(past);
+      setLoading(false);
 
-      // Check RSVP status for all upcoming events
       if (currentUser) {
-        const rsvpStatusList = await Promise.all(
+        Promise.all(
           upcoming.map(async (e) => {
             const hasRsvpd = await hasUserRsvpd(e.id!, currentUser.uid);
             return { id: e.id!, rsvpd: hasRsvpd };
           })
-        );
-        const map: Record<string, boolean> = {};
-        rsvpStatusList.forEach((x) => {
-          map[x.id] = x.rsvpd;
+        ).then((rsvpStatusList) => {
+          const map: Record<string, boolean> = {};
+          rsvpStatusList.forEach((x) => {
+            map[x.id] = x.rsvpd;
+          });
+          setRsvpMap((prev) => ({ ...prev, ...map }));
         });
-        setRsvpMap(map);
       }
-    } catch (err) {
-      console.error('Failed to load group events:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+    });
 
-  useEffect(() => {
-    loadEvents();
+    return () => unsubscribe();
   }, [groupId, currentUser]);
 
   const handleRsvp = async (eventId: string) => {
@@ -112,13 +103,10 @@ export const GroupEvents: React.FC<GroupEventsProps> = ({ groupId, isMember, use
     try {
       await pinEvent(ev.id, !ev.pinned);
       toast.success(ev.pinned ? 'Event unpinned.' : 'Event pinned.');
-      loadEvents();
     } catch {
       toast.error('Failed to update event pin status.');
     }
   };
-
-
 
   const isManager = userRole === 'owner' || userRole === 'admin';
   const pinnedEvents = upcomingEvents.filter((e) => e.pinned);
@@ -148,7 +136,7 @@ export const GroupEvents: React.FC<GroupEventsProps> = ({ groupId, isMember, use
       <CreateEventForm
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
-        onEventCreated={() => loadEvents()}
+        onEventCreated={() => setIsCreateOpen(false)}
         initialGroupId={groupId}
         initialVisibility="group"
       />

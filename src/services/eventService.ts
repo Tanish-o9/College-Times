@@ -17,6 +17,7 @@ import {
   updateDoc,
   setDoc,
   deleteDoc,
+  onSnapshot,
 } from 'firebase/firestore';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { db } from '../lib/firebase';
@@ -786,5 +787,146 @@ export const getSavedEvents = async (currentUser: FirebaseUser): Promise<CampusE
     console.error('Error fetching saved events:', err);
     return [];
   }
+};
+
+/**
+ * Real-time listener for filtered campus events.
+ */
+export const subscribeEventsFiltered = (
+  filters: EventFilters,
+  currentUser: FirebaseUser,
+  onUpdate: (events: CampusEvent[]) => void,
+  onError?: (error: Error) => void
+): (() => void) => {
+  if (!currentUser) {
+    onUpdate([]);
+    return () => {};
+  }
+
+  const eventsRef = collection(db, 'events');
+
+  return onSnapshot(
+    eventsRef,
+    async (snap) => {
+      try {
+        const userJoinedGroups = await getUserJoinedGroupIds(currentUser.uid);
+        let list = snap.docs.map((d) => ({ id: d.id, ...d.data() } as CampusEvent));
+
+        // 1. Privacy / Visibility Gate
+        const joinedSet = new Set(userJoinedGroups);
+        list = list.filter((e) => {
+          if (!e.groupId) return true;
+          if (!e.visibility || e.visibility === 'campus' || (e.visibility as any) === 'public') return true;
+          if (joinedSet.has(e.groupId)) return true;
+          if (e.createdBy === currentUser.uid) return true;
+          return false;
+        });
+
+        // 2. Tab Filter by Date Range
+        const startOfTodayMs = new Date().setHours(0, 0, 0, 0);
+        const todayEndMs = new Date().setHours(23, 59, 59, 999);
+        const weekEndMs = Date.now() + 7 * 24 * 60 * 60 * 1000;
+        const monthEndMs = Date.now() + 30 * 24 * 60 * 60 * 1000;
+
+        if (filters.tab === 'past') {
+          list = list.filter((e) => parseEventDateMs(e.eventDate) < startOfTodayMs);
+          list.sort((a, b) => parseEventDateMs(b.eventDate) - parseEventDateMs(a.eventDate));
+        } else if (filters.tab === 'today') {
+          list = list.filter((e) => {
+            const ms = parseEventDateMs(e.eventDate);
+            return ms >= startOfTodayMs && ms <= todayEndMs;
+          });
+          list.sort((a, b) => parseEventDateMs(a.eventDate) - parseEventDateMs(b.eventDate));
+        } else if (filters.tab === 'this_week') {
+          list = list.filter((e) => {
+            const ms = parseEventDateMs(e.eventDate);
+            return ms >= startOfTodayMs && ms <= weekEndMs;
+          });
+          list.sort((a, b) => parseEventDateMs(a.eventDate) - parseEventDateMs(b.eventDate));
+        } else if (filters.tab === 'this_month') {
+          list = list.filter((e) => {
+            const ms = parseEventDateMs(e.eventDate);
+            return ms >= startOfTodayMs && ms <= monthEndMs;
+          });
+          list.sort((a, b) => parseEventDateMs(a.eventDate) - parseEventDateMs(b.eventDate));
+        } else if (filters.tab === 'my_events') {
+          try {
+            const rsvpsQuery = query(
+              collectionGroup(db, 'rsvps'),
+              where('userId', '==', currentUser.uid)
+            );
+            const rsvpsSnap = await getDocs(rsvpsQuery);
+            const rsvpdEventIds = new Set(
+              rsvpsSnap.docs.map((d) => d.ref.parent.parent?.id).filter(Boolean) as string[]
+            );
+            list = list.filter((e) => e.id && (rsvpdEventIds.has(e.id) || e.createdBy === currentUser.uid));
+          } catch {
+            list = list.filter((e) => e.createdBy === currentUser.uid);
+          }
+          list.sort((a, b) => parseEventDateMs(a.eventDate) - parseEventDateMs(b.eventDate));
+        } else {
+          // 'upcoming' (default)
+          list = list.filter((e) => parseEventDateMs(e.eventDate) >= startOfTodayMs);
+          list.sort((a, b) => parseEventDateMs(a.eventDate) - parseEventDateMs(b.eventDate));
+        }
+
+        // 3. Category Filter
+        if (filters.category && filters.category !== 'All') {
+          list = list.filter((e) => e.category === filters.category);
+        }
+
+        // 4. Search Query Filter
+        if (filters.searchQuery) {
+          const q = filters.searchQuery.toLowerCase();
+          list = list.filter(
+            (e) =>
+              e.title.toLowerCase().includes(q) ||
+              e.description.toLowerCase().includes(q) ||
+              e.location.toLowerCase().includes(q)
+          );
+        }
+
+        onUpdate(list);
+      } catch (err: any) {
+        console.error('Error processing real-time events snapshot:', err);
+        if (onError) onError(err);
+      }
+    },
+    (err) => {
+      console.error('Real-time events subscription error:', err);
+      if (onError) onError(err);
+    }
+  );
+};
+
+/**
+ * Real-time listener for group events.
+ */
+export const subscribeGroupEvents = (
+  groupId: string,
+  onUpdate: (upcoming: CampusEvent[], past: CampusEvent[]) => void
+): (() => void) => {
+  if (!groupId) {
+    onUpdate([], []);
+    return () => {};
+  }
+
+  const eventsRef = collection(db, 'events');
+  const q = query(eventsRef, where('groupId', '==', groupId));
+
+  return onSnapshot(q, (snap) => {
+    const list = snap.docs.map((d) => ({ id: d.id, ...d.data() } as CampusEvent));
+    const startOfTodayMs = new Date().setHours(0, 0, 0, 0);
+
+    const upcoming = list
+      .filter((evt) => parseEventDateMs(evt.eventDate) >= startOfTodayMs)
+      .sort((a, b) => parseEventDateMs(a.eventDate) - parseEventDateMs(b.eventDate));
+
+    const past = list
+      .filter((evt) => parseEventDateMs(evt.eventDate) < startOfTodayMs)
+      .sort((a, b) => parseEventDateMs(b.eventDate) - parseEventDateMs(a.eventDate));
+
+    onUpdate(upcoming, past);
+  });
 };
 

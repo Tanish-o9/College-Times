@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import type { CampusEvent } from '../../types';
-import { getEventsFiltered } from '../../services/eventService';
+import { subscribeEventsFiltered } from '../../services/eventService';
 import { useAuth } from '../../hooks/useAuth';
 import { EventCard } from './EventCard';
 import { CreateEventForm } from './CreateEventForm';
@@ -37,36 +37,34 @@ export const EventsList: React.FC = () => {
 
   useScrollRestoration('events', !loading);
 
-  const fetchEvents = async () => {
+  useEffect(() => {
     if (!currentUser) return;
     setLoading(true);
     setError(null);
-    try {
-      const data = await getEventsFiltered(
-        {
-          tab: activeTab,
-          category: selectedCategory,
-          searchQuery: searchQuery.trim() || undefined,
-        },
-        currentUser
-      );
-      setEvents(data);
-    } catch (err: any) {
-      console.error('Failed to fetch events:', err);
-      setError(err.message || 'Failed to load campus events.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  useEffect(() => {
-    fetchEvents();
+    const unsubscribe = subscribeEventsFiltered(
+      {
+        tab: activeTab,
+        category: selectedCategory,
+        searchQuery: searchQuery.trim() || undefined,
+      },
+      currentUser,
+      (data) => {
+        setEvents(data);
+        setLoading(false);
+      },
+      (err) => {
+        console.error('Real-time events subscription error:', err);
+        setError(err.message || 'Failed to load campus events.');
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
   }, [activeTab, selectedCategory, searchQuery, currentUser]);
 
-  const handleEventCreated = (newEvent: CampusEvent) => {
-    if (activeTab === 'upcoming') {
-      setEvents((prev) => [newEvent, ...prev]);
-    }
+  const handleEventCreated = (_newEvent: CampusEvent) => {
+    // Real-time listener automatically receives and updates state!
   };
 
   return (
@@ -155,7 +153,7 @@ export const EventsList: React.FC = () => {
 
           {/* Reload Button */}
           <button
-            onClick={fetchEvents}
+            onClick={() => setActiveTab((t) => t)}
             disabled={loading}
             className="p-2.5 bg-slate-900 text-slate-400 hover:text-white rounded-xl border border-slate-800 transition-all text-xs"
           >
@@ -179,7 +177,7 @@ export const EventsList: React.FC = () => {
         <div className="p-6 bg-rose-500/10 border border-rose-500/20 rounded-3xl text-rose-300 text-sm text-center space-y-3">
           <AlertCircle className="w-8 h-8 text-rose-400 mx-auto" />
           <p>{error}</p>
-          <button onClick={fetchEvents} className="px-4 py-2 bg-rose-500/20 rounded-xl text-xs font-semibold">
+          <button onClick={() => setActiveTab((t) => t)} className="px-4 py-2 bg-rose-500/20 rounded-xl text-xs font-semibold">
             Retry
           </button>
         </div>
