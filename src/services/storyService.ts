@@ -11,7 +11,8 @@ import {
   limit, 
   increment, 
   serverTimestamp, 
-  Timestamp 
+  Timestamp,
+  onSnapshot
 } from 'firebase/firestore';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { db, logAnalyticsEvent } from '../lib/firebase';
@@ -23,6 +24,16 @@ import type {
   GroupedAuthorStories 
 } from '../types/story';
 import { createNotification } from './notificationService';
+
+export const getTimestampMs = (val: any): number => {
+  if (!val) return 0;
+  if (typeof val.toMillis === 'function') return val.toMillis();
+  if (typeof val.seconds === 'number') return val.seconds * 1000;
+  if (val instanceof Date) return val.getTime();
+  if (typeof val === 'number') return val;
+  const parsed = new Date(val).getTime();
+  return isNaN(parsed) ? 0 : parsed;
+};
 
 /**
  * Creates a new 24-hour campus story.
@@ -75,6 +86,78 @@ export const createStory = async (
 };
 
 /**
+ * Real-time subscription to active campus stories grouped by author.
+ */
+export const subscribeActiveCampusStories = (
+  currentUser: FirebaseUser | null | undefined,
+  onUpdate: (groups: GroupedAuthorStories[]) => void
+) => {
+  const storiesRef = collection(db, 'stories');
+  const q = query(storiesRef, where('status', '==', 'active'), limit(100));
+
+  return onSnapshot(
+    q,
+    async (snap) => {
+      const nowMs = Date.now();
+      const activeStories = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as Story[];
+
+      const filtered = activeStories.filter((story) => {
+        if (story.status === 'deleted') return false;
+        if (!story.expiresAt) return true;
+        const expMs = getTimestampMs(story.expiresAt);
+        return expMs === 0 || expMs > nowMs;
+      });
+
+      const authorMap: Record<string, GroupedAuthorStories> = {};
+
+      for (const story of filtered) {
+        if (!authorMap[story.authorId]) {
+          authorMap[story.authorId] = {
+            authorId: story.authorId,
+            authorName: story.authorName || 'Campus Student',
+            authorAvatar: story.authorAvatar,
+            stories: [],
+            hasUnseen: false,
+          };
+        }
+        authorMap[story.authorId].stories.push(story);
+      }
+
+      if (currentUser) {
+        const uid = currentUser.uid;
+        const viewChecks = filtered.map(async (story) => {
+          try {
+            const viewRef = doc(db, 'stories', story.id, 'views', uid);
+            const viewSnap = await getDoc(viewRef);
+            return { storyId: story.id, authorId: story.authorId, viewed: viewSnap.exists() };
+          } catch {
+            return { storyId: story.id, authorId: story.authorId, viewed: false };
+          }
+        });
+
+        const viewResults = await Promise.all(viewChecks);
+
+        for (const result of viewResults) {
+          if (!result.viewed && authorMap[result.authorId]) {
+            authorMap[result.authorId].hasUnseen = true;
+          }
+        }
+      } else {
+        for (const group of Object.values(authorMap)) {
+          group.hasUnseen = true;
+        }
+      }
+
+      onUpdate(Object.values(authorMap));
+    },
+    (err) => {
+      console.error('Error in story real-time listener:', err);
+      getActiveCampusStories(currentUser || undefined).then(onUpdate);
+    }
+  );
+};
+
+/**
  * Retrieves active campus stories grouped by author.
  * Sets hasUnseen accurately per-user based on Firestore view records.
  */
@@ -97,10 +180,8 @@ export const getActiveCampusStories = async (
     const filtered = activeStories.filter((story) => {
       if (story.status === 'deleted') return false;
       if (!story.expiresAt) return true;
-      const expMs = typeof (story.expiresAt as any)?.toMillis === 'function' 
-        ? (story.expiresAt as any).toMillis() 
-        : new Date(story.expiresAt).getTime();
-      return isNaN(expMs) || expMs > nowMs;
+      const expMs = getTimestampMs(story.expiresAt);
+      return expMs === 0 || expMs > nowMs;
     });
 
     // Group stories by authorId

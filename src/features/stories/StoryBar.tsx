@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import type { GroupedAuthorStories } from '../../types/story';
-import { getActiveCampusStories } from '../../services/storyService';
+import { subscribeActiveCampusStories } from '../../services/storyService';
 import { StoryViewer } from './StoryViewer';
 import { CreateStoryModal } from './CreateStoryModal';
 import { Plus, User, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -21,32 +21,17 @@ export const StoryBar: React.FC = () => {
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
 
-  const fetchStories = async () => {
+  const myStoryGroup = currentUser ? groupedAuthors.find((g) => g.authorId === currentUser.uid) : null;
+  const otherAuthors = currentUser ? groupedAuthors.filter((g) => g.authorId !== currentUser.uid) : groupedAuthors;
+
+  useEffect(() => {
     setLoading(true);
-    try {
-      const list = await getActiveCampusStories(currentUser || undefined);
+    const unsubscribe = subscribeActiveCampusStories(currentUser, (list) => {
       setGroupedAuthors(list);
-    } catch (err) {
-      console.error('Error loading stories:', err);
-    } finally {
       setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchStories();
-  }, [currentUser]);
-
-  // Refresh stories when tab regains focus (ensures hasUnseen ring updates)
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        fetchStories();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [currentUser]);
+    });
+    return () => unsubscribe();
+  }, [currentUser?.uid]);
 
   // Update scroll arrow visibility
   const updateScrollButtons = () => {
@@ -132,28 +117,56 @@ export const StoryBar: React.FC = () => {
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
       >
-        {/* Your Story (+) Button */}
-        <div
-          onClick={() => setIsCreateOpen(true)}
-          className="flex flex-col items-center gap-1.5 cursor-pointer group shrink-0"
-        >
-          <div className="relative w-14 h-14 rounded-full bg-slate-950 border-2 border-indigo-500/40 p-0.5 group-hover:border-indigo-400 transition-all flex items-center justify-center">
-            {currentUser?.photoURL ? (
-              <img
-                src={currentUser.photoURL}
-                alt="Your Story"
-                className="w-full h-full rounded-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full rounded-full bg-indigo-500/10 text-indigo-400 flex items-center justify-center font-bold">
-                <User className="w-6 h-6" />
-              </div>
-            )}
-            <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-indigo-500 text-white flex items-center justify-center border-2 border-slate-900 shadow-md">
-              <Plus className="w-3.5 h-3.5 stroke-[3]" />
+        {/* Your Story (+) Button or My Story Ring */}
+        <div className="flex flex-col items-center gap-1.5 group shrink-0">
+          <div
+            onClick={() => {
+              if (myStoryGroup) {
+                setSelectedGroup(myStoryGroup);
+              } else {
+                setIsCreateOpen(true);
+              }
+            }}
+            className={`relative w-14 h-14 rounded-full p-0.5 cursor-pointer transition-all ${
+              myStoryGroup
+                ? 'bg-gradient-to-tr from-pink-500 via-indigo-500 to-purple-500 shadow-lg shadow-indigo-500/30 hover:scale-105'
+                : 'bg-slate-950 border-2 border-indigo-500/40 hover:border-indigo-400'
+            }`}
+          >
+            <div className="w-full h-full rounded-full bg-slate-950 p-0.5 overflow-hidden flex items-center justify-center">
+              {currentUser?.photoURL ? (
+                <img
+                  src={currentUser.photoURL}
+                  alt="Your Story"
+                  className="w-full h-full rounded-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full rounded-full bg-indigo-500/10 text-indigo-400 flex items-center justify-center font-bold">
+                  <User className="w-6 h-6" />
+                </div>
+              )}
             </div>
+
+            {/* Plus badge to add another story */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsCreateOpen(true);
+              }}
+              title="Add story"
+              className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-indigo-500 hover:bg-indigo-400 text-white flex items-center justify-center border-2 border-slate-900 shadow-md transition-all z-10"
+            >
+              <Plus className="w-3.5 h-3.5 stroke-[3]" />
+            </button>
           </div>
-          <span className="text-[11px] font-bold text-slate-300 group-hover:text-white transition-colors">
+          <span
+            onClick={() => {
+              if (myStoryGroup) setSelectedGroup(myStoryGroup);
+              else setIsCreateOpen(true);
+            }}
+            className="text-[11px] font-bold text-slate-300 group-hover:text-white cursor-pointer transition-colors"
+          >
             Your Story
           </span>
         </div>
@@ -169,13 +182,17 @@ export const StoryBar: React.FC = () => {
             ))}
           </>
         ) : (
-          groupedAuthors.map((group) => (
+          otherAuthors.map((group) => (
             <div
               key={group.authorId}
               onClick={() => setSelectedGroup(group)}
               className="flex flex-col items-center gap-1.5 cursor-pointer group shrink-0"
             >
-              <div className="w-14 h-14 rounded-full p-0.5 bg-gradient-to-tr from-pink-500 via-indigo-500 to-purple-500 shadow-lg shadow-indigo-500/20 group-hover:scale-105 transition-all">
+              <div className={`w-14 h-14 rounded-full p-0.5 shadow-lg group-hover:scale-105 transition-all ${
+                group.hasUnseen
+                  ? 'bg-gradient-to-tr from-pink-500 via-indigo-500 to-purple-500 shadow-indigo-500/20'
+                  : 'bg-slate-800 border border-slate-700'
+              }`}>
                 <div className="w-full h-full rounded-full bg-slate-950 p-0.5">
                   {group.authorAvatar ? (
                     <img
@@ -204,7 +221,7 @@ export const StoryBar: React.FC = () => {
         <StoryViewer
           group={selectedGroup}
           onClose={() => setSelectedGroup(null)}
-          onStoryDeleted={fetchStories}
+          onStoryDeleted={() => {}}
         />
       )}
 
@@ -212,7 +229,7 @@ export const StoryBar: React.FC = () => {
       <CreateStoryModal
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
-        onCreated={fetchStories}
+        onCreated={() => {}}
       />
     </div>
   );
