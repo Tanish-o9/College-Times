@@ -5,6 +5,18 @@
   body {
     @apply bg-slate-950 text-slate-100 min-h-screen font-sans;
   }
+
+  button, [role="button"] {
+    @apply cursor-pointer transition-all duration-200 ease-out;
+  }
+
+  button:not(:disabled):hover, [role="button"]:not(:disabled):hover {
+    transform: translateY(-1.5px);
+  }
+
+  button:not(:disabled):active, [role="button"]:not(:disabled):active {
+    transform: translateY(0px) scale(0.97);
+  }
 }
 
 /* Micro-Interaction Utilities */
