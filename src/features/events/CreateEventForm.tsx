@@ -348,10 +348,15 @@ export const CreateEventForm: React.FC<CreateEventFormProps> = ({
                   id="evt-start"
                   type="datetime-local"
                   value={eventDate}
-                  onChange={(e) => setEventDate(e.target.value)}
+                  onChange={(e) => {
+                    setEventDate(e.target.value);
+                    if (e.target.value) {
+                      e.target.blur();
+                    }
+                  }}
                   onClick={(e) => (e.currentTarget as any).showPicker?.()}
                   required
-                  className="w-full pl-3 pr-9 py-2 bg-slate-950 border border-slate-800 focus:border-purple-500 rounded-2xl text-xs text-white focus:outline-none [color-scheme:dark] cursor-pointer"
+                  className="w-full pl-3 pr-9 py-2 bg-slate-950 border border-slate-800 focus:border-purple-500 rounded-2xl text-xs text-white focus:outline-none [color-scheme:dark] cursor-pointer [&::-webkit-calendar-picker-indicator]:hidden"
                 />
                 <button
                   type="button"
@@ -374,9 +379,14 @@ export const CreateEventForm: React.FC<CreateEventFormProps> = ({
                   id="evt-end"
                   type="datetime-local"
                   value={endAt}
-                  onChange={(e) => setEndAt(e.target.value)}
+                  onChange={(e) => {
+                    setEndAt(e.target.value);
+                    if (e.target.value) {
+                      e.target.blur();
+                    }
+                  }}
                   onClick={(e) => (e.currentTarget as any).showPicker?.()}
-                  className="w-full pl-3 pr-9 py-2 bg-slate-950 border border-slate-800 focus:border-purple-500 rounded-2xl text-xs text-white focus:outline-none [color-scheme:dark] cursor-pointer"
+                  className="w-full pl-3 pr-9 py-2 bg-slate-950 border border-slate-800 focus:border-purple-500 rounded-2xl text-xs text-white focus:outline-none [color-scheme:dark] cursor-pointer [&::-webkit-calendar-picker-indicator]:hidden"
                 />
                 <button
                   type="button"
