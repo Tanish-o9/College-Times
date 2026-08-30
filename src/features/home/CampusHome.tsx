@@ -178,14 +178,15 @@ export const CampusHome: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-950 text-white flex flex-col pb-12">
       {/* Top Banner Header */}
-      <header className="sticky top-0 z-30 bg-slate-950/90 backdrop-blur-xl border-b border-slate-800 px-4 py-3.5 sm:px-6 flex items-center justify-between">
+      <header className="sticky top-0 z-30 bg-slate-950/80 backdrop-blur-2xl border-b border-slate-800/80 px-4 py-3.5 sm:px-6 flex items-center justify-between shadow-lg">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-2xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400 font-bold text-sm">
+          <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-sky-500/20 to-indigo-500/20 border border-sky-500/40 ring-2 ring-sky-500/20 flex items-center justify-center text-sky-300 font-extrabold text-sm shadow-[0_0_12px_rgba(56,189,248,0.25)]">
             {profile?.displayName ? profile.displayName[0].toUpperCase() : 'C'}
           </div>
           <div>
             <h1 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
               <span>Welcome back, {profile?.displayName || 'Student'}</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.5)]" />
             </h1>
             <p className="text-[11px] text-slate-400 font-mono">
               @{profile?.displayName?.toLowerCase().replace(/\s+/g, '') || 'campus'} • {profile?.role || 'AKGEC Campus'}
@@ -196,14 +197,14 @@ export const CampusHome: React.FC = () => {
         <div className="flex gap-2">
           <button
             onClick={() => setShowConfigModal(!showConfigModal)}
-            className="px-3 py-1.5 bg-slate-900 border border-slate-800 hover:border-slate-700 hover:translate-y-[-1px] text-slate-300 rounded-xl transition-all text-xs font-semibold flex items-center gap-1.5 shadow-md active:scale-95"
+            className="px-3.5 py-1.5 bg-slate-900/90 border border-slate-800 hover:border-sky-500/40 hover:text-white hover:-translate-y-0.5 text-slate-300 rounded-xl transition-all text-xs font-semibold flex items-center gap-1.5 shadow-md active:scale-95"
           >
             <Sliders className="w-3.5 h-3.5 text-sky-400" />
             <span>Customize</span>
           </button>
           <button
             onClick={() => navigate('/settings/notifications')}
-            className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-900 border border-slate-800 hover:translate-y-[-1px] transition-all flex items-center gap-1.5 text-xs font-semibold active:scale-95"
+            className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-900 border border-slate-800 hover:border-slate-700 hover:-translate-y-0.5 transition-all flex items-center gap-1.5 text-xs font-semibold active:scale-95"
           >
             <span>Settings</span>
           </button>
@@ -211,10 +212,13 @@ export const CampusHome: React.FC = () => {
       </header>
 
       {/* Main Container */}
-      <main className="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6 space-y-6">
+      <main className="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6 space-y-6 relative">
+        {/* Soft Background Ambient Glow */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-4xl h-72 bg-gradient-to-r from-sky-500/10 via-purple-500/10 to-indigo-500/10 blur-3xl opacity-70 pointer-events-none rounded-full" />
+
         {/* Customization Drawer Panel */}
         {showConfigModal && (
-          <div className="p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-4 shadow-xl animate-in fade-in duration-200">
+          <div className="p-6 bg-slate-900/90 backdrop-blur-xl border border-slate-800 rounded-3xl space-y-4 shadow-2xl animate-in fade-in duration-200 relative z-10">
             <div className="flex justify-between items-center pb-2 border-b border-slate-800">
               <h3 className="text-xs font-bold text-slate-300 uppercase font-mono">
                 Customize Dashboard Widgets
@@ -250,7 +254,7 @@ export const CampusHome: React.FC = () => {
 
         {/* Quick Actions Strip */}
         {isWidgetVisible('quick_actions') && (
-          <section className="p-5 bg-slate-900 border border-slate-800 rounded-3xl space-y-3.5 shadow-xl">
+          <section className="p-5 bg-slate-900/80 backdrop-blur-xl border border-slate-800/90 rounded-3xl space-y-3.5 shadow-2xl relative z-10">
             <h3 className="text-xs font-bold text-slate-300 uppercase font-mono flex items-center gap-1.5">
               <Sparkles className="w-4 h-4 text-sky-400" />
               <span>Campus Quick Actions</span>
@@ -269,10 +273,10 @@ export const CampusHome: React.FC = () => {
                   <button
                     key={idx}
                     onClick={() => navigate(action.path)}
-                    className="p-3 bg-slate-950/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 hover:-translate-y-0.5 active:scale-95 rounded-2xl text-left space-y-1.5 transition-all duration-150"
+                    className="p-3 bg-slate-950/70 hover:bg-slate-850 border border-slate-800/80 hover:border-sky-500/40 hover:shadow-[0_0_15px_rgba(56,189,248,0.15)] hover:-translate-y-1 active:scale-95 rounded-2xl text-left space-y-1.5 transition-all duration-200 cursor-pointer group"
                   >
-                    <Icon className={`w-4.5 h-4.5 ${action.color}`} />
-                    <div className="text-[10px] font-bold text-white leading-tight">{action.label}</div>
+                    <Icon className={`w-4.5 h-4.5 ${action.color} group-hover:scale-110 transition-transform duration-200`} />
+                    <div className="text-[10px] font-bold text-white leading-tight group-hover:text-sky-300 transition-colors">{action.label}</div>
                   </button>
                 );
               })}
@@ -311,24 +315,24 @@ export const CampusHome: React.FC = () => {
 
         {/* Smart Recommendations Section */}
         {isWidgetVisible('recommendations') && (
-          <section className="p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-4 shadow-xl shrink-0">
+          <section className="p-6 bg-slate-900/80 backdrop-blur-xl border border-slate-800/90 rounded-3xl space-y-4 shadow-2xl shrink-0 relative z-10">
             <div className="flex items-center gap-1.5 pb-2 border-b border-slate-800">
-              <Lightbulb className="w-4.5 h-4.5 text-amber-400" />
+              <Lightbulb className="w-4.5 h-4.5 text-amber-400 animate-pulse" />
               <h3 className="text-xs font-bold text-slate-300 uppercase font-mono">
                 Smart Recommendations For You
               </h3>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Suggested Group */}
-              <div className="p-4 bg-slate-950/40 border border-slate-850 rounded-2xl space-y-2">
+              <div className="p-4 bg-slate-950/60 border border-slate-800 hover:border-indigo-500/40 hover:shadow-[0_0_15px_rgba(99,102,241,0.15)] hover:-translate-y-1 rounded-2xl space-y-2 transition-all duration-200 group">
                 <span className="text-[10px] font-bold text-indigo-400 uppercase font-mono block">Recommended Group</span>
                 {suggestedGroups.length > 0 ? (
                   <div>
-                    <h4 className="text-xs font-bold text-white truncate">{suggestedGroups[0].name}</h4>
+                    <h4 className="text-xs font-bold text-white truncate group-hover:text-indigo-300 transition-colors">{suggestedGroups[0].name}</h4>
                     <p className="text-[10px] text-slate-400 mt-1 line-clamp-1">{suggestedGroups[0].explanation}</p>
                     <button
                       onClick={() => navigate(`/groups/${suggestedGroups[0].id}`)}
-                      className="mt-2.5 px-3 py-1 bg-indigo-500 hover:bg-indigo-450 text-slate-950 font-bold text-[10px] rounded-lg transition-all"
+                      className="mt-2.5 px-3 py-1.5 bg-indigo-500 hover:bg-indigo-400 text-slate-950 font-bold text-[10px] rounded-xl transition-all shadow-md active:scale-95 cursor-pointer"
                     >
                       View Group
                     </button>
@@ -339,15 +343,15 @@ export const CampusHome: React.FC = () => {
               </div>
 
               {/* Recommended Event */}
-              <div className="p-4 bg-slate-950/40 border border-slate-850 rounded-2xl space-y-2">
+              <div className="p-4 bg-slate-950/60 border border-slate-800 hover:border-purple-500/40 hover:shadow-[0_0_15px_rgba(168,85,247,0.15)] hover:-translate-y-1 rounded-2xl space-y-2 transition-all duration-200 group">
                 <span className="text-[10px] font-bold text-purple-400 uppercase font-mono block">Recommended Event</span>
                 {recommendedEvents.length > 0 ? (
                   <div>
-                    <h4 className="text-xs font-bold text-white truncate">{recommendedEvents[0].title}</h4>
+                    <h4 className="text-xs font-bold text-white truncate group-hover:text-purple-300 transition-colors">{recommendedEvents[0].title}</h4>
                     <p className="text-[10px] text-slate-400 mt-1 line-clamp-1">{recommendedEvents[0].explanation}</p>
                     <button
                       onClick={() => navigate('/events')}
-                      className="mt-2.5 px-3 py-1 bg-purple-500 hover:bg-purple-450 text-slate-950 font-bold text-[10px] rounded-lg transition-all"
+                      className="mt-2.5 px-3 py-1.5 bg-purple-500 hover:bg-purple-400 text-slate-950 font-bold text-[10px] rounded-xl transition-all shadow-md active:scale-95 cursor-pointer"
                     >
                       View Events
                     </button>
@@ -358,15 +362,15 @@ export const CampusHome: React.FC = () => {
               </div>
 
               {/* Recommended Opportunity */}
-              <div className="p-4 bg-slate-950/40 border border-slate-850 rounded-2xl space-y-2">
+              <div className="p-4 bg-slate-950/60 border border-slate-800 hover:border-cyan-500/40 hover:shadow-[0_0_15px_rgba(6,182,212,0.15)] hover:-translate-y-1 rounded-2xl space-y-2 transition-all duration-200 group">
                 <span className="text-[10px] font-bold text-cyan-400 uppercase font-mono block">Recommended Career Opportunity</span>
                 {recommendedOpps.length > 0 ? (
                   <div>
-                    <h4 className="text-xs font-bold text-white truncate">{recommendedOpps[0].title}</h4>
+                    <h4 className="text-xs font-bold text-white truncate group-hover:text-cyan-300 transition-colors">{recommendedOpps[0].title}</h4>
                     <p className="text-[10px] text-slate-400 mt-1 line-clamp-1">{recommendedOpps[0].explanation}</p>
                     <button
                       onClick={() => navigate('/opportunities/applications')}
-                      className="mt-2.5 px-3 py-1 bg-cyan-500 hover:bg-cyan-455 text-slate-950 font-bold text-[10px] rounded-lg transition-all"
+                      className="mt-2.5 px-3 py-1.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-[10px] rounded-xl transition-all shadow-md active:scale-95 cursor-pointer"
                     >
                       View Career
                     </button>

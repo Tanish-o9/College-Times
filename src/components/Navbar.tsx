@@ -129,10 +129,10 @@ export const Navbar: React.FC = () => {
   }, []);
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
-    `flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+    `flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200 ${
       isActive
-        ? 'bg-slate-800 text-sky-400 font-bold border border-slate-700/60 shadow-sm'
-        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+        ? 'bg-sky-500/15 text-sky-400 font-bold border border-sky-500/30 shadow-[0_0_12px_rgba(56,189,248,0.2)]'
+        : 'text-slate-400 hover:text-white hover:bg-slate-800/60 hover:-translate-y-0.5'
     }`;
 
   const mobileLinkClass = ({ isActive }: { isActive: boolean }) =>
@@ -146,7 +146,7 @@ export const Navbar: React.FC = () => {
     <header className="sticky top-0 z-40 bg-slate-950/90 backdrop-blur-md border-b border-slate-800/80 shadow-lg">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-3">
         {/* Brand Logo */}
-        <NavLink to="/" className="flex items-center gap-2 font-black text-base text-white tracking-tight shrink-0">
+        <NavLink to="/" className="flex items-center gap-2 font-black text-base text-white tracking-tight shrink-0 hover:scale-105 transition-transform duration-200">
           <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-sky-500 via-indigo-500 to-purple-500 p-0.5 shadow-md shadow-sky-500/20">
             <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center text-sky-400">
               <Compass className="w-4 h-4 animate-spin-slow" />
