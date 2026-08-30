@@ -66,14 +66,21 @@ export const getPublicGroupsPage = async (
   const boundedSize = Math.min(50, Math.max(1, pageSize));
   try {
     const colRef = collection(db, 'groups');
-    // Order by createdAt DESC only to avoid composite index requirements
-    let q = query(colRef, orderBy('createdAt', 'desc'), limit(boundedSize));
-
-    if (lastDoc) {
-      q = query(colRef, orderBy('createdAt', 'desc'), startAfter(lastDoc), limit(boundedSize));
+    let snap;
+    try {
+      let q = lastDoc
+        ? query(colRef, orderBy('createdAt', 'desc'), startAfter(lastDoc), limit(boundedSize))
+        : query(colRef, orderBy('createdAt', 'desc'), limit(boundedSize));
+      snap = await getDocs(q);
+    } catch (e) {
+      console.warn('orderBy createdAt fallback triggered for groups:', e);
+      snap = await getDocs(query(colRef, limit(boundedSize)));
     }
 
-    const snap = await getDocs(q);
+    if (snap.empty && !lastDoc) {
+      snap = await getDocs(query(colRef, limit(boundedSize)));
+    }
+
     const groups: CampusGroup[] = snap.docs
       .map((d) => ({
         ...(d.data() as CampusGroup),
