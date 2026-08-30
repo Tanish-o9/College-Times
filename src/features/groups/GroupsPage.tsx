@@ -62,25 +62,32 @@ export const GroupsPage: React.FC = () => {
     }
   }, [searchParams]);
 
-  const loadData = async () => {
+  const loadGroupsAndFilter = async () => {
     if (!currentUser) return;
     setLoading(true);
     try {
-      const [myGroupIds, publicResult] = await Promise.all([
-        getUserGroupIds(currentUser.uid),
-        getPublicGroupsPage(30),
-      ]);
-
+      const myGroupIds = await getUserGroupIds(currentUser.uid);
       setJoinedGroupIds(new Set(myGroupIds));
-      setGroups(publicResult.groups);
 
-      // Auto-seed default campus groups if none exist
-      if (publicResult.groups.length === 0) {
-        await seedStandardCampusGroups(currentUser);
-        const reloaded = await getPublicGroupsPage(30);
-        setGroups(reloaded.groups);
+      let fetchedGroups: CampusGroup[] = [];
+      if (activeTab === 'my_groups') {
+        const res = await getPublicGroupsPage(50);
+        const myIds = new Set(myGroupIds);
+        fetchedGroups = res.groups.filter((g) => myIds.has(g.id));
+      } else {
+        const cat = activeTab !== 'all' ? activeTab : 'all';
+        fetchedGroups = await searchGroups(searchQuery, cat, 50);
       }
+
+      // Auto-seed default campus groups if 0 groups found in database
+      if (fetchedGroups.length === 0 && !searchQuery.trim() && activeTab === 'all') {
+        await seedStandardCampusGroups(currentUser);
+        fetchedGroups = await searchGroups('', 'all', 50);
+      }
+
+      setGroups(fetchedGroups);
     } catch (err) {
+      console.error('Error loading campus groups:', err);
       toast.error('Failed to load campus groups.');
     } finally {
       setLoading(false);
@@ -88,46 +95,9 @@ export const GroupsPage: React.FC = () => {
   };
 
   useEffect(() => {
-    loadData();
-  }, [currentUser]);
-
-  // Handle Search & Filtering
-  useEffect(() => {
-    const handleSearchFilter = async () => {
-      if (!currentUser) return;
-
-      setLoading(true);
-      try {
-        if (activeTab === 'my_groups') {
-          // Fetch recent groups, then filter by joinedGroupIds
-          const res = await getPublicGroupsPage(50);
-          const myIds = Array.from(joinedGroupIds);
-          let filtered = res.groups.filter((g) => myIds.includes(g.id));
-          if (searchQuery.trim()) {
-            const term = searchQuery.trim().toLowerCase();
-            filtered = filtered.filter(
-              (g) =>
-                g.name.toLowerCase().includes(term) ||
-                g.description?.toLowerCase().includes(term)
-            );
-          }
-          setGroups(filtered);
-        } else {
-          // General search / category filter
-          const cat = activeTab !== 'all' ? activeTab : 'all';
-          const results = await searchGroups(searchQuery, cat, 30);
-          setGroups(results);
-        }
-      } catch (err) {
-        console.error('Error filtering groups:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    const timer = setTimeout(handleSearchFilter, 300);
+    const timer = setTimeout(loadGroupsAndFilter, 200);
     return () => clearTimeout(timer);
-  }, [searchQuery, activeTab, joinedGroupIds]);
+  }, [currentUser, searchQuery, activeTab]);
 
   const handleJoinPublic = async (group: CampusGroup, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -438,7 +408,7 @@ export const GroupsPage: React.FC = () => {
         initialCode={initialJoinCode}
         onJoined={(groupId) => {
           setJoinedGroupIds((prev) => new Set([...prev, groupId]));
-          loadData();
+          loadGroupsAndFilter();
         }}
       />
 
