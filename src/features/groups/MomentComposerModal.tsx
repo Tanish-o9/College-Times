@@ -73,10 +73,10 @@ export const MomentComposerModal: React.FC<MomentComposerModalProps> = ({
     if (!currentUser || submitting || !mediaItem.file) return;
 
     setSubmitting(true);
-    setUploadProgress(20);
+    setUploadProgress(30);
 
     try {
-      setUploadProgress(50);
+      setUploadProgress(70);
       await createGroupInstant(
         groupId,
         caption,

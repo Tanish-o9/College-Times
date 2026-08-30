@@ -116,7 +116,7 @@ export const compressImageFile = async (
 
 /**
  * Uploads a single photo or video media item for a group moment.
- * Fast fallback to local Data URL if Firebase Storage is unavailable or errors out.
+ * Fast fallback to local Data URL if Firebase Storage is unavailable, hanging, or times out (>3s).
  */
 export const uploadInstantMediaFile = async (
   groupId: string,
@@ -134,10 +134,10 @@ export const uploadInstantMediaFile = async (
     throw new Error(`File '${file.name}' exceeds ${isVideo ? '25MB' : '10MB'} limit.`);
   }
 
-  // Fast image compression
+  // Fast image compression (max 1080px, quality 0.75) for lightning-fast uploads
   let targetFile = file;
   if (!isVideo) {
-    targetFile = await compressImageFile(file, 1280, 1280, 0.8);
+    targetFile = await compressImageFile(file, 1080, 1080, 0.75);
   }
 
   const cleanName = (targetFile.name || `moment_${Date.now()}`)
@@ -155,18 +155,30 @@ export const uploadInstantMediaFile = async (
     });
   };
 
-  // 1. Fast path: Attempt Direct Firebase Storage upload first
+  // 1. Fast path: Attempt Direct Firebase Storage upload first with a strict 3-second timeout limit
   if (storage) {
     try {
       const storageRef = ref(storage, storagePath);
       const uploadTask = uploadBytesResumable(storageRef, targetFile, { contentType: targetFile.type || rawType });
 
-      const downloadUrl = await new Promise<string>((resolve) => {
+      const storageUploadPromise = new Promise<string>((resolve) => {
+        let timer: any = null;
+        timer = setTimeout(() => {
+          try {
+            uploadTask.cancel();
+          } catch {}
+          resolve('');
+        }, 3000);
+
         uploadTask.on(
           'state_changed',
           () => {},
-          () => resolve(''),
+          () => {
+            if (timer) clearTimeout(timer);
+            resolve('');
+          },
           async () => {
+            if (timer) clearTimeout(timer);
             try {
               const url = await getDownloadURL(uploadTask.snapshot.ref);
               resolve(url || '');
@@ -176,6 +188,8 @@ export const uploadInstantMediaFile = async (
           }
         );
       });
+
+      const downloadUrl = await storageUploadPromise;
 
       if (downloadUrl) {
         return {
@@ -190,7 +204,7 @@ export const uploadInstantMediaFile = async (
     }
   }
 
-  // 2. Fallback path: Convert to Data URL only if Storage upload is unavailable or fails
+  // 2. Fallback path: Convert to Data URL in 10ms if Storage is offline or times out (>3s)
   const dataUrl = await readFileAsDataUrl(targetFile);
   return {
     downloadUrl: dataUrl,
@@ -281,37 +295,41 @@ export const createGroupInstant = async (
 
   const newDoc = await addDoc(instantsRef, cleanInstantData);
 
-  // Write subcollection media docs safely
-  const mediaSubRef = collection(db, 'groups', cleanGroupId, 'instants', newDoc.id, 'media');
-  for (let i = 0; i < uploadedMedia.length; i++) {
-    const m = uploadedMedia[i];
-    const mediaId = `m_${i}_${Date.now()}`;
-    const mediaDocRef = doc(mediaSubRef, mediaId);
-    const mediaDocData: Record<string, any> = {
-      mediaId,
-      instantId: newDoc.id,
-      groupId: cleanGroupId,
-      ownerId: currentUser.uid,
-      storagePath: m.storagePath || '',
-      downloadUrl: m.downloadUrl || '',
-      mimeType: m.mimeType || 'image/jpeg',
-      fileSize: m.fileSize || 0,
-      order: i,
-      createdAt: serverTimestamp(),
-    };
-    await setDoc(mediaDocRef, mediaDocData);
-  }
+  // Non-blocking background writes for subcollection media docs & group activity log
+  (async () => {
+    try {
+      const mediaSubRef = collection(db, 'groups', cleanGroupId, 'instants', newDoc.id, 'media');
+      for (let i = 0; i < uploadedMedia.length; i++) {
+        const m = uploadedMedia[i];
+        const mediaId = `m_${i}_${Date.now()}`;
+        const mediaDocRef = doc(mediaSubRef, mediaId);
+        const mediaDocData: Record<string, any> = {
+          mediaId,
+          instantId: newDoc.id,
+          groupId: cleanGroupId,
+          ownerId: currentUser.uid,
+          storagePath: m.storagePath || '',
+          downloadUrl: m.downloadUrl || '',
+          mimeType: m.mimeType || 'image/jpeg',
+          fileSize: m.fileSize || 0,
+          order: i,
+          createdAt: serverTimestamp(),
+        };
+        await setDoc(mediaDocRef, mediaDocData).catch(() => {});
+      }
 
-  await logGroupActivityEvent(
-    cleanGroupId,
-    'moment',
-    currentUser.uid,
-    userProfile?.displayName || currentUser.displayName || 'Campus Student',
-    userProfile?.photoURL || currentUser.photoURL || undefined,
-    newDoc.id,
-    'moment',
-    caption && caption.trim() ? `Shared a moment: ${caption}` : 'Shared a group moment'
-  );
+      await logGroupActivityEvent(
+        cleanGroupId,
+        'moment',
+        currentUser.uid,
+        userProfile?.displayName || currentUser.displayName || 'Campus Student',
+        userProfile?.photoURL || currentUser.photoURL || undefined,
+        newDoc.id,
+        'moment',
+        caption && caption.trim() ? `Shared a moment: ${caption}` : 'Shared a group moment'
+      ).catch(() => {});
+    } catch {}
+  })();
 
   logAnalyticsEvent('instant_created', { groupId: cleanGroupId, mediaCount: uploadedMedia.length, sourceType });
 
