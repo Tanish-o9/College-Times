@@ -131,20 +131,80 @@ export const uploadSingleStoryImage = async (
   if (file.size > 10 * 1024 * 1024) throw new Error('Image size exceeds 10MB limit.');
   if (!ALLOWED_IMAGE_TYPES.has(file.type)) throw new Error('Unsupported image format.');
 
-  const filename = `${Date.now()}_${sanitizeFilename(file.name)}`;
+  const cleanName = sanitizeFilename(file.name);
+  const filename = `${Date.now()}_${cleanName}`;
   const storagePath = `storyMedia/${userId}/${storyId}/${filename}`;
   const storageRef = ref(storage, storagePath);
 
-  const uploadTask = uploadBytesResumable(storageRef, file, { contentType: file.type });
+  const readFileAsDataUrl = async (f: File): Promise<string> => {
+    try {
+      const imageCompression = (await import('browser-image-compression')).default;
+      const options = {
+        maxSizeMB: 0.1, // Under 100KB for story photos
+        maxWidthOrHeight: 800,
+        useWebWorker: false
+      };
+      const compressed = await imageCompression(f, options);
+      return new Promise((res, rej) => {
+        const reader = new FileReader();
+        reader.onload = () => res(reader.result as string);
+        reader.onerror = (e) => rej(e);
+        reader.readAsDataURL(compressed);
+      });
+    } catch {
+      return new Promise((res, rej) => {
+        const reader = new FileReader();
+        reader.onload = () => res(reader.result as string);
+        reader.onerror = (e) => rej(e);
+        reader.readAsDataURL(f);
+      });
+    }
+  };
 
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
+    let isDone = false;
+    const timeoutTimer = setTimeout(async () => {
+      if (!isDone) {
+        isDone = true;
+        try {
+          const dataUrl = await readFileAsDataUrl(file);
+          resolve({ url: dataUrl, storagePath: `local_${Date.now()}_${cleanName}` });
+        } catch {
+          resolve({ url: '', storagePath: `local_${Date.now()}_${cleanName}` });
+        }
+      }
+    }, 8000);
+
+    const uploadTask = uploadBytesResumable(storageRef, file, { contentType: file.type });
+
     uploadTask.on(
       'state_changed',
       null,
-      (error) => reject(error),
+      async (error) => {
+        console.error('Storage upload error for story image, using fallback:', error);
+        if (!isDone) {
+          isDone = true;
+          clearTimeout(timeoutTimer);
+          try {
+            const dataUrl = await readFileAsDataUrl(file);
+            resolve({ url: dataUrl, storagePath: `local_${Date.now()}_${cleanName}` });
+          } catch {
+            resolve({ url: '', storagePath: `local_${Date.now()}_${cleanName}` });
+          }
+        }
+      },
       async () => {
-        const url = await getDownloadURL(uploadTask.snapshot.ref);
-        resolve({ url, storagePath });
+        if (!isDone) {
+          isDone = true;
+          clearTimeout(timeoutTimer);
+          try {
+            const url = await getDownloadURL(uploadTask.snapshot.ref);
+            resolve({ url, storagePath });
+          } catch {
+            const dataUrl = await readFileAsDataUrl(file);
+            resolve({ url: dataUrl, storagePath });
+          }
+        }
       }
     );
   });

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../../hooks/useAuth';
 import type { StoryAudience, StoryMediaType } from '../../types/story';
 import { createStory } from '../../services/storyService';
@@ -92,10 +93,14 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-5 z-10 shadow-2xl">
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !loading) onClose();
+      }}
+    >
+      <div className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-5 z-10 shadow-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between border-b border-slate-800 pb-3">
           <h3 className="text-base font-bold text-white flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-indigo-400" />
@@ -210,7 +215,7 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white font-bold text-xs rounded-2xl shadow-lg shadow-indigo-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            className="w-full py-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white font-bold text-xs rounded-2xl shadow-lg shadow-indigo-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
           >
             {loading ? (
               <RefreshCw className="w-4 h-4 animate-spin text-white" />
@@ -223,6 +228,7 @@ export const CreateStoryModal: React.FC<CreateStoryModalProps> = ({
           </button>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

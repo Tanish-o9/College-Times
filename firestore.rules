@@ -1540,6 +1540,23 @@ service cloud.firestore {
     }
 
     // -------------------------------------------------------------------------
+    // 24-Hour Campus Stories / Moments — stories/{storyId}
+    // -------------------------------------------------------------------------
+    match /stories/{storyId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isNotBlocked();
+      allow update: if isAuthenticated() && isNotBlocked();
+      allow delete: if isAuthenticated() && isNotBlocked() && (
+        resource.data.authorId == request.auth.uid ||
+        isAdmin()
+      );
+
+      match /{allSubcollections=**} {
+        allow read, create, update, delete: if isAuthenticated() && isNotBlocked();
+      }
+    }
+
+    // -------------------------------------------------------------------------
     // Moderation Audit Trail
     // -------------------------------------------------------------------------
     match /moderationLogs/{logId} {
