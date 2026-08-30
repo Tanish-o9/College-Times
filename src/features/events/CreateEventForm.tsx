@@ -61,13 +61,25 @@ export const CreateEventForm: React.FC<CreateEventFormProps> = ({
   const [loadingGroups, setLoadingGroups] = useState<boolean>(false);
   const [submitting, setSubmitting] = useState(false);
 
+  const getDefaultDateTimeLocal = (hoursOffset: number = 2): string => {
+    const d = new Date(Date.now() + hoursOffset * 3600 * 1000);
+    d.setMinutes(0, 0, 0);
+    const pad = (n: number) => (n < 10 ? '0' + n : n);
+    const year = d.getFullYear();
+    const month = pad(d.getMonth() + 1);
+    const day = pad(d.getDate());
+    const hours = pad(d.getHours());
+    const minutes = pad(d.getMinutes());
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
+
   useEffect(() => {
     if (isOpen) {
       setTitle('');
       setDescription('');
       setLocation('');
       setCategory('Technical');
-      setEventDate('');
+      setEventDate(getDefaultDateTimeLocal(2));
       setEndAt('');
       setCapacity('');
       setVisibility(initialVisibility || (initialGroupId ? 'group' : 'campus'));
@@ -105,6 +117,7 @@ export const CreateEventForm: React.FC<CreateEventFormProps> = ({
     description.trim().length >= 5 &&
     location.trim().length > 0 &&
     eventDate.trim().length > 0 &&
+    !isNaN(new Date(eventDate).getTime()) &&
     (visibility !== 'group' || groupId.trim().length > 0) &&
     !submitting;
 
@@ -112,6 +125,11 @@ export const CreateEventForm: React.FC<CreateEventFormProps> = ({
     e.preventDefault();
     if (!currentUser) {
       toast.error('You must be logged in to create an event.');
+      return;
+    }
+
+    if (isNaN(new Date(eventDate).getTime())) {
+      toast.error('Please select a valid start date and time.');
       return;
     }
 
@@ -135,7 +153,7 @@ export const CreateEventForm: React.FC<CreateEventFormProps> = ({
         location: location.trim(),
         category,
         eventDate,
-        ...(endAt ? { endAt } : {}),
+        ...(endAt && !isNaN(new Date(endAt).getTime()) ? { endAt } : {}),
         ...(capacity && Number(capacity) > 0 ? { capacity: Number(capacity) } : {}),
         visibility,
         ...(visibility === 'group' ? {
@@ -158,12 +176,12 @@ export const CreateEventForm: React.FC<CreateEventFormProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
-      <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md" onClick={onClose} />
+    <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-4 sm:p-6 pt-20 sm:pt-24 pb-12 overflow-y-auto">
+      <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-0" onClick={onClose} />
 
-      <div className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden z-10 my-auto animate-in fade-in zoom-in-95 duration-200">
+      <div className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden z-10 max-h-[85vh] flex flex-col my-auto animate-in fade-in zoom-in-95 duration-200">
         {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/40">
+        <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/90 backdrop-blur-md sticky top-0 z-20 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-purple-500/20 to-pink-500/20 border border-purple-500/30 text-purple-300 flex items-center justify-center shadow-md">
               <Calendar className="w-5 h-5" />

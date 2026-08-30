@@ -154,9 +154,21 @@ export const createEvent = async (
   currentUser: FirebaseUser
 ): Promise<CampusEvent> => {
   try {
+    const startDateObj = new Date(payload.eventDate);
+    if (isNaN(startDateObj.getTime())) {
+      throw new Error('Please select a valid start date and time.');
+    }
+    const eventDateTimestamp = Timestamp.fromDate(startDateObj);
+
+    let endAtTimestamp: Timestamp | null = null;
+    if (payload.endAt) {
+      const endDateObj = new Date(payload.endAt);
+      if (!isNaN(endDateObj.getTime())) {
+        endAtTimestamp = Timestamp.fromDate(endDateObj);
+      }
+    }
+
     const eventsRef = collection(db, 'events');
-    const eventDateTimestamp = Timestamp.fromDate(new Date(payload.eventDate));
-    const endAtTimestamp = payload.endAt ? Timestamp.fromDate(new Date(payload.endAt)) : null;
 
     const newEventData: Record<string, any> = {
       title: payload.title.trim(),
