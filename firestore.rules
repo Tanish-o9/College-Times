@@ -1519,6 +1519,27 @@ service cloud.firestore {
     }
 
     // -------------------------------------------------------------------------
+    // Feature Flags Collection — featureFlags/{flagId}
+    // -------------------------------------------------------------------------
+    match /featureFlags/{flagId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // -------------------------------------------------------------------------
+    // Campus Channels Collection — channels/{channelId}
+    // -------------------------------------------------------------------------
+    match /channels/{channelId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isNotBlocked();
+      allow delete: if isAdmin();
+
+      match /{allSubcollections=**} {
+        allow read, create, update, delete: if isAuthenticated() && isNotBlocked();
+      }
+    }
+
+    // -------------------------------------------------------------------------
     // Moderation Audit Trail
     // -------------------------------------------------------------------------
     match /moderationLogs/{logId} {

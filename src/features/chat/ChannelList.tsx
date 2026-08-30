@@ -6,7 +6,8 @@ import {
   getMyChannels, 
   getMyMemberships, 
   joinChannel, 
-  leaveChannel 
+  leaveChannel,
+  seedStandardCampusChannels
 } from '../../services/channelService';
 import type { Channel, ChannelMember } from '../../types/chat';
 import { Skeleton } from '../../components/Skeleton';
@@ -58,9 +59,11 @@ export const ChannelList: React.FC<ChannelListProps> = ({
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
 
   const loadData = async () => {
-    if (!currentUser || !isEligible) return;
+    if (!currentUser) return;
     setLoading(true);
     try {
+      await seedStandardCampusChannels(currentUser);
+
       const [allPublic, userJoined, mutedSet] = await Promise.all([
         getPublicChannels(50),
         getMyChannels(currentUser.uid),

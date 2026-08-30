@@ -1,6 +1,8 @@
 import { 
   collection, 
   doc, 
+  setDoc,
+  updateDoc,
   query, 
   getDocs, 
   getDoc, 
@@ -25,6 +27,84 @@ export interface CreateChannelPayload {
   topic?: string;
 }
 
+export const STANDARD_CHANNELS = [
+  {
+    id: 'general',
+    name: 'general',
+    description: 'General Campus Lounge for overall college discussions, casual chat, and networking.',
+    category: 'General',
+    type: 'public',
+    topic: 'Campus Lounge & Discussions',
+    memberCount: 1,
+    isArchived: false,
+  },
+  {
+    id: 'admin-announcements',
+    name: 'admin-announcements',
+    description: 'Official College & Administration announcements, notices, and important alerts.',
+    category: 'Announcements',
+    type: 'announcement',
+    topic: 'Official Campus News',
+    memberCount: 1,
+    isArchived: false,
+  },
+  {
+    id: 'tech-talks',
+    name: 'tech-talks',
+    description: 'Tech, Coding, AI, Hackathons, and Open-Source discussions.',
+    category: 'Technology',
+    type: 'public',
+    topic: 'Engineering & Technology',
+    memberCount: 1,
+    isArchived: false,
+  },
+  {
+    id: 'campus-events',
+    name: 'campus-events',
+    description: 'Updates and chatter on upcoming cultural fests, sports meets, and workshops.',
+    category: 'Events',
+    type: 'public',
+    topic: 'Fests & Workshops',
+    memberCount: 1,
+    isArchived: false,
+  },
+  {
+    id: 'placement-hub',
+    name: 'placement-hub',
+    description: 'Placement drives, internship opportunities, resume reviews, and interview prep.',
+    category: 'Career',
+    type: 'public',
+    topic: 'Placements & Jobs',
+    memberCount: 1,
+    isArchived: false,
+  },
+];
+
+export const seedStandardCampusChannels = async (currentUser?: FirebaseUser | null): Promise<void> => {
+  try {
+    for (const channelData of STANDARD_CHANNELS) {
+      const channelRef = doc(db, 'channels', channelData.id);
+      const snap = await getDoc(channelRef);
+      if (!snap.exists()) {
+        await setDoc(channelRef, {
+          ...channelData,
+          createdAt: serverTimestamp(),
+          createdBy: currentUser?.uid || 'system',
+        }, { merge: true });
+      }
+    }
+
+    if (currentUser?.uid) {
+      const userRef = doc(db, 'users', currentUser.uid);
+      await updateDoc(userRef, {
+        joinedChannelIds: arrayUnion('general', 'admin-announcements'),
+      }).catch(() => {});
+    }
+  } catch (err) {
+    console.error('Error seeding standard campus channels:', err);
+  }
+};
+
 /**
  * Fetches public channels ordered by memberCount descending.
  * Excludes admin-only announcement channels if requested for discovery.
@@ -32,17 +112,24 @@ export interface CreateChannelPayload {
 export const getPublicChannels = async (limitCount: number = 50): Promise<Channel[]> => {
   try {
     const channelsRef = collection(db, 'channels');
-    const q = query(channelsRef, orderBy('memberCount', 'desc'), limit(limitCount));
-    const snapshot = await getDocs(q);
+    let snapshot;
+    try {
+      const q = query(channelsRef, orderBy('memberCount', 'desc'), limit(limitCount));
+      snapshot = await getDocs(q);
+    } catch {
+      snapshot = await getDocs(channelsRef);
+    }
 
-    return snapshot.docs
+    const list = snapshot.docs
       .map((docSnap) => ({
         id: docSnap.id,
         ...docSnap.data(),
       })) as Channel[];
+
+    return list.sort((a, b) => (b.memberCount || 0) - (a.memberCount || 0)).slice(0, limitCount);
   } catch (error) {
     console.error('Error fetching public channels:', error);
-    throw error;
+    return [];
   }
 };
 
@@ -237,8 +324,11 @@ export const getMyChannels = async (userId: string): Promise<Channel[]> => {
     const userSnap = await getDoc(userRef);
     if (!userSnap.exists()) return [];
 
-    const joinedChannelIds: string[] = userSnap.data().joinedChannelIds || [];
-    if (joinedChannelIds.length === 0) return [];
+    let joinedChannelIds: string[] = userSnap.data().joinedChannelIds || [];
+    if (joinedChannelIds.length === 0) {
+      joinedChannelIds = ['general', 'admin-announcements'];
+      await updateDoc(userRef, { joinedChannelIds }).catch(() => {});
+    }
 
     // Resolve channel documents individually (max 100 channels)
     const channelSnaps = await Promise.all(
@@ -253,7 +343,7 @@ export const getMyChannels = async (userId: string): Promise<Channel[]> => {
       })) as Channel[];
   } catch (error) {
     console.error('Error fetching joined channels:', error);
-    throw error;
+    return [];
   }
 };
 
