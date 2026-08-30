@@ -7,6 +7,75 @@
   }
 }
 
+/* Micro-Interaction Utilities */
+.hover-card-lift {
+  transition: transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1),
+              box-shadow 200ms cubic-bezier(0.2, 0.8, 0.2, 1),
+              border-color 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.hover-card-lift:hover {
+  transform: translateY(-3px);
+}
+
+.hover-btn-primary {
+  transition: transform 180ms ease,
+              box-shadow 180ms ease,
+              border-color 180ms ease,
+              background-color 180ms ease;
+}
+
+.hover-btn-primary:hover {
+  transform: translateY(-2px);
+}
+
+.hover-btn-primary:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.hover-icon-pop {
+  transition: transform 150ms ease;
+}
+
+.hover-icon-pop:hover {
+  transform: scale(1.1);
+}
+
+.hover-icon-pop:active {
+  transform: scale(0.95);
+}
+
+/* Modal and Dropdown Entrance Animations */
+@keyframes modalIn {
+  from {
+    opacity: 0;
+    transform: scale(0.98) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-modal-in {
+  animation: modalIn 200ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+@keyframes dropdownIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-dropdown-in {
+  animation: dropdownIn 150ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
 /* Reduced Motion Safety */
 @media (prefers-reduced-motion: reduce) {
   *, ::before, ::after {
