@@ -1399,26 +1399,4 @@ service cloud.firestore {
       allow create, update: if isOwner(userId) || isAdmin();
       allow delete: if isOwner(userId) || isAdmin();
     }
-    // -------------------------------------------------------------------------
-    // Campus Activities 2.0 Collection Rules
-    // -------------------------------------------------------------------------
-    match /campusActivities/{activityId} {
-      allow read: if isAuthenticated() && (
-        resource.data.isPrivate != true ||
-        resource.data.groupId == null ||
-        exists(/databases/$(database)/documents/groups/$(resource.data.groupId)/members/$(request.auth.uid)) ||
-        isAdmin()
-      );
-      allow create: if isAuthenticated() && (
-        !('actorId' in request.resource.data) ||
-        request.resource.data.actorId == request.auth.uid ||
-        isAdmin()
-      );
-      allow update, delete: if isAuthenticated() && (
-        resource.data.actorId == request.auth.uid ||
-        isAdmin()
-      );
-    }
-
   }
-}
