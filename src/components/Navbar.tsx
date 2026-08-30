@@ -387,6 +387,11 @@ export const Navbar: React.FC = () => {
             <span>Campus Events</span>
           </NavLink>
 
+          <NavLink to="/confessions" onClick={() => setIsMobileMenuOpen(false)} className={mobileLinkClass}>
+            <Lock className="w-5 h-5 text-purple-400" />
+            <span>Campus Confessions</span>
+          </NavLink>
+
           <NavLink to="/activity" onClick={() => setIsMobileMenuOpen(false)} className={mobileLinkClass}>
             <Activity className="w-5 h-5 text-sky-400 animate-pulse" />
             <span>Activity Center</span>
