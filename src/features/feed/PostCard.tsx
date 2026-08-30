@@ -222,23 +222,23 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showPinButton, onPinTo
     switch (category) {
       case 'Mishap':
         return {
-          color: 'bg-rose-500/20 border-rose-500/40 text-rose-300 font-bold',
+          color: 'bg-gradient-to-r from-rose-500/25 via-rose-500/20 to-pink-500/25 border border-rose-500/50 text-rose-300 font-extrabold shadow-md shadow-rose-500/20',
           icon: <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />,
         };
       case 'Event':
         return {
-          color: 'bg-purple-500/20 border-purple-500/40 text-purple-300 font-bold',
+          color: 'bg-gradient-to-r from-purple-500/25 via-purple-500/20 to-indigo-500/25 border border-purple-500/50 text-purple-300 font-extrabold shadow-md shadow-purple-500/20',
           icon: <Calendar className="w-3.5 h-3.5 text-purple-400" />,
         };
       case 'LostFound':
         return {
-          color: 'bg-amber-500/20 border-amber-500/40 text-amber-300 font-bold',
+          color: 'bg-gradient-to-r from-amber-500/25 via-amber-500/20 to-orange-500/25 border border-amber-500/50 text-amber-300 font-extrabold shadow-md shadow-amber-500/20',
           icon: <Search className="w-3.5 h-3.5 text-amber-400" />,
         };
       case 'General':
       default:
         return {
-          color: 'bg-sky-500/20 border-sky-500/40 text-sky-300 font-bold',
+          color: 'bg-gradient-to-r from-sky-500/25 via-sky-500/20 to-emerald-500/25 border border-sky-500/50 text-sky-300 font-extrabold shadow-md shadow-sky-500/20',
           icon: <Info className="w-3.5 h-3.5 text-sky-400" />,
         };
     }
@@ -268,7 +268,9 @@ export const PostCard: React.FC<PostCardProps> = ({ post, showPinButton, onPinTo
             </div>
           </div>
         )}
-        <div className="absolute top-0 right-0 w-64 h-64 bg-sky-500/5 rounded-full blur-3xl -z-10 pointer-events-none" />
+        {/* Colorful Top Accent Line */}
+        <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-sky-400 via-indigo-500 to-purple-500 opacity-70 group-hover:opacity-100 transition-opacity" />
+        <div className="absolute top-0 right-0 w-72 h-72 bg-gradient-to-br from-sky-500/10 via-purple-500/10 to-transparent rounded-full blur-3xl -z-10 pointer-events-none group-hover:scale-125 transition-transform duration-500" />
 
         {/* Card Header */}
         <div className="shrink-0 space-y-3">

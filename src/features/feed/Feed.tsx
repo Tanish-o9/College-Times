@@ -378,18 +378,18 @@ export const Feed: React.FC = () => {
         </div>
 
         {/* Mode Selector & Category Sub-Filters */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 pt-3 border-t border-slate-800/80 relative z-10">
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-3 border-t border-slate-800/80 relative z-10">
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
             {feedModes.map((item) => {
               const isSelected = feedMode === item.mode;
               return (
                 <button
                   key={item.mode}
                   onClick={() => handleModeSelect(item.mode)}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                  className={`px-4 py-2 rounded-2xl text-xs font-black transition-all flex items-center gap-1.5 shrink-0 cursor-pointer shadow-md ${
                     isSelected
-                      ? 'bg-sky-500 text-slate-950 border-sky-400 shadow-md shadow-sky-500/20'
-                      : 'bg-slate-950/70 text-slate-400 border-slate-800/90 hover:border-slate-700 hover:text-slate-200'
+                      ? 'bg-gradient-to-r from-sky-400 via-indigo-500 to-purple-500 text-white shadow-lg shadow-indigo-500/25 scale-105 border border-sky-300'
+                      : 'bg-slate-950/80 text-slate-300 border border-slate-800 hover:border-slate-700 hover:bg-slate-900'
                   }`}
                 >
                   {item.icon}
@@ -401,17 +401,17 @@ export const Feed: React.FC = () => {
 
           <div className="flex items-center gap-2 shrink-0 self-end md:self-auto">
             {(feedMode === 'latest' || feedMode === 'personalized') && (
-              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar text-[11px]">
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar text-xs">
                 {categories.map((cat) => {
                   const isSelected = selectedCategory === cat.label;
                   return (
                     <button
                       key={cat.label}
                       onClick={() => setSelectedCategory(cat.label)}
-                      className={`px-2.5 py-1 rounded-lg font-bold transition-all flex items-center gap-1 shrink-0 ${
+                      className={`px-3 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1.5 shrink-0 border ${
                         isSelected
-                          ? 'bg-slate-800 text-sky-400 border border-sky-500/30'
-                          : 'text-slate-400 hover:text-slate-200'
+                          ? 'bg-gradient-to-r from-sky-500/20 to-purple-500/20 text-sky-300 border-sky-400/50 shadow-md shadow-sky-500/20'
+                          : 'bg-slate-950/70 border-slate-850 text-slate-400 hover:text-slate-200'
                       }`}
                     >
                       {cat.icon}
