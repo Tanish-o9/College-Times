@@ -146,13 +146,13 @@ export const Navbar: React.FC = () => {
     <header className="sticky top-0 z-40 bg-slate-950/90 backdrop-blur-md border-b border-slate-800/80 shadow-lg">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-3">
         {/* Brand Logo */}
-        <NavLink to="/" className="flex items-center gap-2 font-black text-base text-white tracking-tight shrink-0 hover:scale-105 transition-transform duration-200">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-sky-500 via-indigo-500 to-purple-500 p-0.5 shadow-md shadow-sky-500/20">
-            <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center text-sky-400">
+        <NavLink to="/" className="flex items-center gap-2 font-black text-base text-white tracking-tight shrink-0 hover:scale-105 transition-transform duration-200 group">
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-sky-500 via-purple-500 to-pink-500 p-0.5 shadow-[0_0_15px_rgba(168,85,247,0.35)] animate-gradient-x">
+            <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center text-sky-400 group-hover:text-purple-300 transition-colors">
               <Compass className="w-4 h-4 animate-spin-slow" />
             </div>
           </div>
-          <span className="hidden xs:inline bg-gradient-to-r from-white via-slate-200 to-sky-400 bg-clip-text text-transparent">
+          <span className="hidden xs:inline bg-gradient-to-r from-sky-300 via-purple-300 to-pink-300 bg-clip-text text-transparent font-extrabold">
             College Times
           </span>
         </NavLink>
@@ -179,7 +179,7 @@ export const Navbar: React.FC = () => {
                 if (suggestions.length > 0) setShowSuggestions(true);
               }}
               placeholder="Search feed, groups, events... (Ctrl+K)"
-              className="w-full pl-9 pr-8 py-1.5 bg-slate-900/80 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-all"
+              className="w-full pl-9 pr-8 py-1.5 bg-slate-900/90 border border-slate-800/90 hover:border-sky-500/40 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500/60 focus:ring-2 focus:ring-purple-500/20 focus:shadow-[0_0_15px_rgba(168,85,247,0.2)] transition-all duration-200"
             />
             {navSearchQuery ? (
               <button

@@ -219,7 +219,7 @@ export const AcademicHub: React.FC = () => {
             <div
               key={sub.id}
               onClick={() => navigate(`/academic/subjects/${sub.id}`)}
-              className="p-5 bg-slate-900 border border-slate-850 hover:border-emerald-500/30 rounded-3xl cursor-pointer transition-all flex flex-col justify-between gap-4 shadow-md group"
+              className="p-5 bg-slate-900/80 backdrop-blur-xl border border-slate-800 hover:border-emerald-500/40 hover:-translate-y-1 hover:shadow-[0_0_20px_rgba(52,211,153,0.15)] rounded-3xl cursor-pointer transition-all duration-200 flex flex-col justify-between gap-4 shadow-lg group"
             >
               <div className="space-y-2">
                 <span className="px-2.5 py-0.5 bg-slate-950 border border-slate-850 text-emerald-400 rounded-full font-mono text-[9px] font-bold">

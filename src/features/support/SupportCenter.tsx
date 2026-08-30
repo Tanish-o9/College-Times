@@ -317,8 +317,8 @@ export const SupportCenter: React.FC = () => {
                 <div
                   key={t.id}
                   onClick={() => handleOpenTicket(t)}
-                  className={`p-4 rounded-2xl border transition-all cursor-pointer shadow-md ${
-                    isSelected ? 'bg-rose-955/10 border-rose-500/40' : 'bg-slate-900 border-slate-850 hover:border-slate-800'
+                  className={`p-4 rounded-2xl border transition-all duration-200 cursor-pointer shadow-md hover:-translate-y-1 hover:border-rose-500/40 hover:shadow-[0_0_15px_rgba(244,63,94,0.15)] ${
+                    isSelected ? 'bg-rose-955/10 border-rose-500/40 shadow-rose-500/10' : 'bg-slate-900 border-slate-850'
                   }`}
                 >
                   <div className="space-y-2">

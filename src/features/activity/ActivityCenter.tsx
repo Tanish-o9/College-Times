@@ -248,7 +248,7 @@ export const ActivityCenter: React.FC = () => {
             <div
               key={act.id}
               onClick={() => handleItemClick(act)}
-              className="p-4 bg-slate-900/60 border border-slate-850 hover:border-slate-700/65 rounded-3xl cursor-pointer transition-all flex items-start gap-4 shadow-md"
+              className="p-4 bg-slate-900/80 backdrop-blur-xl border border-slate-800/90 hover:border-sky-500/40 hover:-translate-y-1 hover:shadow-[0_0_20px_rgba(56,189,248,0.15)] rounded-3xl cursor-pointer transition-all duration-200 flex items-start gap-4 shadow-lg group"
             >
               <div className="p-2.5 bg-slate-950 border border-slate-800 rounded-2xl shrink-0">
                 {getActivityIcon(act.type)}

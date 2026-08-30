@@ -386,16 +386,19 @@ export const ProfilePage: React.FC = () => {
         ) : (
           <div className="space-y-6 animate-in fade-in duration-200">
             {/* Identity Card Header */}
-            <div className="p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-6 shadow-xl relative">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="p-6 bg-slate-900/80 backdrop-blur-xl border border-slate-800/90 rounded-3xl space-y-6 shadow-2xl relative overflow-hidden">
+              <div className="absolute -top-10 -right-10 w-48 h-48 bg-gradient-to-br from-sky-500/10 via-purple-500/10 to-pink-500/10 blur-2xl rounded-full pointer-events-none" />
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative z-10">
                 <div className="flex items-center gap-4">
-                  {profile.photoURL ? (
-                    <img src={profile.photoURL} alt={profile.displayName} className="w-20 h-20 rounded-3xl object-cover border-2 border-sky-500/40" />
-                  ) : (
-                    <div className="w-20 h-20 rounded-3xl bg-sky-500/10 border-2 border-sky-500/30 flex items-center justify-center text-sky-400 font-bold text-2xl">
-                      {profile.displayName[0].toUpperCase()}
-                    </div>
-                  )}
+                  <div className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-sky-500 via-purple-500 to-pink-500 p-0.5 shadow-[0_0_20px_rgba(168,85,247,0.35)] animate-gradient-x shrink-0">
+                    {profile.photoURL ? (
+                      <img src={profile.photoURL} alt={profile.displayName} className="w-full h-full rounded-[22px] object-cover" />
+                    ) : (
+                      <div className="w-full h-full rounded-[22px] bg-slate-950 flex items-center justify-center text-sky-300 font-extrabold text-2xl">
+                        {profile.displayName[0].toUpperCase()}
+                      </div>
+                    )}
+                  </div>
 
                   <div>
                     <h2 className="text-xl font-bold text-white">{profile.displayName}</h2>
