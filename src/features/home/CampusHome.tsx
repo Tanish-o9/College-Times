@@ -454,33 +454,55 @@ export const CampusHome: React.FC = () => {
             
             {/* Latest Posts */}
             {isWidgetVisible('feed') && (
-              <section className="p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-4 shadow-xl">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                  <h3 className="text-xs font-bold text-slate-300 uppercase font-mono flex items-center gap-1.5">
-                    <TrendingUp className="w-4.5 h-4.5 text-sky-400" />
-                    <span>Latest Campus Feed</span>
+              <section className="p-6 bg-slate-900/80 backdrop-blur-xl border border-slate-800/90 hover:border-sky-500/30 rounded-3xl space-y-4 shadow-2xl transition-all duration-300 relative overflow-hidden group">
+                <div className="absolute -right-12 -top-12 w-36 h-36 bg-sky-500/10 rounded-full blur-2xl pointer-events-none group-hover:bg-sky-500/20 transition-all" />
+                <div className="flex items-center justify-between pb-3 border-b border-slate-800/80 relative z-10">
+                  <h3 className="text-xs font-black text-slate-200 uppercase font-mono flex items-center gap-2 tracking-wider">
+                    <TrendingUp className="w-4.5 h-4.5 text-sky-400 animate-pulse" />
+                    <span className="bg-gradient-to-r from-sky-400 to-indigo-300 bg-clip-text text-transparent">Latest Campus Feed</span>
                   </h3>
-                  <button onClick={() => navigate('/feed')} className="text-xs font-bold text-sky-400 hover:underline">
-                    View Feed
+                  <button
+                    onClick={() => navigate('/feed')}
+                    className="text-xs font-bold text-sky-400 hover:text-sky-300 flex items-center gap-1 transition-all hover:translate-x-0.5 cursor-pointer font-mono"
+                  >
+                    <span>View Feed</span>
+                    <span>→</span>
                   </button>
                 </div>
 
                 {loading ? (
-                  <div className="text-slate-500 text-xs font-mono py-6">Loading feed...</div>
+                  <div className="text-slate-500 text-xs font-mono py-8 text-center animate-pulse flex items-center justify-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-sky-400 animate-ping" />
+                    <span>Loading latest campus feed updates...</span>
+                  </div>
                 ) : posts.length === 0 ? (
-                  <div className="text-slate-500 text-xs italic py-6">No recent posts.</div>
+                  <div className="text-slate-500 text-xs italic py-8 text-center bg-slate-950/40 rounded-2xl border border-slate-850">
+                    No recent campus posts available.
+                  </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-3 relative z-10">
                     {posts.map((p) => (
                       <div
                         key={p.id}
                         onClick={() => navigate(`/feed?postId=${p.id}`)}
-                        className="p-3.5 bg-slate-950/40 border border-slate-850 hover:border-slate-800 rounded-2xl cursor-pointer transition-all"
+                        className="p-4 bg-slate-950/60 hover:bg-slate-900/90 border border-slate-800/90 hover:border-sky-500/50 hover:shadow-[0_0_20px_rgba(56,189,248,0.15)] rounded-2xl cursor-pointer transition-all duration-200 hover:-translate-y-1 group/item"
                       >
-                        <h4 className="text-xs font-bold text-white truncate">{p.title}</h4>
-                        <p className="text-[11px] text-slate-400 mt-1 line-clamp-1">{p.content}</p>
-                        <div className="flex justify-between items-center text-[9px] text-slate-500 font-mono mt-2">
-                          <span>by {p.authorName}</span>
+                        <div className="flex items-center justify-between gap-2">
+                          <h4 className="text-xs font-bold text-white group-hover/item:text-sky-300 transition-colors truncate">
+                            {p.title}
+                          </h4>
+                          {p.category && (
+                            <span className="px-2 py-0.5 bg-slate-900 border border-slate-800 text-[9px] font-mono font-bold text-sky-400 rounded-full shrink-0">
+                              {p.category}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-1.5 line-clamp-2 leading-relaxed">{p.content}</p>
+                        <div className="flex justify-between items-center text-[10px] text-slate-500 font-mono mt-3 pt-2 border-t border-slate-850">
+                          <span className="flex items-center gap-1 text-slate-400 font-bold">
+                            <span className="w-1.5 h-1.5 rounded-full bg-sky-400 inline-block" />
+                            {p.authorName}
+                          </span>
                           <span>{formatTimestamp(p.timestamp)}</span>
                         </div>
                       </div>
@@ -492,31 +514,50 @@ export const CampusHome: React.FC = () => {
 
             {/* Upcoming Events */}
             {isWidgetVisible('events') && (
-              <section className="p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-4 shadow-xl">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                  <h3 className="text-xs font-bold text-slate-300 uppercase font-mono flex items-center gap-1.5">
-                    <Calendar className="w-4.5 h-4.5 text-purple-400" />
-                    <span>Upcoming Campus Events</span>
+              <section className="p-6 bg-slate-900/80 backdrop-blur-xl border border-slate-800/90 hover:border-purple-500/30 rounded-3xl space-y-4 shadow-2xl transition-all duration-300 relative overflow-hidden group">
+                <div className="absolute -right-12 -top-12 w-36 h-36 bg-purple-500/10 rounded-full blur-2xl pointer-events-none group-hover:bg-purple-500/20 transition-all" />
+                <div className="flex items-center justify-between pb-3 border-b border-slate-800/80 relative z-10">
+                  <h3 className="text-xs font-black text-slate-200 uppercase font-mono flex items-center gap-2 tracking-wider">
+                    <Calendar className="w-4.5 h-4.5 text-purple-400 animate-pulse" />
+                    <span className="bg-gradient-to-r from-purple-400 to-pink-300 bg-clip-text text-transparent">Upcoming Campus Events</span>
                   </h3>
-                  <button onClick={() => navigate('/events')} className="text-xs font-bold text-purple-400 hover:underline">
-                    All Events
+                  <button
+                    onClick={() => navigate('/events')}
+                    className="text-xs font-bold text-purple-400 hover:text-purple-300 flex items-center gap-1 transition-all hover:translate-x-0.5 cursor-pointer font-mono"
+                  >
+                    <span>All Events</span>
+                    <span>→</span>
                   </button>
                 </div>
 
                 {loading ? (
-                  <div className="text-slate-500 text-xs font-mono py-6">Loading events...</div>
+                  <div className="text-slate-500 text-xs font-mono py-8 text-center animate-pulse flex items-center justify-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-purple-400 animate-ping" />
+                    <span>Loading events schedule...</span>
+                  </div>
                 ) : events.length === 0 ? (
-                  <div className="text-slate-500 text-xs italic py-6">No upcoming events listed.</div>
+                  <div className="text-slate-500 text-xs italic py-8 text-center bg-slate-950/40 rounded-2xl border border-slate-850">
+                    No upcoming events listed.
+                  </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 relative z-10">
                     {events.map((e) => (
                       <div
                         key={e.id}
                         onClick={() => navigate('/events')}
-                        className="p-3.5 bg-slate-950/40 border border-slate-850 hover:border-slate-800 rounded-2xl cursor-pointer transition-all"
+                        className="p-4 bg-slate-950/60 hover:bg-slate-900/90 border border-slate-800/90 hover:border-purple-500/50 hover:shadow-[0_0_20px_rgba(168,85,247,0.15)] rounded-2xl cursor-pointer transition-all duration-200 hover:-translate-y-1 group/evt space-y-2"
                       >
-                        <h4 className="text-xs font-bold text-white truncate">{e.title}</h4>
-                        <span className="text-[9px] text-purple-400 font-mono mt-1 block">{e.location}</span>
+                        <div className="flex items-center justify-between gap-2">
+                          <h4 className="text-xs font-bold text-white group-hover/evt:text-purple-300 transition-colors truncate">
+                            {e.title}
+                          </h4>
+                          <span className="px-2 py-0.5 bg-purple-500/10 border border-purple-500/30 text-[9px] font-mono font-bold text-purple-300 rounded-full shrink-0">
+                            {e.category || 'Event'}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 font-mono flex items-center gap-1 truncate">
+                          <span>📍 {e.location || 'AKGEC Campus'}</span>
+                        </p>
                       </div>
                     ))}
                   </div>
@@ -526,31 +567,54 @@ export const CampusHome: React.FC = () => {
 
             {/* Lost & Found Alerts */}
             {isWidgetVisible('lost_found') && (
-              <section className="p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-4 shadow-xl">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                  <h3 className="text-xs font-bold text-slate-300 uppercase font-mono flex items-center gap-1.5">
-                    <Search className="w-4.5 h-4.5 text-amber-400" />
-                    <span>Lost & Found Notices</span>
+              <section className="p-6 bg-slate-900/80 backdrop-blur-xl border border-slate-800/90 hover:border-amber-500/30 rounded-3xl space-y-4 shadow-2xl transition-all duration-300 relative overflow-hidden group">
+                <div className="absolute -right-12 -top-12 w-36 h-36 bg-amber-500/10 rounded-full blur-2xl pointer-events-none group-hover:bg-amber-500/20 transition-all" />
+                <div className="flex items-center justify-between pb-3 border-b border-slate-800/80 relative z-10">
+                  <h3 className="text-xs font-black text-slate-200 uppercase font-mono flex items-center gap-2 tracking-wider">
+                    <Search className="w-4.5 h-4.5 text-amber-400 animate-pulse" />
+                    <span className="bg-gradient-to-r from-amber-400 to-yellow-300 bg-clip-text text-transparent">Lost & Found Notices</span>
                   </h3>
-                  <button onClick={() => navigate('/lost-found')} className="text-xs font-bold text-amber-400 hover:underline">
-                    All Notices
+                  <button
+                    onClick={() => navigate('/lost-found')}
+                    className="text-xs font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1 transition-all hover:translate-x-0.5 cursor-pointer font-mono"
+                  >
+                    <span>All Notices</span>
+                    <span>→</span>
                   </button>
                 </div>
 
                 {loading ? (
-                  <div className="text-slate-500 text-xs font-mono py-6">Loading notices...</div>
+                  <div className="text-slate-500 text-xs font-mono py-8 text-center animate-pulse flex items-center justify-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                    <span>Loading lost & found notices...</span>
+                  </div>
                 ) : lostFound.length === 0 ? (
-                  <div className="text-slate-500 text-xs italic py-6">No recent lost/found alerts.</div>
+                  <div className="text-slate-500 text-xs italic py-8 text-center bg-slate-950/40 rounded-2xl border border-slate-850">
+                    No recent lost/found alerts.
+                  </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-3 relative z-10">
                     {lostFound.map((lf) => (
                       <div
                         key={lf.id}
                         onClick={() => navigate('/lost-found')}
-                        className="p-3 bg-slate-950/40 border border-slate-850 hover:border-slate-800 rounded-2xl cursor-pointer transition-all"
+                        className="p-4 bg-slate-950/60 hover:bg-slate-900/90 border border-slate-800/90 hover:border-amber-500/50 hover:shadow-[0_0_20px_rgba(251,191,36,0.15)] rounded-2xl cursor-pointer transition-all duration-200 hover:-translate-y-1 group/lf"
                       >
-                        <h4 className="text-xs font-bold text-white truncate">{lf.title}</h4>
-                        <p className="text-[10px] text-slate-400 mt-1 line-clamp-1">{lf.content}</p>
+                        <div className="flex items-center justify-between gap-2">
+                          <h4 className="text-xs font-bold text-white group-hover/lf:text-amber-300 transition-colors truncate">
+                            {lf.title}
+                          </h4>
+                          <span
+                            className={`px-2 py-0.5 text-[9px] font-mono font-bold rounded-full border shrink-0 ${
+                              lf.postType === 'lost' || (lf.type && String(lf.type).toLowerCase() === 'lost')
+                                ? 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                                : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                            }`}
+                          >
+                            {(lf.postType || lf.type || 'NOTICE').toUpperCase()}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-1 line-clamp-1">{lf.content || lf.description}</p>
                       </div>
                     ))}
                   </div>
@@ -563,23 +627,27 @@ export const CampusHome: React.FC = () => {
           <div className="space-y-6">
             
             {/* Joined Groups */}
-            <section className="p-5 bg-slate-900 border border-slate-800 rounded-3xl space-y-3.5 shadow-xl">
-              <h3 className="text-xs font-bold text-slate-300 uppercase font-mono flex items-center gap-1.5 pb-2 border-b border-slate-800">
-                <Users className="w-4.5 h-4.5 text-indigo-400" />
-                <span>Joined Groups</span>
+            <section className="p-5 bg-slate-900/80 backdrop-blur-xl border border-slate-800/90 hover:border-indigo-500/30 rounded-3xl space-y-3.5 shadow-2xl transition-all duration-300 relative overflow-hidden group">
+              <h3 className="text-xs font-black text-slate-200 uppercase font-mono flex items-center gap-2 pb-2.5 border-b border-slate-800/80 tracking-wider">
+                <Users className="w-4.5 h-4.5 text-indigo-400 animate-pulse" />
+                <span className="bg-gradient-to-r from-indigo-400 to-sky-300 bg-clip-text text-transparent">Joined Groups</span>
               </h3>
               {loading ? (
-                <div className="text-slate-500 text-xs font-mono">Loading...</div>
+                <div className="text-slate-500 text-xs font-mono py-4 text-center">Loading groups...</div>
               ) : (
                 <div className="space-y-2">
                   {joinedGroups.map((g) => (
                     <div
                       key={g.id}
                       onClick={() => navigate(`/groups/${g.id}`)}
-                      className="p-2.5 bg-slate-950/40 border border-slate-850 hover:border-slate-800 rounded-xl cursor-pointer transition-all flex items-center justify-between"
+                      className="p-3 bg-slate-950/60 hover:bg-slate-900/90 border border-slate-800/90 hover:border-indigo-500/50 hover:shadow-[0_0_15px_rgba(99,102,241,0.15)] rounded-2xl cursor-pointer transition-all duration-200 hover:-translate-y-0.5 flex items-center justify-between group/grp"
                     >
-                      <span className="text-xs font-bold text-white truncate max-w-[150px]">{g.name}</span>
-                      <span className="text-[9px] text-indigo-400 font-mono">Open →</span>
+                      <span className="text-xs font-bold text-white group-hover/grp:text-indigo-300 transition-colors truncate max-w-[150px]">
+                        {g.name}
+                      </span>
+                      <span className="text-[10px] text-indigo-400 font-mono font-bold group-hover/grp:translate-x-0.5 transition-transform">
+                        Open →
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -587,23 +655,27 @@ export const CampusHome: React.FC = () => {
             </section>
 
             {/* Trending Groups */}
-            <section className="p-5 bg-slate-900 border border-slate-800 rounded-3xl space-y-3.5 shadow-xl">
-              <h3 className="text-xs font-bold text-slate-300 uppercase font-mono flex items-center gap-1.5 pb-2 border-b border-slate-800">
+            <section className="p-5 bg-slate-900/80 backdrop-blur-xl border border-slate-800/90 hover:border-orange-500/30 rounded-3xl space-y-3.5 shadow-2xl transition-all duration-300 relative overflow-hidden group">
+              <h3 className="text-xs font-black text-slate-200 uppercase font-mono flex items-center gap-2 pb-2.5 border-b border-slate-800/80 tracking-wider">
                 <Flame className="w-4.5 h-4.5 text-orange-400 animate-pulse" />
-                <span>Trending Groups</span>
+                <span className="bg-gradient-to-r from-orange-400 to-amber-300 bg-clip-text text-transparent">Trending Groups</span>
               </h3>
               {loading ? (
-                <div className="text-slate-500 text-xs font-mono">Loading...</div>
+                <div className="text-slate-500 text-xs font-mono py-4 text-center">Loading trending...</div>
               ) : (
                 <div className="space-y-2">
                   {trendingGroups.map((g) => (
                     <div
                       key={g.id}
                       onClick={() => navigate(`/groups/${g.id}`)}
-                      className="p-2.5 bg-slate-950/40 border border-slate-850 hover:border-slate-800 rounded-xl cursor-pointer transition-all flex items-center justify-between"
+                      className="p-3 bg-slate-950/60 hover:bg-slate-900/90 border border-slate-800/90 hover:border-orange-500/50 hover:shadow-[0_0_15px_rgba(249,115,22,0.15)] rounded-2xl cursor-pointer transition-all duration-200 hover:-translate-y-0.5 flex items-center justify-between group/trg"
                     >
-                      <span className="text-xs font-bold text-white truncate max-w-[150px]">{g.name}</span>
-                      <span className="text-[9px] text-orange-400 font-mono">Explore</span>
+                      <span className="text-xs font-bold text-white group-hover/trg:text-orange-300 transition-colors truncate max-w-[150px]">
+                        {g.name}
+                      </span>
+                      <span className="text-[10px] text-orange-400 font-mono font-bold group-hover/trg:translate-x-0.5 transition-transform">
+                        Explore →
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -612,25 +684,40 @@ export const CampusHome: React.FC = () => {
 
             {/* Gamification Metrics */}
             {isWidgetVisible('gamification') && (
-              <section className="p-5 bg-slate-900 border border-slate-800 rounded-3xl space-y-3.5 shadow-xl">
-                <h3 className="text-xs font-bold text-slate-300 uppercase font-mono flex items-center gap-1.5 pb-2 border-b border-slate-800">
-                  <Trophy className="w-4.5 h-4.5 text-amber-400" />
-                  <span>Reputation & Level</span>
+              <section className="p-5 bg-slate-900/80 backdrop-blur-xl border border-slate-800/90 hover:border-amber-500/30 rounded-3xl space-y-3.5 shadow-2xl transition-all duration-300 relative overflow-hidden group">
+                <h3 className="text-xs font-black text-slate-200 uppercase font-mono flex items-center gap-2 pb-2.5 border-b border-slate-800/80 tracking-wider">
+                  <Trophy className="w-4.5 h-4.5 text-amber-400 animate-pulse" />
+                  <span className="bg-gradient-to-r from-amber-400 to-yellow-300 bg-clip-text text-transparent">Reputation & Level</span>
                 </h3>
-                <div className="p-3 bg-slate-950/40 border border-slate-850 rounded-2xl space-y-2">
+                <div className="p-4 bg-slate-950/60 border border-slate-800/90 rounded-2xl space-y-3">
                   <div className="flex justify-between items-center text-xs">
                     <span className="font-bold text-slate-400">Total Points:</span>
-                    <span className="font-mono font-bold text-amber-400">{profile?.reputationPoints || profile?.points || 0} XP</span>
+                    <span className="font-mono font-bold text-amber-400 text-sm">
+                      {profile?.reputationPoints || profile?.points || 0} XP
+                    </span>
                   </div>
                   <div className="flex justify-between items-center text-xs">
                     <span className="font-bold text-slate-400">Current Level:</span>
-                    <span className="font-mono font-bold text-white">Lvl {profile?.level || Math.floor((profile?.points || 0) / 100) + 1}</span>
+                    <span className="font-mono font-bold text-white">
+                      Lvl {profile?.level || Math.floor((profile?.points || 0) / 100) + 1}
+                    </span>
                   </div>
+
+                  {/* Level Progress Bar */}
+                  <div className="space-y-1">
+                    <div className="w-full h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-800/80">
+                      <div
+                        className="h-full bg-gradient-to-r from-amber-400 to-yellow-300 rounded-full transition-all duration-500 shadow-[0_0_10px_rgba(251,191,36,0.6)]"
+                        style={{ width: `${Math.min(100, (profile?.reputationPoints || profile?.points || 0) % 100)}%` }}
+                      />
+                    </div>
+                  </div>
+
                   <div className="pt-2 flex flex-wrap gap-1.5">
                     {(profile?.badges || ['Campus Novice']).slice(0, 3).map((badge: string, idx: number) => (
                       <span
                         key={idx}
-                        className="px-2 py-0.5 bg-slate-900 border border-slate-800 text-slate-400 rounded-full font-mono text-[9px] font-bold"
+                        className="px-2.5 py-1 bg-slate-900 border border-amber-500/20 text-amber-300 rounded-full font-mono text-[9px] font-bold shadow-sm"
                       >
                         🏅 {badge}
                       </span>
@@ -642,23 +729,27 @@ export const CampusHome: React.FC = () => {
 
             {/* Marketplace Deals */}
             {isWidgetVisible('marketplace') && (
-              <section className="p-5 bg-slate-900 border border-slate-800 rounded-3xl space-y-3.5 shadow-xl">
-                <h3 className="text-xs font-bold text-slate-300 uppercase font-mono flex items-center gap-1.5 pb-2 border-b border-slate-800">
-                  <ShoppingBag className="w-4.5 h-4.5 text-amber-400" />
-                  <span>Marketplace Deals</span>
+              <section className="p-5 bg-slate-900/80 backdrop-blur-xl border border-slate-800/90 hover:border-pink-500/30 rounded-3xl space-y-3.5 shadow-2xl transition-all duration-300 relative overflow-hidden group">
+                <h3 className="text-xs font-black text-slate-200 uppercase font-mono flex items-center gap-2 pb-2.5 border-b border-slate-800/80 tracking-wider">
+                  <ShoppingBag className="w-4.5 h-4.5 text-pink-400 animate-pulse" />
+                  <span className="bg-gradient-to-r from-pink-400 to-rose-300 bg-clip-text text-transparent">Marketplace Deals</span>
                 </h3>
                 {loading ? (
-                  <div className="text-slate-500 text-xs font-mono">Loading...</div>
+                  <div className="text-slate-500 text-xs font-mono py-4 text-center">Loading deals...</div>
                 ) : (
                   <div className="space-y-2">
                     {listings.map((l) => (
                       <div
                         key={l.id}
                         onClick={() => navigate(`/marketplace/${l.id}`)}
-                        className="p-2.5 bg-slate-950/40 border border-slate-850 hover:border-slate-800 rounded-xl cursor-pointer transition-all flex items-center justify-between"
+                        className="p-3 bg-slate-950/60 hover:bg-slate-900/90 border border-slate-800/90 hover:border-pink-500/50 hover:shadow-[0_0_15px_rgba(236,72,153,0.15)] rounded-2xl cursor-pointer transition-all duration-200 hover:-translate-y-0.5 flex items-center justify-between group/mkt"
                       >
-                        <span className="text-xs font-bold text-white truncate max-w-[150px]">{l.title}</span>
-                        <span className="text-xs text-emerald-400 font-bold font-mono">₹{l.price}</span>
+                        <span className="text-xs font-bold text-white group-hover/mkt:text-pink-300 transition-colors truncate max-w-[140px]">
+                          {l.title}
+                        </span>
+                        <span className="px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold font-mono text-xs rounded-full">
+                          ₹{l.price}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -668,23 +759,27 @@ export const CampusHome: React.FC = () => {
 
             {/* Opportunities */}
             {isWidgetVisible('opportunities') && (
-              <section className="p-5 bg-slate-900 border border-slate-800 rounded-3xl space-y-3.5 shadow-xl">
-                <h3 className="text-xs font-bold text-slate-300 uppercase font-mono flex items-center gap-1.5 pb-2 border-b border-slate-800">
-                  <Briefcase className="w-4.5 h-4.5 text-cyan-400" />
-                  <span>Latest Opportunities</span>
+              <section className="p-5 bg-slate-900/80 backdrop-blur-xl border border-slate-800/90 hover:border-cyan-500/30 rounded-3xl space-y-3.5 shadow-2xl transition-all duration-300 relative overflow-hidden group">
+                <h3 className="text-xs font-black text-slate-200 uppercase font-mono flex items-center gap-2 pb-2.5 border-b border-slate-800/80 tracking-wider">
+                  <Briefcase className="w-4.5 h-4.5 text-cyan-400 animate-pulse" />
+                  <span className="bg-gradient-to-r from-cyan-400 to-sky-300 bg-clip-text text-transparent">Latest Opportunities</span>
                 </h3>
                 {loading ? (
-                  <div className="text-slate-500 text-xs font-mono">Loading...</div>
+                  <div className="text-slate-500 text-xs font-mono py-4 text-center">Loading opps...</div>
                 ) : (
                   <div className="space-y-2">
                     {opportunities.map((o) => (
                       <div
                         key={o.id}
                         onClick={() => navigate('/opportunities/applications')}
-                        className="p-2.5 bg-slate-950/40 border border-slate-850 hover:border-slate-800 rounded-xl cursor-pointer transition-all flex items-center justify-between"
+                        className="p-3 bg-slate-950/60 hover:bg-slate-900/90 border border-slate-800/90 hover:border-cyan-500/50 hover:shadow-[0_0_15px_rgba(6,182,212,0.15)] rounded-2xl cursor-pointer transition-all duration-200 hover:-translate-y-0.5 flex items-center justify-between group/opp"
                       >
-                        <span className="text-xs font-bold text-white truncate max-w-[150px]">{o.title}</span>
-                        <span className="text-[9px] text-slate-500 font-mono">Apply</span>
+                        <span className="text-xs font-bold text-white group-hover/opp:text-cyan-300 transition-colors truncate max-w-[150px]">
+                          {o.title}
+                        </span>
+                        <span className="text-[10px] text-cyan-400 font-mono font-bold group-hover/opp:translate-x-0.5 transition-transform">
+                          Apply →
+                        </span>
                       </div>
                     ))}
                   </div>
