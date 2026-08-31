@@ -263,6 +263,40 @@ export const CampusHome: React.FC = () => {
         {/* Emergency Alert Widget */}
         <ActiveIncidentStrip />
 
+        {/* 1. Quick Action Palette */}
+        {isWidgetVisible('quick_actions') && (
+          <section className="p-6 bg-slate-900/90 border-2 border-slate-800/90 rounded-3xl space-y-4 shadow-2xl relative overflow-hidden backdrop-blur-xl">
+            <h3 className="text-xs font-black text-slate-300 uppercase font-mono flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-sky-400 animate-pulse" />
+              <span className="bg-gradient-to-r from-sky-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">Campus Quick Actions</span>
+            </h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-8 gap-3 sm:gap-4">
+              {[
+                { label: 'Create Post', onClick: () => navigate('/feed'), color: 'text-sky-400', glow: 'hover:border-sky-500/60 hover:shadow-[0_0_20px_rgba(56,189,248,0.3)]', icon: PlusCircle },
+                { label: 'Create Group', onClick: () => navigate('/groups'), color: 'text-purple-400', glow: 'hover:border-purple-500/60 hover:shadow-[0_0_20px_rgba(168,85,247,0.3)]', icon: Users },
+                { label: 'Create Event', onClick: () => navigate('/events'), color: 'text-emerald-400', glow: 'hover:border-emerald-500/60 hover:shadow-[0_0_20px_rgba(52,211,153,0.3)]', icon: Calendar },
+                { label: 'Create Poll', onClick: () => navigate('/voting'), color: 'text-amber-400', glow: 'hover:border-amber-500/60 hover:shadow-[0_0_20px_rgba(251,191,36,0.3)]', icon: BarChart3 },
+                { label: 'Confession', onClick: () => setIsConfessionModalOpen(true), color: 'text-purple-400', glow: 'hover:border-purple-500/60 hover:shadow-[0_0_20px_rgba(168,85,247,0.35)]', icon: Lock },
+                { label: 'Group Instant', onClick: () => navigate('/groups'), color: 'text-rose-400', glow: 'hover:border-rose-500/60 hover:shadow-[0_0_20px_rgba(244,63,94,0.3)]', icon: Flame },
+                { label: 'Academics Hub', onClick: () => navigate('/academics'), color: 'text-emerald-400', glow: 'hover:border-emerald-500/60 hover:shadow-[0_0_20px_rgba(52,211,153,0.3)]', icon: GraduationCap },
+                { label: 'Search Campus', onClick: () => navigate('/search'), color: 'text-cyan-400', glow: 'hover:border-cyan-500/60 hover:shadow-[0_0_20px_rgba(6,182,212,0.3)]', icon: Search },
+              ].map((action, idx) => {
+                const Icon = action.icon;
+                return (
+                  <button
+                    key={idx}
+                    onClick={action.onClick}
+                    className={`p-4 bg-slate-950/80 hover:bg-slate-900 border-2 border-slate-850 ${action.glow} hover:-translate-y-1 active:scale-95 rounded-2xl text-left space-y-2 transition-all duration-200 cursor-pointer group shadow-xl`}
+                  >
+                    <Icon className={`w-6 h-6 ${action.color} group-hover:scale-110 transition-transform duration-200`} />
+                    <div className="text-xs font-black text-white leading-tight group-hover:text-sky-300 transition-colors">{action.label}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
         {/* Phase 49A — Smart Today Dashboard Banner */}
         {todaySummary && todaySummary.items.length > 0 && (
           <section className="p-5 bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-indigo-500/30 rounded-3xl space-y-3 shadow-xl animate-fadeIn">
@@ -307,40 +341,6 @@ export const CampusHome: React.FC = () => {
                   <p className="text-[11px] text-slate-400 truncate mt-0.5">{item.subtitle}</p>
                 </div>
               ))}
-            </div>
-          </section>
-        )}
-
-        {/* 1. Quick Action Palette */}
-        {isWidgetVisible('quick_actions') && (
-          <section className="p-6 bg-slate-900/90 border-2 border-slate-800/90 rounded-3xl space-y-4 shadow-2xl relative overflow-hidden backdrop-blur-xl">
-            <h3 className="text-xs font-black text-slate-300 uppercase font-mono flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-sky-400 animate-pulse" />
-              <span className="bg-gradient-to-r from-sky-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">Campus Quick Actions</span>
-            </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-8 gap-3 sm:gap-4">
-              {[
-                { label: 'Create Post', onClick: () => navigate('/feed'), color: 'text-sky-400', glow: 'hover:border-sky-500/60 hover:shadow-[0_0_20px_rgba(56,189,248,0.3)]', icon: PlusCircle },
-                { label: 'Create Group', onClick: () => navigate('/groups'), color: 'text-purple-400', glow: 'hover:border-purple-500/60 hover:shadow-[0_0_20px_rgba(168,85,247,0.3)]', icon: Users },
-                { label: 'Create Event', onClick: () => navigate('/events'), color: 'text-emerald-400', glow: 'hover:border-emerald-500/60 hover:shadow-[0_0_20px_rgba(52,211,153,0.3)]', icon: Calendar },
-                { label: 'Create Poll', onClick: () => navigate('/voting'), color: 'text-amber-400', glow: 'hover:border-amber-500/60 hover:shadow-[0_0_20px_rgba(251,191,36,0.3)]', icon: BarChart3 },
-                { label: 'Confession', onClick: () => setIsConfessionModalOpen(true), color: 'text-purple-400', glow: 'hover:border-purple-500/60 hover:shadow-[0_0_20px_rgba(168,85,247,0.35)]', icon: Lock },
-                { label: 'Group Instant', onClick: () => navigate('/groups'), color: 'text-rose-400', glow: 'hover:border-rose-500/60 hover:shadow-[0_0_20px_rgba(244,63,94,0.3)]', icon: Flame },
-                { label: 'Academics Hub', onClick: () => navigate('/academics'), color: 'text-emerald-400', glow: 'hover:border-emerald-500/60 hover:shadow-[0_0_20px_rgba(52,211,153,0.3)]', icon: GraduationCap },
-                { label: 'Search Campus', onClick: () => navigate('/search'), color: 'text-cyan-400', glow: 'hover:border-cyan-500/60 hover:shadow-[0_0_20px_rgba(6,182,212,0.3)]', icon: Search },
-              ].map((action, idx) => {
-                const Icon = action.icon;
-                return (
-                  <button
-                    key={idx}
-                    onClick={action.onClick}
-                    className={`p-4 bg-slate-950/80 hover:bg-slate-900 border-2 border-slate-850 ${action.glow} hover:-translate-y-1 active:scale-95 rounded-2xl text-left space-y-2 transition-all duration-200 cursor-pointer group shadow-xl`}
-                  >
-                    <Icon className={`w-6 h-6 ${action.color} group-hover:scale-110 transition-transform duration-200`} />
-                    <div className="text-xs font-black text-white leading-tight group-hover:text-sky-300 transition-colors">{action.label}</div>
-                  </button>
-                );
-              })}
             </div>
           </section>
         )}
