@@ -348,7 +348,8 @@ export const Feed: React.FC = () => {
   return (
     <div className="w-full max-w-[1700px] mx-auto px-4 sm:px-6 lg:px-8 space-y-6 pb-20">
       {/* Top Feed Header & Mode Bar */}
-      <div className="bg-slate-900/90 backdrop-blur-xl border border-slate-800/90 rounded-3xl p-4 sm:p-5 shadow-2xl space-y-3 relative overflow-hidden">
+      <div className="bg-slate-900/90 backdrop-blur-xl border border-slate-800/90 hover:border-sky-500/40 rounded-3xl p-4 sm:p-5 shadow-2xl space-y-3 relative overflow-hidden group transition-all duration-300">
+        <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-sky-400 via-purple-500 to-pink-500 opacity-90 animate-gradient-x" />
         <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-br from-sky-500/10 via-purple-500/10 to-pink-500/10 blur-3xl pointer-events-none rounded-full" />
 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-10">
@@ -359,7 +360,7 @@ export const Feed: React.FC = () => {
             <div>
               <h1 className="text-lg sm:text-xl font-black text-white tracking-tight flex items-center gap-2">
                 Campus Live Feed
-                <span className="px-2 py-0.5 text-[10px] font-mono font-extrabold uppercase rounded-full bg-sky-500/15 text-sky-400 border border-sky-500/30">
+                <span className="px-2 py-0.5 text-[10px] font-mono font-extrabold uppercase rounded-full bg-sky-500/15 text-sky-400 border border-sky-500/30 animate-pulse">
                   Realtime
                 </span>
               </h1>
@@ -370,7 +371,7 @@ export const Feed: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsModalOpen(true)}
-            className="px-4 py-2.5 bg-gradient-to-r from-sky-500 via-indigo-500 to-purple-600 hover:from-sky-400 hover:to-purple-500 text-white font-bold rounded-xl text-xs shadow-lg shadow-sky-500/20 flex items-center justify-center gap-2 transition-all hover:scale-105 cursor-pointer shrink-0"
+            className="px-4 py-2.5 bg-gradient-to-r from-sky-500 via-indigo-500 to-purple-600 hover:from-sky-400 hover:to-purple-500 text-white font-bold rounded-xl text-xs shadow-lg shadow-sky-500/20 flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-95 cursor-pointer shrink-0"
           >
             <PlusCircle className="w-4 h-4" />
             <span>Create Post</span>
@@ -460,7 +461,8 @@ export const Feed: React.FC = () => {
         {/* Left Sidebar (Desktop Only) */}
         <aside className="hidden lg:block lg:col-span-3 space-y-4 sticky top-20">
           {/* User Profile Mini Widget */}
-          <div className="p-5 bg-slate-900/80 backdrop-blur-xl border border-slate-800/90 rounded-3xl space-y-4 shadow-xl">
+          <div className="p-5 bg-slate-900/80 backdrop-blur-xl border border-slate-800/90 rounded-3xl space-y-4 shadow-xl relative overflow-hidden group hover:border-sky-500/30 transition-all">
+            <div className="absolute top-0 inset-x-0 h-0.5 bg-gradient-to-r from-sky-400 via-indigo-500 to-purple-500 opacity-70 group-hover:opacity-100 transition-opacity" />
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-sky-500 to-indigo-600 text-white font-extrabold text-sm flex items-center justify-center border border-sky-400/30 shadow-md shrink-0">
                 {currentUser?.displayName ? currentUser.displayName[0].toUpperCase() : 'U'}
@@ -484,38 +486,39 @@ export const Feed: React.FC = () => {
           </div>
 
           {/* Quick Shortcuts */}
-          <div className="p-4 bg-slate-900/80 backdrop-blur-xl border border-slate-800/90 rounded-3xl space-y-2 shadow-xl text-xs font-semibold">
+          <div className="p-4 bg-slate-900/80 backdrop-blur-xl border border-slate-800/90 rounded-3xl space-y-2 shadow-xl text-xs font-semibold relative overflow-hidden group hover:border-purple-500/30 transition-all">
+            <div className="absolute top-0 inset-x-0 h-0.5 bg-gradient-to-r from-purple-400 to-pink-500 opacity-70 group-hover:opacity-100 transition-opacity" />
             <button
               onClick={() => navigate('/confessions')}
-              className="w-full p-2.5 rounded-2xl bg-purple-500/10 border border-purple-500/20 hover:bg-purple-500/20 text-purple-300 flex items-center justify-between transition-all cursor-pointer group"
+              className="w-full p-2.5 rounded-2xl bg-purple-500/10 border border-purple-500/20 hover:bg-purple-500/20 text-purple-300 flex items-center justify-between transition-all cursor-pointer group/conf"
             >
               <div className="flex items-center gap-2">
                 <Lock className="w-4 h-4 text-purple-400" />
                 <span>Campus Confessions</span>
               </div>
-              <span className="text-[10px] font-mono text-purple-400 font-bold">100% Secret ↗</span>
+              <span className="text-[10px] font-mono text-purple-400 font-bold group-hover/conf:translate-x-0.5 transition-transform">100% Secret ↗</span>
             </button>
 
             <button
               onClick={() => navigate('/groups')}
-              className="w-full p-2.5 rounded-2xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 flex items-center justify-between transition-all cursor-pointer"
+              className="w-full p-2.5 rounded-2xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 flex items-center justify-between transition-all cursor-pointer group/grp"
             >
               <div className="flex items-center gap-2">
                 <Users className="w-4 h-4 text-indigo-400" />
                 <span>Campus Groups</span>
               </div>
-              <span className="text-[10px] font-mono text-slate-500 font-bold">Explore</span>
+              <span className="text-[10px] font-mono text-slate-500 font-bold group-hover/grp:translate-x-0.5 transition-transform">Explore →</span>
             </button>
 
             <button
               onClick={() => navigate('/events')}
-              className="w-full p-2.5 rounded-2xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 flex items-center justify-between transition-all cursor-pointer"
+              className="w-full p-2.5 rounded-2xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 flex items-center justify-between transition-all cursor-pointer group/evt"
             >
               <div className="flex items-center gap-2">
                 <Calendar className="w-4 h-4 text-emerald-400" />
                 <span>Campus Events</span>
               </div>
-              <span className="text-[10px] font-mono text-slate-500 font-bold">Calendar</span>
+              <span className="text-[10px] font-mono text-slate-500 font-bold group-hover/evt:translate-x-0.5 transition-transform">Calendar →</span>
             </button>
           </div>
         </aside>
